@@ -115,15 +115,6 @@ export function AllocationChart({ slices }: AllocationChartProps) {
         </PieChart>
       </ResponsiveContainer>
 
-      {/* Legenda onder de donut */}
-      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 justify-center">
-        {segments.map((seg, i) => (
-          <div key={seg.name} className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: COLORS[i % COLORS.length] }} />
-            <span className="text-xs text-muted-foreground">{seg.name}</span>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }

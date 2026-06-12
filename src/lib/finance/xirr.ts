@@ -35,7 +35,7 @@ export function calculateXirr(cashflows: Cashflow[]): Decimal {
     )
   }
 
-  const TOLERANCE = 1e-8
+  const NPV_TOLERANCE = 1e-7
   const MAX_ITER = 100
 
   // Try multiple starting points to improve convergence
@@ -43,13 +43,12 @@ export function calculateXirr(cashflows: Cashflow[]): Decimal {
     let rate = guess
     for (let i = 0; i < MAX_ITER; i++) {
       const n = npv(rate)
+      if (Math.abs(n) < NPV_TOLERANCE) {
+        return new Decimal(rate).toDecimalPlaces(10)
+      }
       const dn = dnpv(rate)
       if (Math.abs(dn) < 1e-15) break
-      const newRate = rate - n / dn
-      if (Math.abs(newRate - rate) < TOLERANCE) {
-        return new Decimal(newRate).toDecimalPlaces(10)
-      }
-      rate = newRate
+      rate = rate - n / dn
     }
   }
 

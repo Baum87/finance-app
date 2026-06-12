@@ -1,4 +1,4 @@
-import { and, eq, desc, inArray } from 'drizzle-orm'
+import { and, eq, desc, asc, inArray, gte } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { transactions, assets, tenantUsers } from '@/lib/db/schema'
 import type { TransactionType } from '@/types'
@@ -97,4 +97,36 @@ export async function updateTransaction(
 export async function deleteTransaction(userId: string, transactionId: string) {
   await verifyTransactionAccess(userId, transactionId)
   await db.delete(transactions).where(eq(transactions.id, transactionId))
+}
+
+export type RawTransaction = {
+  transactionType: string
+  amount: string
+  transactionDate: string
+  currency: string
+}
+
+/**
+ * All transactions for a set of asset IDs, optionally filtered from a date.
+ * Used for portfolio XIRR/TWR calculations in page components.
+ */
+export async function getTransactionsByAssets(
+  assetIds: string[],
+  fromDate?: string,
+): Promise<RawTransaction[]> {
+  if (assetIds.length === 0) return []
+  const conditions = fromDate
+    ? and(inArray(transactions.assetId, assetIds), gte(transactions.transactionDate, fromDate))
+    : inArray(transactions.assetId, assetIds)
+
+  return db
+    .select({
+      transactionType: transactions.transactionType,
+      amount:          transactions.amount,
+      transactionDate: transactions.transactionDate,
+      currency:        transactions.currency,
+    })
+    .from(transactions)
+    .where(conditions)
+    .orderBy(asc(transactions.transactionDate))
 }

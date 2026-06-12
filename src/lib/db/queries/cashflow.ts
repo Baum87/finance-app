@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, inArray, desc } from 'drizzle-orm'
+import { and, eq, gte, lte, inArray, desc, asc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { transactions, assets, assetValuations, mortgages, mortgageBalances } from '@/lib/db/schema'
 import Decimal from 'decimal.js'
@@ -97,6 +97,29 @@ export async function getNetWorthAtDate(userId: string, date: string): Promise<D
   }
 
   return netWorth.toDecimalPlaces(2)
+}
+
+export type ValuationPoint = {
+  assetId: string
+  valuationDate: string
+  value: string
+}
+
+/**
+ * All valuations for a tenant, ordered by date ascending — used for the net worth time series chart.
+ */
+export async function getValuationTimeSeries(userId: string): Promise<ValuationPoint[]> {
+  const tenantId = await getOrCreateTenant(userId)
+  return db
+    .select({
+      assetId:       assetValuations.assetId,
+      valuationDate: assetValuations.valuationDate,
+      value:         assetValuations.value,
+    })
+    .from(assetValuations)
+    .innerJoin(assets, eq(assets.id, assetValuations.assetId))
+    .where(eq(assets.tenantId, tenantId))
+    .orderBy(asc(assetValuations.valuationDate))
 }
 
 /**

@@ -5,6 +5,7 @@ import { getAssetsWithValues, getAsset } from '@/lib/db/queries/assets'
 import { getTransactions } from '@/lib/db/queries/transactions'
 import {
   calculateNetRentalYield,
+  calculateGrossRentalYield,
   calculateCashOnCash,
   calculateLtv,
   calculateEquity,
@@ -127,6 +128,10 @@ export default async function VastgoedPage() {
                 .reduce((sum, t) => sum.plus(new Decimal(t.amount)), new Decimal(0))
             : new Decimal(0)
 
+          const grossRentalYield = isRental && storedValue.gt(0) && annualIncome.gt(0)
+            ? calculateGrossRentalYield(annualIncome, storedValue)
+            : null
+
           const netRentalYield = isRental && storedValue.gt(0)
             ? calculateNetRentalYield(annualIncome, annualCosts, storedValue)
             : null
@@ -194,7 +199,7 @@ export default async function VastgoedPage() {
               </div>
 
               {/* KPI cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className={`grid grid-cols-1 gap-4 ${isRental ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
                 {!isRental ? (
                   <>
                     <KpiCard
@@ -215,14 +220,19 @@ export default async function VastgoedPage() {
                 ) : (
                   <>
                     <KpiCard
+                      label="Bruto huurrendement"
+                      value={grossRentalYield ? formatPercent(grossRentalYield.toNumber()) : '—'}
+                      subtext="Jaarinkomen / pandwaarde"
+                    />
+                    <KpiCard
                       label="Netto huurrendement"
                       value={netRentalYield ? formatPercent(netRentalYield.toNumber()) : '—'}
-                      subtext="Op jaarbasis (huidig jaar)"
+                      subtext="Na kosten, op jaarbasis"
                     />
                     <KpiCard
                       label="Cash-on-cash rendement"
                       value={cashOnCash ? formatPercent(cashOnCash.toNumber()) : '—'}
-                      subtext="Netto cashflow / initiële investering"
+                      subtext="Netto cashflow / eigen inleg"
                     />
                     <KpiCard
                       label="Totaalrendement (XIRR)"

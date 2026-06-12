@@ -134,6 +134,7 @@ Gevonden: `deposit` en `withdrawal` worden genegeerd bij XIRR-berekening voor ve
 **[Finance] `grossYield` nergens in de UI aangeroepen**
 Verwacht: bruto huurrendement tonen op vastgoed-detailkaart
 Gevonden: `calculateGrossRentalYield` bestaat in `lib/finance` maar wordt niet gebruikt in de UI
+**✅ Opgelost:** bruto huurrendement KPI-kaart toegevoegd aan verhuurpand sectie (4-koloms grid)
 
 ---
 
@@ -141,6 +142,7 @@ Gevonden: `calculateGrossRentalYield` bestaat in `lib/finance` maar wordt niet g
 Bestand: `src/app/vermogen/page.tsx`, `src/app/cashflow/page.tsx`
 Verwacht: queries altijd via `lib/db/queries/`
 Gevonden: directe `db`-imports en inline queries in pagina-bestanden
+**✅ Opgelost:** `getValuationTimeSeries()` toegevoegd aan `cashflow.ts`; `getTransactionsByAssets()` toegevoegd aan `transactions.ts`; inline queries verwijderd uit beide pagina-bestanden
 
 ---
 
@@ -167,6 +169,7 @@ Gevonden: `throw new Error('Minimaal één periode vereist voor TWR')`
 Bestand: `src/lib/finance/xirr.ts`
 Verwacht: `|NPV(r)| < 1e-7` conform finance-logic.md
 Gevonden: `TOLERANCE = 1e-8` op de rate-delta, niet op NPV
+**✅ Opgelost:** drempel gewijzigd naar `|NPV(r)| < NPV_TOLERANCE (1e-7)`, check vóór Newton-stap
 
 ---
 
@@ -188,6 +191,7 @@ Gevonden: directe `Number(amount)` i.p.v. `new Decimal(amount).toNumber()`
 Bestand: `src/components/vermogen/AllocationChart.tsx`
 Verwacht: geen legenda-box — tooltip-only of directe labels
 Gevonden: rij met gekleurde bolletjes en labels onder de donut
+**✅ Opgelost:** legenda-sectie verwijderd; donut is nu tooltip-only
 
 ---
 
@@ -216,9 +220,9 @@ Gevonden: kolom heet `createdAt` in het Drizzle-schema
 | `f15e122` | Portfolio-link toegevoegd aan navigatie |
 | `4bbe6be` | `ValuationForm` + `MortgageBalanceForm` + server actions |
 | `6804b96` | `getOrCreateTenant()` — auto-aanmaken tenant bij ontbrekende registratie |
-| TBD | TWR: lege periodes → 0, startValue=0 → overslaan |
-| TBD | XIRR: mixed-signs check, alle cashflow-types conform spec |
-| TBD | cashOnCash noemer: eigen inleg = aankoopprijs + kosten − hypotheek |
-| TBD | `asset_tax_metadata` aanmaken bij createAsset |
-| TBD | `Number()` → `new Decimal().toNumber()` in TransactionList |
-| TBD | `"use client"` toegevoegd aan AssetList en TransactionList |
+| `1b9af0c` | TWR: lege periodes → 0, startValue=0 → overslaan |
+| `1b9af0c` | XIRR: mixed-signs check, alle cashflow-types conform spec |
+| `1b9af0c` | cashOnCash noemer: eigen inleg = aankoopprijs + kosten − hypotheek |
+| `1b9af0c` | `asset_tax_metadata` aanmaken bij createAsset |
+| `1b9af0c` | `Number()` → `new Decimal().toNumber()` in TransactionList |
+| `1b9af0c` | `"use client"` toegevoegd aan AssetList en TransactionList |

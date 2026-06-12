@@ -1,17 +1,14 @@
 import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
-import { getPassiveIncomeData, getNetWorthAtDate } from '@/lib/db/queries/cashflow'
+import { getPassiveIncomeData, getNetWorthAtDate, getValuationTimeSeries } from '@/lib/db/queries/cashflow'
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
 import { calculateNetWorth } from '@/lib/finance'
+import { buildNetWorthSeries } from '@/lib/finance'
 import { formatCurrency } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { PassiveIncomeBreakdown } from '@/components/cashflow/PassiveIncomeBreakdown'
 import { NetWorthChart } from '@/components/vermogen/NetWorthChart'
-import { db } from '@/lib/db'
-import { assetValuations, assets, tenantUsers } from '@/lib/db/schema'
-import { and, eq, asc } from 'drizzle-orm'
-import { buildNetWorthSeries } from '@/lib/finance'
 
 function toDateStr(date: Date): string {
   return date.toISOString().slice(0, 10)
@@ -27,11 +24,12 @@ export default async function CashflowPage() {
   const ytdFrom = `${currentYear}-01-01`
   const todayStr = toDateStr(today)
 
-  const [txData, assets_, mortgageMap, networthJan1] = await Promise.all([
+  const [txData, assets_, mortgageMap, networthJan1, valuationRows] = await Promise.all([
     getPassiveIncomeData(userId, ytdFrom, todayStr),
     getAssetsWithValues(userId),
     getMortgageBalancesMap(userId),
     getNetWorthAtDate(userId, ytdFrom),
+    getValuationTimeSeries(userId),
   ])
 
   // Passief inkomen YTD
@@ -52,26 +50,6 @@ export default async function CashflowPage() {
 
   const networthGrowth = networthJan1 != null ? networthToday.minus(networthJan1) : null
   const growthPositive = networthGrowth?.gte(0) ?? true
-
-  // Chart data uit valuations
-  const tenantRows = await db
-    .select({ tenantId: tenantUsers.tenantId })
-    .from(tenantUsers)
-    .where(and(eq(tenantUsers.userId, userId), eq(tenantUsers.role, 'owner')))
-    .limit(1)
-
-  const tenantId = tenantRows[0]?.tenantId ?? ''
-
-  const valuationRows = await db
-    .select({
-      assetId:       assetValuations.assetId,
-      valuationDate: assetValuations.valuationDate,
-      value:         assetValuations.value,
-    })
-    .from(assetValuations)
-    .innerJoin(assets, eq(assets.id, assetValuations.assetId))
-    .where(eq(assets.tenantId, tenantId))
-    .orderBy(asc(assetValuations.valuationDate))
 
   const series = buildNetWorthSeries(
     valuationRows.map(v => ({

@@ -1,6 +1,8 @@
 import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getLiquidAssetsWithCalculations, getAssetsWithValues } from '@/lib/db/queries/assets'
+import { getTransactionsByAssets } from '@/lib/db/queries/transactions'
+import { getValuationTimeSeries } from '@/lib/db/queries/cashflow'
 import { calculateXirr, calculateAllocation, calculateExcessReturn } from '@/lib/finance'
 import { buildNetWorthSeries } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
@@ -10,31 +12,29 @@ import { NetWorthChart } from '@/components/vermogen/NetWorthChart'
 import { AssetTable } from '@/components/vermogen/AssetTable'
 import { AllocationChart } from '@/components/vermogen/AllocationChart'
 import { getBenchmarkTwr } from '@/lib/services/benchmark'
-import { getOrCreateTenant } from '@/lib/db/queries/tenant'
-import { db } from '@/lib/db'
-import { transactions, assets, assetValuations } from '@/lib/db/schema'
-import { and, eq, gte, inArray, asc } from 'drizzle-orm'
 
 const LIQUID_TYPES = ['stock_etf', 'crypto', 'savings']
+const XIRR_OUTFLOWS = new Set(['buy', 'deposit', 'cost'])
+const XIRR_INFLOWS  = new Set(['sell', 'withdrawal', 'dividend', 'interest', 'rental_income'])
 
 export default async function VermogenPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   const userId = user!.id
 
-  const [liquidAssets, allAssets] = await Promise.all([
+  const currentYear = new Date().getFullYear()
+  const ytdStart = `${currentYear}-01-01`
+
+  const [liquidAssets, allAssets, valuationRows] = await Promise.all([
     getLiquidAssetsWithCalculations(userId),
     getAssetsWithValues(userId),
+    getValuationTimeSeries(userId),
   ])
 
   // Totaal vermogen liquide assets
   const totalLiquid = liquidAssets.reduce((sum, a) => sum.plus(a.currentValue), new Decimal(0))
 
   // Portfolio XIRR YTD — alle transacties van liquide assets vanaf 1 jan huidig jaar
-  const currentYear = new Date().getFullYear()
-  const ytdStart = `${currentYear}-01-01`
-
-  const tenantId = await getOrCreateTenant(userId)
   const liquidAssetIds = allAssets
     .filter(a => LIQUID_TYPES.includes(a.assetType))
     .map(a => a.id)
@@ -42,23 +42,13 @@ export default async function VermogenPage() {
   let portfolioXirr: Decimal | null = null
 
   if (liquidAssetIds.length > 0 && totalLiquid.gt(0)) {
-    const ytdTxs = await db
-      .select()
-      .from(transactions)
-      .innerJoin(assets, eq(assets.id, transactions.assetId))
-      .where(
-        and(
-          inArray(transactions.assetId, liquidAssetIds),
-          gte(transactions.transactionDate, ytdStart),
-        ),
-      )
-      .orderBy(asc(transactions.transactionDate))
+    const ytdTxs = await getTransactionsByAssets(liquidAssetIds, ytdStart)
 
     const cashflows = ytdTxs
-      .filter(r => ['buy', 'sell', 'deposit', 'withdrawal'].includes(r.transactions.transactionType))
+      .filter(r => XIRR_OUTFLOWS.has(r.transactionType) || XIRR_INFLOWS.has(r.transactionType))
       .map(r => {
-        const sign = r.transactions.transactionType === 'buy' || r.transactions.transactionType === 'deposit' ? -1 : 1
-        return { amount: new Decimal(r.transactions.amount).mul(sign), date: new Date(r.transactions.transactionDate) }
+        const sign = XIRR_OUTFLOWS.has(r.transactionType) ? -1 : 1
+        return { amount: new Decimal(r.amount).mul(sign), date: new Date(r.transactionDate) }
       })
 
     if (cashflows.length >= 1) {
@@ -79,17 +69,6 @@ export default async function VermogenPage() {
     : null
 
   // Vermogensontwikkeling tijdreeks — op basis van asset valuations
-  const valuationRows = await db
-    .select({
-      assetId:       assetValuations.assetId,
-      valuationDate: assetValuations.valuationDate,
-      value:         assetValuations.value,
-    })
-    .from(assetValuations)
-    .innerJoin(assets, eq(assets.id, assetValuations.assetId))
-    .where(eq(assets.tenantId, tenantId))
-    .orderBy(asc(assetValuations.valuationDate))
-
   const series = buildNetWorthSeries(
     valuationRows.map(v => ({
       assetId: v.assetId,
