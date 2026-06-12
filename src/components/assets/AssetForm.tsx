@@ -178,7 +178,7 @@ export function AssetForm({ action, initialData, assetId }: Props) {
       {assetId && <input type="hidden" name="assetId" value={assetId} />}
 
       {state?.error && (
-        <div className="rounded-xl border border-terracotta/30 bg-terracotta/10 p-3 text-sm text-terracotta">
+        <div className="rounded-lg border border-terracotta/30 bg-terracotta/10 p-3 text-sm text-terracotta">
           {state.error}
         </div>
       )}

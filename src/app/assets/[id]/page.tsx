@@ -44,7 +44,7 @@ function KpiCard({
     : accent === 'negative' ? 'text-[var(--color-terracotta)]'
     : 'text-foreground'
   return (
-    <div className="rounded-[24px] border border-border bg-card p-6">
+    <div className="rounded-3xl border border-border bg-card p-6">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className={`mt-3 text-2xl font-semibold ${valueClass}`}>{value}</p>
       {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
@@ -179,7 +179,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
 
         {/* Waardering invoeren — savings, real_estate, pension */}
         {showValuationSection && (
-          <div className="rounded-[24px] border border-border bg-card p-6 space-y-4">
+          <div className="rounded-3xl border border-border bg-card p-6 space-y-4">
             <ValuationForm
               assetId={asset.id}
               currency={asset.currency}
@@ -198,7 +198,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
 
         {/* Hypotheeksaldo bijwerken — alleen voor real_estate met hypotheek */}
         {mortgagesWithBalances.map(mortgage => (
-          <div key={mortgage.id} className="rounded-[24px] border border-border bg-card p-6 space-y-4">
+          <div key={mortgage.id} className="rounded-3xl border border-border bg-card p-6 space-y-4">
             <MortgageBalanceForm
               assetId={asset.id}
               mortgageId={mortgage.id}
@@ -210,7 +210,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
         ))}
 
         {/* Asset details */}
-        <div className="rounded-[24px] border border-border bg-card p-6">
+        <div className="rounded-3xl border border-border bg-card p-6">
           <p className="text-sm font-medium text-foreground mb-4">Details</p>
           {asset.stockEtfDetails && (
             <>

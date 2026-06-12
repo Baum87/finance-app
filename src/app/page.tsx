@@ -68,7 +68,7 @@ export default async function OverzichtPage() {
 
         {/* Blok 1 — Hero */}
         <section className="py-4">
-          <h1 className="text-4xl font-semibold text-foreground leading-tight">
+          <h1 className="text-[clamp(2rem,4vw,3rem)] font-semibold text-foreground leading-tight">
             {getGreeting()}{firstName ? `, ${firstName}` : ''}
           </h1>
           <p className="mt-2 text-lg font-light text-muted-foreground">
@@ -111,7 +111,7 @@ export default async function OverzichtPage() {
           <div className="flex justify-end">
             <Link
               href="/cashflow"
-              className="text-sm text-muted-foreground border border-border rounded-lg px-3 py-1.5 hover:bg-muted transition-colors"
+              className="text-sm font-medium text-[var(--color-blue-brand)] hover:opacity-70 transition-opacity"
             >
               Bekijk details →
             </Link>

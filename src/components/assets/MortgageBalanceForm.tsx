@@ -24,7 +24,7 @@ export function MortgageBalanceForm({ assetId, mortgageId, lender, action }: Pro
       <p className="text-sm font-medium text-foreground">Hypotheeksaldo bijwerken — {lender}</p>
 
       {state?.error && (
-        <div className="rounded-xl border border-terracotta/30 bg-terracotta/10 p-3 text-sm text-terracotta">
+        <div className="rounded-lg border border-terracotta/30 bg-terracotta/10 p-3 text-sm text-terracotta">
           {state.error}
         </div>
       )}

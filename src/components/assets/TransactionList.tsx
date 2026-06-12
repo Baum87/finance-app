@@ -30,7 +30,7 @@ function formatDate(date: string): string {
 export function TransactionList({ transactions, assetId }: { transactions: Transaction[]; assetId: string }) {
   if (transactions.length === 0) {
     return (
-      <div className="rounded-[24px] border border-border bg-card p-10 flex flex-col items-center gap-4">
+      <div className="rounded-3xl border border-border bg-card p-10 flex flex-col items-center gap-4">
         <p className="text-sm text-muted-foreground">Nog geen transacties.</p>
         <Link
           href={`/assets/${assetId}/transactions/new`}
@@ -43,7 +43,7 @@ export function TransactionList({ transactions, assetId }: { transactions: Trans
   }
 
   return (
-    <div className="rounded-[24px] border border-border bg-card overflow-hidden">
+    <div className="rounded-3xl border border-border bg-card overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow>

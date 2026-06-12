@@ -28,7 +28,7 @@ function formatCurrency(value: number, currency: string): string {
 export function AssetList({ assets }: { assets: AssetRow[] }) {
   if (assets.length === 0) {
     return (
-      <div className="rounded-[24px] border border-border bg-card p-12 flex flex-col items-center gap-4">
+      <div className="rounded-3xl border border-border bg-card p-12 flex flex-col items-center gap-4">
         <p className="text-sm text-muted-foreground">Nog geen assets toegevoegd.</p>
         <Link
           href="/assets/new"
@@ -41,7 +41,7 @@ export function AssetList({ assets }: { assets: AssetRow[] }) {
   }
 
   return (
-    <div className="rounded-[24px] border border-border bg-card overflow-hidden">
+    <div className="rounded-3xl border border-border bg-card overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow>

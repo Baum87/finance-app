@@ -25,7 +25,7 @@ export default async function EditAssetPage({ params }: { params: Promise<{ id: 
           <h1 className="mt-4 text-2xl font-semibold text-foreground">Bewerken</h1>
         </div>
 
-        <div className="max-w-2xl rounded-[24px] border border-border bg-card p-8">
+        <div className="max-w-2xl rounded-3xl border border-border bg-card p-8">
           <AssetForm action={updateAssetAction} initialData={asset} assetId={asset.id} />
         </div>
       </main>

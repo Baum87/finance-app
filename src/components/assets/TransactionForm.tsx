@@ -44,7 +44,7 @@ export function TransactionForm({ action, assetId, transactionId, initialData }:
       {transactionId && <input type="hidden" name="transactionId" value={transactionId} />}
 
       {state?.error && (
-        <div className="rounded-xl border border-terracotta/30 bg-terracotta/10 p-3 text-sm text-terracotta">
+        <div className="rounded-lg border border-terracotta/30 bg-terracotta/10 p-3 text-sm text-terracotta">
           {state.error}
         </div>
       )}

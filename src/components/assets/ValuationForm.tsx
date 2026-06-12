@@ -24,7 +24,7 @@ export function ValuationForm({ assetId, currency, action, label = 'Huidige waar
       <p className="text-sm font-medium text-foreground">{label}</p>
 
       {state?.error && (
-        <div className="rounded-xl border border-terracotta/30 bg-terracotta/10 p-3 text-sm text-terracotta">
+        <div className="rounded-lg border border-terracotta/30 bg-terracotta/10 p-3 text-sm text-terracotta">
           {state.error}
         </div>
       )}

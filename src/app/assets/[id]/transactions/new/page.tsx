@@ -26,7 +26,7 @@ export default async function NewTransactionPage({ params }: { params: Promise<{
           <p className="mt-1 text-sm text-muted-foreground">{asset.name}</p>
         </div>
 
-        <div className="max-w-2xl rounded-[24px] border border-border bg-card p-8">
+        <div className="max-w-2xl rounded-3xl border border-border bg-card p-8">
           <TransactionForm action={createTransactionAction} assetId={asset.id} />
         </div>
       </main>
