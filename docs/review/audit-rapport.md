@@ -171,6 +171,7 @@ Gevonden: kolom ontbreekt in Drizzle-schema
 Bestand: `src/lib/finance/twr.ts`
 Verwacht: finance-logic.md — "Geen sub-periodes → TWR = 0"
 Gevonden: `throw new Error('Minimaal één periode vereist voor TWR')`
+**✅ Opgelost:** lege periodes geven `new Decimal(0)` terug (commit `1b9af0c`)
 
 ---
 
