@@ -1,17 +1,8 @@
 import { and, eq, gte, lte, inArray, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { transactions, assets, tenantUsers, assetValuations, mortgages, mortgageBalances } from '@/lib/db/schema'
+import { transactions, assets, assetValuations, mortgages, mortgageBalances } from '@/lib/db/schema'
 import Decimal from 'decimal.js'
-
-async function getTenantId(userId: string): Promise<string> {
-  const rows = await db
-    .select({ tenantId: tenantUsers.tenantId })
-    .from(tenantUsers)
-    .where(and(eq(tenantUsers.userId, userId), eq(tenantUsers.role, 'owner')))
-    .limit(1)
-  if (!rows[0]) throw new Error('Geen tenant gevonden')
-  return rows[0].tenantId
-}
+import { getOrCreateTenant } from './tenant'
 
 export type PassiveIncomeTx = {
   transactionType: string
@@ -28,7 +19,7 @@ export async function getPassiveIncomeData(
   from: string,
   to: string,
 ): Promise<PassiveIncomeTx[]> {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
 
   const rows = await db
     .select({
@@ -55,7 +46,7 @@ export async function getPassiveIncomeData(
  * Returns null if no valuations exist at or before the given date.
  */
 export async function getNetWorthAtDate(userId: string, date: string): Promise<Decimal | null> {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
 
   // Get all valuations on or before the date
   const valuationRows = await db
@@ -116,7 +107,7 @@ export async function getPortfolioTxDates(
   from: string,
   to: string,
 ): Promise<Date[]> {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
 
   const rows = await db
     .select({ transactionDate: transactions.transactionDate })

@@ -17,20 +17,10 @@ import {
   calculateQuantityHeld,
 } from '@/lib/finance'
 import type { Cashflow } from '@/lib/finance'
-
-async function getTenantId(userId: string): Promise<string> {
-  const rows = await db
-    .select({ tenantId: tenantUsers.tenantId })
-    .from(tenantUsers)
-    .where(and(eq(tenantUsers.userId, userId), eq(tenantUsers.role, 'owner')))
-    .limit(1)
-
-  if (!rows[0]) throw new Error('Geen tenant gevonden voor gebruiker')
-  return rows[0].tenantId
-}
+import { getOrCreateTenant } from './tenant'
 
 export async function getAssets(userId: string) {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
   return db.query.assets.findMany({
     where: and(eq(assets.tenantId, tenantId), eq(assets.isActive, true)),
     with: {
@@ -51,7 +41,7 @@ export async function getAssets(userId: string) {
 export type AssetWithDetails = Awaited<ReturnType<typeof getAssets>>[number]
 
 export async function getAsset(userId: string, assetId: string) {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
   return db.query.assets.findFirst({
     where: and(
       eq(assets.id, assetId),
@@ -146,7 +136,7 @@ export type CreateAssetInput = {
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 export async function createAsset(userId: string, data: CreateAssetInput) {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
 
   return db.transaction(async (tx) => {
     const [asset] = await tx
@@ -220,7 +210,7 @@ export async function updateAsset(
   assetId: string,
   data: { name: string; currency: string; details: AssetDetailsInput },
 ) {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
 
   return db.transaction(async (tx) => {
     const [asset] = await tx
@@ -277,7 +267,7 @@ export async function updateAsset(
 }
 
 export async function deleteAsset(userId: string, assetId: string) {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
   await db
     .update(assets)
     .set({ isActive: false, updatedAt: new Date() })
@@ -502,7 +492,7 @@ export async function getLiquidAssetsWithCalculations(userId: string): Promise<P
  * Used to compute net worth including real estate liabilities.
  */
 export async function getMortgageBalancesMap(userId: string): Promise<Map<string, Decimal>> {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
 
   const rows = await db
     .select({

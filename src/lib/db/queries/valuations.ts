@@ -1,23 +1,14 @@
 import { and, eq, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { assetValuations, assets, tenantUsers } from '@/lib/db/schema'
-
-async function getTenantId(userId: string): Promise<string> {
-  const rows = await db
-    .select({ tenantId: tenantUsers.tenantId })
-    .from(tenantUsers)
-    .where(and(eq(tenantUsers.userId, userId), eq(tenantUsers.role, 'owner')))
-    .limit(1)
-  if (!rows[0]) throw new Error('Geen tenant gevonden')
-  return rows[0].tenantId
-}
+import { assetValuations, assets } from '@/lib/db/schema'
+import { getOrCreateTenant } from './tenant'
 
 export async function createValuation(
   userId: string,
   assetId: string,
   data: { valuationDate: string; value: string; currency?: string },
 ) {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
 
   // Verify asset belongs to this tenant
   const asset = await db
@@ -41,7 +32,7 @@ export async function createValuation(
 }
 
 export async function getValuations(userId: string, assetId: string, limit = 10) {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
 
   return db
     .select({

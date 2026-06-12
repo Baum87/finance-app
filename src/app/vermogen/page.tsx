@@ -10,21 +10,12 @@ import { NetWorthChart } from '@/components/vermogen/NetWorthChart'
 import { AssetTable } from '@/components/vermogen/AssetTable'
 import { AllocationChart } from '@/components/vermogen/AllocationChart'
 import { getBenchmarkTwr } from '@/lib/services/benchmark'
+import { getOrCreateTenant } from '@/lib/db/queries/tenant'
 import { db } from '@/lib/db'
-import { transactions, assets, tenantUsers, assetValuations } from '@/lib/db/schema'
+import { transactions, assets, assetValuations } from '@/lib/db/schema'
 import { and, eq, gte, inArray, asc } from 'drizzle-orm'
 
 const LIQUID_TYPES = ['stock_etf', 'crypto', 'savings']
-
-async function getTenantId(userId: string): Promise<string> {
-  const rows = await db
-    .select({ tenantId: tenantUsers.tenantId })
-    .from(tenantUsers)
-    .where(and(eq(tenantUsers.userId, userId), eq(tenantUsers.role, 'owner')))
-    .limit(1)
-  if (!rows[0]) throw new Error('Geen tenant gevonden')
-  return rows[0].tenantId
-}
 
 export default async function VermogenPage() {
   const supabase = await createServerSupabaseClient()
@@ -43,7 +34,7 @@ export default async function VermogenPage() {
   const currentYear = new Date().getFullYear()
   const ytdStart = `${currentYear}-01-01`
 
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
   const liquidAssetIds = allAssets
     .filter(a => LIQUID_TYPES.includes(a.assetType))
     .map(a => a.id)
