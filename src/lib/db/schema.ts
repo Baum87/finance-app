@@ -51,7 +51,7 @@ export const assets = pgTable('assets', {
 }, (t) => [
   index('assets_tenant_id_idx').on(t.tenantId),
   index('assets_asset_type_idx').on(t.assetType),
-  check('assets_asset_type_check', sql`${t.assetType} IN ('stock_etf', 'crypto', 'savings', 'real_estate', 'pension')`),
+  check('assets_asset_type_check', sql`${t.assetType} IN ('stock_etf', 'crypto', 'savings', 'real_estate', 'pension', 'vordering')`),
 ])
 
 // ─── transactions ─────────────────────────────────────────────────────────────
@@ -128,6 +128,21 @@ export const pensionDetails = pgTable('pension_details', {
   pensionType:             text('pension_type').notNull(),
   projectedAnnualBenefit:  numeric('projected_annual_benefit', { precision: 15, scale: 2 }),
 })
+
+// ─── vordering_details ───────────────────────────────────────────────────────
+
+export const vorderingDetails = pgTable('vordering_details', {
+  id:              uuid('id').primaryKey().defaultRandom(),
+  assetId:         uuid('asset_id').notNull().unique().references(() => assets.id, { onDelete: 'cascade' }),
+  counterparty:    text('counterparty').notNull(),
+  principalAmount: numeric('principal_amount', { precision: 15, scale: 2 }).notNull(),
+  interestRate:    numeric('interest_rate', { precision: 8, scale: 4 }),
+  startDate:       date('start_date'),
+  endDate:         date('end_date'),
+  loanType:        text('loan_type').notNull().default('family'),
+}, (t) => [
+  check('vordering_loan_type_check', sql`${t.loanType} IN ('family', 'business', 'other')`),
+])
 
 // ─── real_estate_details ─────────────────────────────────────────────────────
 
@@ -248,6 +263,7 @@ export const assetsRelations = relations(assets, ({ one, many }) => ({
   savingsDetails:    one(savingsDetails,     { fields: [assets.id], references: [savingsDetails.assetId] }),
   pensionDetails:    one(pensionDetails,     { fields: [assets.id], references: [pensionDetails.assetId] }),
   realEstateDetails: one(realEstateDetails,  { fields: [assets.id], references: [realEstateDetails.assetId] }),
+  vorderingDetails:  one(vorderingDetails,   { fields: [assets.id], references: [vorderingDetails.assetId] }),
   mortgages:         many(mortgages),
   taxMetadata:       one(assetTaxMetadata,   { fields: [assets.id], references: [assetTaxMetadata.assetId] }),
 }))
@@ -270,6 +286,10 @@ export const pensionDetailsRelations = relations(pensionDetails, ({ one }) => ({
 
 export const realEstateDetailsRelations = relations(realEstateDetails, ({ one }) => ({
   asset: one(assets, { fields: [realEstateDetails.assetId], references: [assets.id] }),
+}))
+
+export const vorderingDetailsRelations = relations(vorderingDetails, ({ one }) => ({
+  asset: one(assets, { fields: [vorderingDetails.assetId], references: [assets.id] }),
 }))
 
 export const assetTaxMetadataRelations = relations(assetTaxMetadata, ({ one }) => ({

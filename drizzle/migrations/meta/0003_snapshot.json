@@ -1,6 +1,6 @@
 {
-  "id": "84647b59-11b6-4fbd-937d-91e37d276c9e_0002",
-  "prevId": "84647b59-11b6-4fbd-937d-91e37d276c9e",
+  "id": "a0e01bd9-aadc-4b9d-afb4-619d3b1e4fc9",
+  "prevId": "84647b59-11b6-4fbd-937d-91e37d276c9e_0002",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -298,7 +298,7 @@
       "checkConstraints": {
         "assets_asset_type_check": {
           "name": "assets_asset_type_check",
-          "value": "\"assets\".\"asset_type\" IN ('stock_etf', 'crypto', 'savings', 'real_estate', 'pension')"
+          "value": "\"assets\".\"asset_type\" IN ('stock_etf', 'crypto', 'savings', 'real_estate', 'pension', 'vordering')"
         }
       },
       "isRLSEnabled": false
@@ -1362,6 +1362,96 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.vordering_details": {
+      "name": "vordering_details",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "asset_id": {
+          "name": "asset_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "counterparty": {
+          "name": "counterparty",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "principal_amount": {
+          "name": "principal_amount",
+          "type": "numeric(15, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "interest_rate": {
+          "name": "interest_rate",
+          "type": "numeric(8, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "loan_type": {
+          "name": "loan_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'family'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "vordering_details_asset_id_assets_id_fk": {
+          "name": "vordering_details_asset_id_assets_id_fk",
+          "tableFrom": "vordering_details",
+          "tableTo": "assets",
+          "columnsFrom": [
+            "asset_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "vordering_details_asset_id_unique": {
+          "name": "vordering_details_asset_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "asset_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "vordering_loan_type_check": {
+          "name": "vordering_loan_type_check",
+          "value": "\"vordering_details\".\"loan_type\" IN ('family', 'business', 'other')"
+        }
+      },
       "isRLSEnabled": false
     }
   },

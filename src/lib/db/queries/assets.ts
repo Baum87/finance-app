@@ -2,7 +2,7 @@ import { and, eq, desc, asc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import {
   assets, tenantUsers, stockEtfDetails, cryptoDetails,
-  savingsDetails, pensionDetails, realEstateDetails,
+  savingsDetails, pensionDetails, realEstateDetails, vorderingDetails,
   mortgages, mortgageBalances, assetValuations, transactions, assetTaxMetadata,
 } from '@/lib/db/schema'
 import type { AssetType } from '@/types'
@@ -29,6 +29,7 @@ export async function getAssets(userId: string) {
       savingsDetails: true,
       pensionDetails: true,
       realEstateDetails: true,
+      vorderingDetails: true,
       valuations: {
         orderBy: [desc(assetValuations.valuationDate)],
         limit: 1,
@@ -54,6 +55,7 @@ export async function getAsset(userId: string, assetId: string) {
       savingsDetails: true,
       pensionDetails: true,
       realEstateDetails: true,
+      vorderingDetails: true,
       mortgages: {
         with: {
           balances: {
@@ -119,12 +121,23 @@ export type RealEstateInput = {
   } | null
 }
 
+export type VorderingInput = {
+  kind: 'vordering'
+  counterparty: string
+  principalAmount: string
+  interestRate?: string | null
+  startDate?: string | null
+  endDate?: string | null
+  loanType?: string | null
+}
+
 export type AssetDetailsInput =
   | StockEtfInput
   | CryptoInput
   | SavingsInput
   | PensionInput
   | RealEstateInput
+  | VorderingInput
 
 export type CreateAssetInput = {
   name: string
@@ -206,6 +219,17 @@ export async function createAsset(userId: string, data: CreateAssetInput) {
           })
         }
         break
+      case 'vordering':
+        await tx.insert(vorderingDetails).values({
+          assetId: asset.id,
+          counterparty: d.counterparty,
+          principalAmount: d.principalAmount,
+          interestRate: d.interestRate ?? null,
+          startDate: d.startDate ?? null,
+          endDate: d.endDate ?? null,
+          loanType: d.loanType ?? 'family',
+        })
+        break
     }
 
     // Altijd een leeg tax_metadata record aanmaken (conform data-model.md)
@@ -269,6 +293,19 @@ export async function updateAsset(
             wozValue: d.wozValue ?? null,
           })
           .where(eq(realEstateDetails.assetId, assetId))
+        break
+      case 'vordering':
+        await tx
+          .update(vorderingDetails)
+          .set({
+            counterparty: d.counterparty,
+            principalAmount: d.principalAmount,
+            interestRate: d.interestRate ?? null,
+            startDate: d.startDate ?? null,
+            endDate: d.endDate ?? null,
+            loanType: d.loanType ?? 'family',
+          })
+          .where(eq(vorderingDetails.assetId, assetId))
         break
     }
 

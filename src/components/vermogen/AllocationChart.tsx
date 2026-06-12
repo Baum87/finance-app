@@ -11,6 +11,7 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   savings:     'Sparen',
   real_estate: 'Vastgoed',
   pension:     'Pensioen',
+  vordering:   'Vorderingen',
 }
 
 interface AllocationChartProps {

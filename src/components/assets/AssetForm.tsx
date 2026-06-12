@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { ActionState } from '@/app/assets/actions'
 import type { AssetDetail } from '@/lib/db/queries/assets'
 
-type AssetType = 'stock_etf' | 'crypto' | 'savings' | 'real_estate' | 'pension'
+type AssetType = 'stock_etf' | 'crypto' | 'savings' | 'real_estate' | 'pension' | 'vordering'
 
 const ASSET_TYPE_OPTIONS: { value: AssetType; label: string }[] = [
   { value: 'stock_etf',   label: 'Aandeel / ETF' },
@@ -15,12 +15,14 @@ const ASSET_TYPE_OPTIONS: { value: AssetType; label: string }[] = [
   { value: 'savings',     label: 'Spaarrekening' },
   { value: 'real_estate', label: 'Vastgoed' },
   { value: 'pension',     label: 'Pensioen' },
+  { value: 'vordering',   label: 'Vordering' },
 ]
 
 type Props = {
   action: (prev: ActionState, fd: FormData) => Promise<ActionState>
   initialData?: NonNullable<AssetDetail>
   assetId?: string
+  lockedType?: string
 }
 
 function Field({ label, name, type = 'text', defaultValue, placeholder, required }: {
@@ -114,6 +116,30 @@ function PensionSection({ data }: { data?: NonNullable<AssetDetail>['pensionDeta
   )
 }
 
+function VorderingSection({ data }: { data?: NonNullable<AssetDetail>['vorderingDetails'] }) {
+  return (
+    <div className="space-y-4 pt-4 border-t border-border">
+      <p className="text-sm font-medium text-foreground">Vordering details</p>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Schuldenaar" name="counterparty" defaultValue={data?.counterparty} placeholder="Jan Jansen" required />
+        <Field label="Geleend bedrag (€)" name="principalAmount" defaultValue={data?.principalAmount} placeholder="25000" required />
+        <Field label="Rente (%)" name="interestRate" defaultValue={data?.interestRate ?? ''} placeholder="3.00" />
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="loanType" className="text-sm font-medium leading-none">Type lening</label>
+          <select name="loanType" id="loanType" defaultValue={data?.loanType ?? 'family'}
+            className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors">
+            <option value="family">Familielening</option>
+            <option value="business">Zakelijk</option>
+            <option value="other">Overig</option>
+          </select>
+        </div>
+        <Field label="Startdatum" name="startDate" type="date" defaultValue={data?.startDate ?? ''} />
+        <Field label="Verwachte einddatum" name="endDate" type="date" defaultValue={data?.endDate ?? ''} />
+      </div>
+    </div>
+  )
+}
+
 function RealEstateSection({ data, propertyType, onPropertyTypeChange }: {
   data?: NonNullable<AssetDetail>['realEstateDetails']
   propertyType: string
@@ -164,10 +190,10 @@ function RealEstateSection({ data, propertyType, onPropertyTypeChange }: {
   )
 }
 
-export function AssetForm({ action, initialData, assetId }: Props) {
+export function AssetForm({ action, initialData, assetId, lockedType }: Props) {
   const [state, formAction, isPending] = useActionState(action, null)
   const [assetType, setAssetType] = useState<AssetType>(
-    (initialData?.assetType as AssetType) ?? 'stock_etf'
+    (initialData?.assetType as AssetType) ?? (lockedType as AssetType) ?? 'stock_etf'
   )
   const [propertyType, setPropertyType] = useState(
     initialData?.realEstateDetails?.propertyType ?? 'primary_residence'
@@ -188,21 +214,25 @@ export function AssetForm({ action, initialData, assetId }: Props) {
         <div className="col-span-2">
           <Field label="Naam" name="name" defaultValue={initialData?.name} placeholder="VWRL ETF" required />
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="assetType">Type<span className="text-terracotta ml-0.5">*</span></Label>
-          <select
-            name="assetType"
-            id="assetType"
-            value={assetType}
-            onChange={e => setAssetType(e.target.value as AssetType)}
-            className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors"
-            disabled={!!initialData}
-          >
-            {ASSET_TYPE_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
+        {!lockedType && !initialData && (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="assetType">Type<span className="text-terracotta ml-0.5">*</span></Label>
+            <select
+              name="assetType"
+              id="assetType"
+              value={assetType}
+              onChange={e => setAssetType(e.target.value as AssetType)}
+              className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors"
+            >
+              {ASSET_TYPE_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {(lockedType || initialData) && (
+          <input type="hidden" name="assetType" value={assetType} />
+        )}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="currency">Valuta</Label>
           <select name="currency" id="currency" defaultValue={initialData?.currency ?? 'EUR'}
@@ -220,6 +250,7 @@ export function AssetForm({ action, initialData, assetId }: Props) {
       {assetType === 'crypto'      && <CryptoSection      data={initialData?.cryptoDetails ?? undefined} />}
       {assetType === 'savings'     && <SavingsSection     data={initialData?.savingsDetails ?? undefined} />}
       {assetType === 'pension'     && <PensionSection     data={initialData?.pensionDetails ?? undefined} />}
+      {assetType === 'vordering'   && <VorderingSection   data={initialData?.vorderingDetails ?? undefined} />}
       {assetType === 'real_estate' && (
         <RealEstateSection
           data={initialData?.realEstateDetails ?? undefined}

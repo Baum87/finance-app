@@ -18,6 +18,7 @@ ALTER TABLE public.mortgages         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mortgage_balances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.liabilities       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.asset_tax_metadata ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vordering_details  ENABLE ROW LEVEL SECURITY;
 -- fx_rates: GEEN RLS — gedeelde tabel, niet user-gebonden
 
 -- ─── users ──────────────────────────────────────────────────────────────────
@@ -308,6 +309,41 @@ CREATE POLICY "real_estate_details_update" ON public.real_estate_details
     )
   );
 CREATE POLICY "real_estate_details_delete" ON public.real_estate_details
+  FOR DELETE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+
+-- ─── vordering_details ───────────────────────────────────────────────────────
+
+CREATE POLICY "vordering_details_select" ON public.vordering_details
+  FOR SELECT USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+CREATE POLICY "vordering_details_insert" ON public.vordering_details
+  FOR INSERT WITH CHECK (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+CREATE POLICY "vordering_details_update" ON public.vordering_details
+  FOR UPDATE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+CREATE POLICY "vordering_details_delete" ON public.vordering_details
   FOR DELETE USING (
     asset_id IN (
       SELECT a.id FROM public.assets a

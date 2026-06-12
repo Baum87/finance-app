@@ -16,6 +16,7 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   savings:     'Spaarrekening',
   real_estate: 'Vastgoed',
   pension:     'Pensioen',
+  vordering:   'Vordering',
 }
 
 // Asset types where value comes from stored valuations

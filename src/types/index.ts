@@ -10,6 +10,7 @@ export type AssetType =
   | 'savings'
   | 'real_estate'
   | 'pension'
+  | 'vordering'
 
 export type TransactionType =
   | 'buy'

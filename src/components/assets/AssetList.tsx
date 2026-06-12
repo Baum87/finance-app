@@ -19,6 +19,7 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   savings:      'Spaarrekening',
   real_estate:  'Vastgoed',
   pension:      'Pensioen',
+  vordering:    'Vordering',
 }
 
 function formatCurrency(value: number, currency: string): string {

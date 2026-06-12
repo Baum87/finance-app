@@ -29,7 +29,7 @@ async function requireUser() {
 
 const baseSchema = z.object({
   name:      z.string().min(1, 'Naam is verplicht'),
-  assetType: z.enum(['stock_etf', 'crypto', 'savings', 'real_estate', 'pension']),
+  assetType: z.enum(['stock_etf', 'crypto', 'savings', 'real_estate', 'pension', 'vordering']),
   currency:  z.string().default('EUR'),
 })
 
@@ -55,6 +55,15 @@ const pensionSchema = z.object({
   provider:               z.string().min(1, 'Aanbieder is verplicht'),
   pensionType:            z.string().min(1, 'Type is verplicht'),
   projectedAnnualBenefit: z.string().optional(),
+})
+
+const vorderingSchema = z.object({
+  counterparty:    z.string().min(1, 'Naam schuldenaar is verplicht'),
+  principalAmount: z.string().min(1, 'Geleend bedrag is verplicht'),
+  interestRate:    z.string().optional(),
+  startDate:       z.string().optional(),
+  endDate:         z.string().optional(),
+  loanType:        z.string().optional(),
 })
 
 const realEstateSchema = z.object({
@@ -148,6 +157,17 @@ function parseDetails(assetType: string, fd: FormData): AssetDetailsInput {
           mortgageType: d.mortgageType!,
         } : null,
       }
+    }
+    case 'vordering': {
+      const d = vorderingSchema.parse({
+        counterparty:    str(fd, 'counterparty'),
+        principalAmount: str(fd, 'principalAmount'),
+        interestRate:    optStr(fd, 'interestRate'),
+        startDate:       optStr(fd, 'startDate'),
+        endDate:         optStr(fd, 'endDate'),
+        loanType:        optStr(fd, 'loanType'),
+      })
+      return { kind: 'vordering', counterparty: d.counterparty, principalAmount: d.principalAmount, interestRate: d.interestRate, startDate: d.startDate, endDate: d.endDate, loanType: d.loanType }
     }
     default:
       throw new Error(`Onbekend asset type: ${assetType}`)
