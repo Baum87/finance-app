@@ -2,7 +2,7 @@ import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getLiquidAssetsWithCalculations, getAssetsWithValues } from '@/lib/db/queries/assets'
 import { getTransactionsByAssets } from '@/lib/db/queries/transactions'
-import { getValuationTimeSeries } from '@/lib/db/queries/cashflow'
+import { getValuationTimeSeries, getMortgageBalanceTimeSeries } from '@/lib/db/queries/cashflow'
 import { calculateXirr, calculateAllocation, calculateExcessReturn } from '@/lib/finance'
 import { buildNetWorthSeries } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
@@ -25,10 +25,11 @@ export default async function VermogenPage() {
   const currentYear = new Date().getFullYear()
   const ytdStart = `${currentYear}-01-01`
 
-  const [liquidAssets, allAssets, valuationRows] = await Promise.all([
+  const [liquidAssets, allAssets, valuationRows, mortgageBalanceRows] = await Promise.all([
     getLiquidAssetsWithCalculations(userId),
     getAssetsWithValues(userId),
     getValuationTimeSeries(userId),
+    getMortgageBalanceTimeSeries(userId),
   ])
 
   // Totaal vermogen liquide assets
@@ -68,13 +69,21 @@ export default async function VermogenPage() {
     ? calculateExcessReturn(portfolioXirr, benchmarkTwr)
     : null
 
-  // Vermogensontwikkeling tijdreeks — op basis van asset valuations
+  // Vermogensontwikkeling tijdreeks — valuations met hypotheeksaldi
+  const latestMortgageAtDate = (assetId: string, date: string) => {
+    const relevant = mortgageBalanceRows
+      .filter(m => m.assetId === assetId && m.balanceDate <= date)
+    return relevant.length > 0
+      ? new Decimal(relevant[relevant.length - 1].outstandingBalance)
+      : new Decimal(0)
+  }
+
   const series = buildNetWorthSeries(
     valuationRows.map(v => ({
       assetId: v.assetId,
       date: v.valuationDate,
       value: new Decimal(v.value),
-      liability: new Decimal(0),
+      liability: latestMortgageAtDate(v.assetId, v.valuationDate),
     })),
   )
 

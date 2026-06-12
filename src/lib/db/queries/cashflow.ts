@@ -105,6 +105,12 @@ export type ValuationPoint = {
   value: string
 }
 
+export type MortgageBalancePoint = {
+  assetId: string
+  balanceDate: string
+  outstandingBalance: string
+}
+
 /**
  * All valuations for a tenant, ordered by date ascending — used for the net worth time series chart.
  */
@@ -120,6 +126,25 @@ export async function getValuationTimeSeries(userId: string): Promise<ValuationP
     .innerJoin(assets, eq(assets.id, assetValuations.assetId))
     .where(eq(assets.tenantId, tenantId))
     .orderBy(asc(assetValuations.valuationDate))
+}
+
+/**
+ * All mortgage balance records for a tenant, ordered by date ascending.
+ * Used alongside getValuationTimeSeries to build the net worth chart with liabilities.
+ */
+export async function getMortgageBalanceTimeSeries(userId: string): Promise<MortgageBalancePoint[]> {
+  const tenantId = await getOrCreateTenant(userId)
+  return db
+    .select({
+      assetId:            mortgages.assetId,
+      balanceDate:        mortgageBalances.balanceDate,
+      outstandingBalance: mortgageBalances.outstandingBalance,
+    })
+    .from(mortgageBalances)
+    .innerJoin(mortgages, eq(mortgages.id, mortgageBalances.mortgageId))
+    .innerJoin(assets, eq(assets.id, mortgages.assetId))
+    .where(eq(assets.tenantId, tenantId))
+    .orderBy(asc(mortgageBalances.balanceDate))
 }
 
 /**

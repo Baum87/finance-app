@@ -123,6 +123,7 @@ Gevonden: alleen transacties ≥ ytdStart — structureel onjuist voor assets va
 Bestand: `src/app/cashflow/page.tsx`, `src/app/vermogen/page.tsx`
 Verwacht: netto vermogen = assets minus schulden per datum
 Gevonden: `liability: new Decimal(0)` hardcoded → grafiek toont bruto asset-waarden
+**✅ Opgelost:** `getMortgageBalanceTimeSeries()` toegevoegd; per valuatiepunt wordt het meest recente hypotheeksaldo gezocht en als liability meegegeven aan `buildNetWorthSeries`
 
 ---
 
@@ -208,6 +209,7 @@ Gevonden: dubbele implementaties in `assets.ts`, `cashflow.ts`, `vermogen/page.t
 **[Convention] RLS mist DELETE-policies op `asset_valuations` en detail-tabellen**
 Bestand: `src/lib/db/rls.sql`
 Gevonden: geen DELETE-policy op `asset_valuations` en type-specifieke detail-tabellen
+**✅ Opgelost:** DELETE-policies toegevoegd voor `asset_valuations`, alle detail-tabellen, `mortgages`, `mortgage_balances`, en `asset_tax_metadata`
 
 ---
 

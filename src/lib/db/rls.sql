@@ -137,6 +137,17 @@ CREATE POLICY "asset_valuations_update" ON public.asset_valuations
     )
   );
 
+-- ─── asset_valuations DELETE ──────────────────────────────────────────────────
+
+CREATE POLICY "asset_valuations_delete" ON public.asset_valuations
+  FOR DELETE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+
 -- ─── detail-tabellen (stock_etf, crypto, savings, pension, real_estate) ─────
 -- Zelfde patroon: toegankelijk als het gekoppelde asset bij de tenant hoort
 
@@ -158,6 +169,14 @@ CREATE POLICY "stock_etf_details_insert" ON public.stock_etf_details
   );
 CREATE POLICY "stock_etf_details_update" ON public.stock_etf_details
   FOR UPDATE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+CREATE POLICY "stock_etf_details_delete" ON public.stock_etf_details
+  FOR DELETE USING (
     asset_id IN (
       SELECT a.id FROM public.assets a
       JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
@@ -189,6 +208,14 @@ CREATE POLICY "crypto_details_update" ON public.crypto_details
       WHERE tu.user_id = auth.uid()
     )
   );
+CREATE POLICY "crypto_details_delete" ON public.crypto_details
+  FOR DELETE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
 
 CREATE POLICY "savings_details_select" ON public.savings_details
   FOR SELECT USING (
@@ -208,6 +235,14 @@ CREATE POLICY "savings_details_insert" ON public.savings_details
   );
 CREATE POLICY "savings_details_update" ON public.savings_details
   FOR UPDATE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+CREATE POLICY "savings_details_delete" ON public.savings_details
+  FOR DELETE USING (
     asset_id IN (
       SELECT a.id FROM public.assets a
       JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
@@ -239,6 +274,14 @@ CREATE POLICY "pension_details_update" ON public.pension_details
       WHERE tu.user_id = auth.uid()
     )
   );
+CREATE POLICY "pension_details_delete" ON public.pension_details
+  FOR DELETE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
 
 CREATE POLICY "real_estate_details_select" ON public.real_estate_details
   FOR SELECT USING (
@@ -258,6 +301,14 @@ CREATE POLICY "real_estate_details_insert" ON public.real_estate_details
   );
 CREATE POLICY "real_estate_details_update" ON public.real_estate_details
   FOR UPDATE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+CREATE POLICY "real_estate_details_delete" ON public.real_estate_details
+  FOR DELETE USING (
     asset_id IN (
       SELECT a.id FROM public.assets a
       JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
@@ -291,6 +342,14 @@ CREATE POLICY "mortgages_update" ON public.mortgages
       WHERE tu.user_id = auth.uid()
     )
   );
+CREATE POLICY "mortgages_delete" ON public.mortgages
+  FOR DELETE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
 
 -- ─── mortgage_balances ───────────────────────────────────────────────────────
 
@@ -314,6 +373,15 @@ CREATE POLICY "mortgage_balances_insert" ON public.mortgage_balances
   );
 CREATE POLICY "mortgage_balances_update" ON public.mortgage_balances
   FOR UPDATE USING (
+    mortgage_id IN (
+      SELECT m.id FROM public.mortgages m
+      JOIN public.assets a ON a.id = m.asset_id
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+CREATE POLICY "mortgage_balances_delete" ON public.mortgage_balances
+  FOR DELETE USING (
     mortgage_id IN (
       SELECT m.id FROM public.mortgages m
       JOIN public.assets a ON a.id = m.asset_id
@@ -361,6 +429,14 @@ CREATE POLICY "asset_tax_metadata_insert" ON public.asset_tax_metadata
   );
 CREATE POLICY "asset_tax_metadata_update" ON public.asset_tax_metadata
   FOR UPDATE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+CREATE POLICY "asset_tax_metadata_delete" ON public.asset_tax_metadata
+  FOR DELETE USING (
     asset_id IN (
       SELECT a.id FROM public.assets a
       JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id

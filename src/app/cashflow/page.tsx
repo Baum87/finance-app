@@ -1,6 +1,6 @@
 import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
-import { getPassiveIncomeData, getNetWorthAtDate, getValuationTimeSeries } from '@/lib/db/queries/cashflow'
+import { getPassiveIncomeData, getNetWorthAtDate, getValuationTimeSeries, getMortgageBalanceTimeSeries } from '@/lib/db/queries/cashflow'
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
 import { calculateNetWorth } from '@/lib/finance'
 import { buildNetWorthSeries } from '@/lib/finance'
@@ -24,12 +24,13 @@ export default async function CashflowPage() {
   const ytdFrom = `${currentYear}-01-01`
   const todayStr = toDateStr(today)
 
-  const [txData, assets_, mortgageMap, networthJan1, valuationRows] = await Promise.all([
+  const [txData, assets_, mortgageMap, networthJan1, valuationRows, mortgageBalanceRows] = await Promise.all([
     getPassiveIncomeData(userId, ytdFrom, todayStr),
     getAssetsWithValues(userId),
     getMortgageBalancesMap(userId),
     getNetWorthAtDate(userId, ytdFrom),
     getValuationTimeSeries(userId),
+    getMortgageBalanceTimeSeries(userId),
   ])
 
   // Passief inkomen YTD
@@ -51,12 +52,20 @@ export default async function CashflowPage() {
   const networthGrowth = networthJan1 != null ? networthToday.minus(networthJan1) : null
   const growthPositive = networthGrowth?.gte(0) ?? true
 
+  const latestMortgageAtDate = (assetId: string, date: string) => {
+    const relevant = mortgageBalanceRows
+      .filter(m => m.assetId === assetId && m.balanceDate <= date)
+    return relevant.length > 0
+      ? new Decimal(relevant[relevant.length - 1].outstandingBalance)
+      : new Decimal(0)
+  }
+
   const series = buildNetWorthSeries(
     valuationRows.map(v => ({
       assetId:   v.assetId,
       date:      v.valuationDate,
       value:     new Decimal(v.value),
-      liability: new Decimal(0),
+      liability: latestMortgageAtDate(v.assetId, v.valuationDate),
     })),
   )
   const chartData = series.map(p => ({ date: p.date, value: p.netWorth.toNumber() }))
