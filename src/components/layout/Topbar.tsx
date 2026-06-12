@@ -7,6 +7,7 @@ import { signOut } from '@/app/login/actions'
 
 const navItems = [
   { href: '/',          label: 'Overzicht' },
+  { href: '/assets',    label: 'Portfolio' },
   { href: '/vermogen',  label: 'Vermogen' },
   { href: '/vastgoed',  label: 'Vastgoed' },
   { href: '/cashflow',  label: 'Cashflow' },
