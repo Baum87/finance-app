@@ -4,15 +4,22 @@ import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetWithCalculations } from '@/lib/db/queries/assets'
 import { getTransactions } from '@/lib/db/queries/transactions'
 import { TransactionList } from '@/components/assets/TransactionList'
+import { ValuationForm } from '@/components/assets/ValuationForm'
+import { MortgageBalanceForm } from '@/components/assets/MortgageBalanceForm'
+import { createValuationAction, createMortgageBalanceAction } from '@/app/assets/actions'
 import { Topbar } from '@/components/layout/Topbar'
+import { formatCurrency } from '@/lib/utils/format'
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
-  stock_etf:    'Aandeel / ETF',
-  crypto:       'Crypto',
-  savings:      'Spaarrekening',
-  real_estate:  'Vastgoed',
-  pension:      'Pensioen',
+  stock_etf:   'Aandeel / ETF',
+  crypto:      'Crypto',
+  savings:     'Spaarrekening',
+  real_estate: 'Vastgoed',
+  pension:     'Pensioen',
 }
+
+// Asset types where value comes from stored valuations
+const VALUATION_TYPES = ['savings', 'real_estate', 'pension']
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null
@@ -25,10 +32,7 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
 }
 
 function KpiCard({
-  label,
-  value,
-  sub,
-  accent,
+  label, value, sub, accent,
 }: {
   label: string
   value: string
@@ -36,17 +40,53 @@ function KpiCard({
   accent?: 'positive' | 'negative'
 }) {
   const valueClass =
-    accent === 'positive'
-      ? 'text-[var(--color-sage)]'
-      : accent === 'negative'
-      ? 'text-[var(--color-terracotta)]'
-      : 'text-foreground'
-
+    accent === 'positive' ? 'text-[var(--color-sage)]'
+    : accent === 'negative' ? 'text-[var(--color-terracotta)]'
+    : 'text-foreground'
   return (
     <div className="rounded-[24px] border border-border bg-card p-6">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className={`mt-3 text-2xl font-semibold ${valueClass}`}>{value}</p>
       {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
+    </div>
+  )
+}
+
+function ValuationHistory({ valuations, currency }: {
+  valuations: { id: string; valuationDate: string; value: string }[]
+  currency: string
+}) {
+  if (valuations.length === 0) return null
+  return (
+    <div className="space-y-1 pt-4 border-t border-border">
+      <p className="text-xs font-medium text-muted-foreground mb-2">Recente waarderingen</p>
+      {valuations.map(v => (
+        <div key={v.id} className="flex justify-between py-1.5">
+          <span className="text-sm text-muted-foreground">{v.valuationDate}</span>
+          <span className="text-sm font-medium text-foreground">
+            {formatCurrency(Number(v.value))}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MortgageBalanceHistory({ balances }: {
+  balances: { id: string; balanceDate: string; outstandingBalance: string }[]
+}) {
+  if (balances.length === 0) return null
+  return (
+    <div className="space-y-1 pt-4 border-t border-border">
+      <p className="text-xs font-medium text-muted-foreground mb-2">Recente saldo-updates</p>
+      {balances.map(b => (
+        <div key={b.id} className="flex justify-between py-1.5">
+          <span className="text-sm text-muted-foreground">{b.balanceDate}</span>
+          <span className="text-sm font-medium text-foreground">
+            {formatCurrency(Number(b.outstandingBalance))}
+          </span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -73,6 +113,8 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
     new Intl.NumberFormat('nl-NL', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v)
 
   const gainAccent = unrealizedGain.gt(0) ? 'positive' : unrealizedGain.lt(0) ? 'negative' : undefined
+  const showValuationSection = VALUATION_TYPES.includes(asset.assetType)
+  const mortgagesWithBalances = asset.mortgages ?? []
 
   return (
     <>
@@ -130,16 +172,42 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
         {/* Quantity / price row for stock/crypto */}
         {quantityHeld && (
           <div className="grid grid-cols-2 gap-4">
-            <KpiCard
-              label="Aantal in bezit"
-              value={quantityHeld.toFixed(8).replace(/\.?0+$/, '')}
-            />
-            <KpiCard
-              label="Transacties"
-              value={String(txList.length)}
-            />
+            <KpiCard label="Aantal in bezit" value={quantityHeld.toFixed(8).replace(/\.?0+$/, '')} />
+            <KpiCard label="Transacties" value={String(txList.length)} />
           </div>
         )}
+
+        {/* Waardering invoeren — savings, real_estate, pension */}
+        {showValuationSection && (
+          <div className="rounded-[24px] border border-border bg-card p-6 space-y-4">
+            <ValuationForm
+              assetId={asset.id}
+              currency={asset.currency}
+              action={createValuationAction}
+              label={
+                asset.assetType === 'savings'
+                  ? 'Huidig saldo registreren'
+                  : asset.assetType === 'pension'
+                  ? 'Pensioenwaarde registreren'
+                  : 'Marktwaarde registreren'
+              }
+            />
+            <ValuationHistory valuations={asset.valuations ?? []} currency={asset.currency} />
+          </div>
+        )}
+
+        {/* Hypotheeksaldo bijwerken — alleen voor real_estate met hypotheek */}
+        {mortgagesWithBalances.map(mortgage => (
+          <div key={mortgage.id} className="rounded-[24px] border border-border bg-card p-6 space-y-4">
+            <MortgageBalanceForm
+              assetId={asset.id}
+              mortgageId={mortgage.id}
+              lender={mortgage.lender}
+              action={createMortgageBalanceAction}
+            />
+            <MortgageBalanceHistory balances={mortgage.balances ?? []} />
+          </div>
+        ))}
 
         {/* Asset details */}
         <div className="rounded-[24px] border border-border bg-card p-6">

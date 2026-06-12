@@ -10,6 +10,8 @@ import {
 import {
   createTransaction, updateTransaction, deleteTransaction,
 } from '@/lib/db/queries/transactions'
+import { createValuation } from '@/lib/db/queries/valuations'
+import { createMortgageBalance } from '@/lib/db/queries/mortgage-balances'
 import type { AssetDetailsInput } from '@/lib/db/queries/assets'
 
 export type ActionState = { error: string } | null
@@ -245,4 +247,55 @@ export async function deleteTransactionAction(fd: FormData): Promise<void> {
   const assetId = fd.get('assetId') as string
   await deleteTransaction(user.id, transactionId)
   redirect(`/assets/${assetId}`)
+}
+
+// ─── Valuation actions ────────────────────────────────────────────────────────
+
+const valuationSchema = z.object({
+  valuationDate: z.string().min(1, 'Datum is verplicht'),
+  value:         z.string().min(1, 'Waarde is verplicht'),
+  currency:      z.string().default('EUR'),
+})
+
+export async function createValuationAction(prev: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const user = await requireUser()
+    const assetId = str(fd, 'assetId')
+    const data = valuationSchema.parse({
+      valuationDate: str(fd, 'valuationDate'),
+      value:         str(fd, 'value'),
+      currency:      str(fd, 'currency') || 'EUR',
+    })
+    await createValuation(user.id, assetId, data)
+    redirect(`/assets/${assetId}`)
+  } catch (e) {
+    if (isRedirectError(e)) throw e
+    if (e instanceof z.ZodError) return { error: e.issues[0].message }
+    return { error: e instanceof Error ? e.message : 'Onbekende fout' }
+  }
+}
+
+// ─── Mortgage balance actions ─────────────────────────────────────────────────
+
+const mortgageBalanceSchema = z.object({
+  balanceDate:        z.string().min(1, 'Datum is verplicht'),
+  outstandingBalance: z.string().min(1, 'Restschuld is verplicht'),
+})
+
+export async function createMortgageBalanceAction(prev: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const user = await requireUser()
+    const mortgageId = str(fd, 'mortgageId')
+    const assetId    = str(fd, 'assetId')
+    const data = mortgageBalanceSchema.parse({
+      balanceDate:        str(fd, 'balanceDate'),
+      outstandingBalance: str(fd, 'outstandingBalance'),
+    })
+    await createMortgageBalance(user.id, mortgageId, data)
+    redirect(`/assets/${assetId}`)
+  } catch (e) {
+    if (isRedirectError(e)) throw e
+    if (e instanceof z.ZodError) return { error: e.issues[0].message }
+    return { error: e instanceof Error ? e.message : 'Onbekende fout' }
+  }
 }
