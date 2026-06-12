@@ -2,7 +2,9 @@ import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import * as schema from './schema'
 
-// Direct connection — bypasses RLS. Gebruik alleen in server actions, seeds en admin scripts.
-// Voor productie op Vercel: vervang SUPABASE_DB_URL door de gepoolde URL (poort 6543).
-const client = postgres(process.env.SUPABASE_DB_URL!, { prepare: false })
+// DATABASE_URL: Supabase Transaction Pooler (poort 6543) — werkt op alle netwerken
+// SUPABASE_DB_URL: directe verbinding (poort 5432) — geblokkeerd op sommige netwerken
+const connectionString = process.env.DATABASE_URL ?? process.env.SUPABASE_DB_URL!
+
+const client = postgres(connectionString, { prepare: false })
 export const db = drizzle(client, { schema })

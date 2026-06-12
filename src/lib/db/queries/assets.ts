@@ -1,0 +1,527 @@
+import { and, eq, desc, asc, inArray } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import {
+  assets, tenantUsers, stockEtfDetails, cryptoDetails,
+  savingsDetails, pensionDetails, realEstateDetails,
+  mortgages, mortgageBalances, assetValuations, transactions,
+} from '@/lib/db/schema'
+import type { AssetType } from '@/types'
+import Decimal from 'decimal.js'
+import { getLatestPrice } from '@/lib/services/prices'
+import {
+  calculateNetDeposit,
+  calculateXirr,
+  calculateMarketValue,
+  calculateSavingsBalance,
+  calculateUnrealizedGain,
+  calculateQuantityHeld,
+} from '@/lib/finance'
+import type { Cashflow } from '@/lib/finance'
+
+async function getTenantId(userId: string): Promise<string> {
+  const rows = await db
+    .select({ tenantId: tenantUsers.tenantId })
+    .from(tenantUsers)
+    .where(and(eq(tenantUsers.userId, userId), eq(tenantUsers.role, 'owner')))
+    .limit(1)
+
+  if (!rows[0]) throw new Error('Geen tenant gevonden voor gebruiker')
+  return rows[0].tenantId
+}
+
+export async function getAssets(userId: string) {
+  const tenantId = await getTenantId(userId)
+  return db.query.assets.findMany({
+    where: and(eq(assets.tenantId, tenantId), eq(assets.isActive, true)),
+    with: {
+      stockEtfDetails: true,
+      cryptoDetails: true,
+      savingsDetails: true,
+      pensionDetails: true,
+      realEstateDetails: true,
+      valuations: {
+        orderBy: [desc(assetValuations.valuationDate)],
+        limit: 1,
+      },
+    },
+    orderBy: [asc(assets.createdAt)],
+  })
+}
+
+export type AssetWithDetails = Awaited<ReturnType<typeof getAssets>>[number]
+
+export async function getAsset(userId: string, assetId: string) {
+  const tenantId = await getTenantId(userId)
+  return db.query.assets.findFirst({
+    where: and(
+      eq(assets.id, assetId),
+      eq(assets.tenantId, tenantId),
+      eq(assets.isActive, true),
+    ),
+    with: {
+      stockEtfDetails: true,
+      cryptoDetails: true,
+      savingsDetails: true,
+      pensionDetails: true,
+      realEstateDetails: true,
+      mortgages: {
+        with: {
+          balances: {
+            orderBy: [desc(mortgageBalances.balanceDate)],
+            limit: 1,
+          },
+        },
+      },
+      valuations: {
+        orderBy: [desc(assetValuations.valuationDate)],
+        limit: 5,
+      },
+    },
+  })
+}
+
+export type AssetDetail = NonNullable<Awaited<ReturnType<typeof getAsset>>>
+
+// ─── Detail types ─────────────────────────────────────────────────────────────
+
+export type StockEtfInput = {
+  kind: 'stock_etf'
+  ticker: string
+  isin?: string | null
+  broker?: string | null
+  accountType?: string | null
+}
+
+export type CryptoInput = {
+  kind: 'crypto'
+  ticker: string
+  walletOrExchange?: string | null
+}
+
+export type SavingsInput = {
+  kind: 'savings'
+  bankName: string
+  accountType?: string | null
+  interestRate?: string | null
+}
+
+export type PensionInput = {
+  kind: 'pension'
+  provider: string
+  pensionType: string
+  projectedAnnualBenefit?: string | null
+}
+
+export type RealEstateInput = {
+  kind: 'real_estate'
+  address?: string | null
+  propertyType: string
+  purchasePrice: string
+  purchaseCosts: string
+  purchaseDate: string
+  wozValue?: string | null
+  mortgage?: {
+    lender: string
+    originalAmount: string
+    interestRate: string
+    startDate: string
+    mortgageType: string
+  } | null
+}
+
+export type AssetDetailsInput =
+  | StockEtfInput
+  | CryptoInput
+  | SavingsInput
+  | PensionInput
+  | RealEstateInput
+
+export type CreateAssetInput = {
+  name: string
+  assetType: AssetType
+  currency: string
+  details: AssetDetailsInput
+}
+
+// ─── Mutations ────────────────────────────────────────────────────────────────
+
+export async function createAsset(userId: string, data: CreateAssetInput) {
+  const tenantId = await getTenantId(userId)
+
+  return db.transaction(async (tx) => {
+    const [asset] = await tx
+      .insert(assets)
+      .values({ tenantId, name: data.name, assetType: data.assetType, currency: data.currency })
+      .returning()
+
+    const d = data.details
+    switch (d.kind) {
+      case 'stock_etf':
+        await tx.insert(stockEtfDetails).values({
+          assetId: asset.id,
+          ticker: d.ticker,
+          isin: d.isin ?? null,
+          broker: d.broker ?? null,
+          accountType: d.accountType ?? 'taxable',
+        })
+        break
+      case 'crypto':
+        await tx.insert(cryptoDetails).values({
+          assetId: asset.id,
+          ticker: d.ticker,
+          walletOrExchange: d.walletOrExchange ?? null,
+        })
+        break
+      case 'savings':
+        await tx.insert(savingsDetails).values({
+          assetId: asset.id,
+          bankName: d.bankName,
+          accountType: d.accountType ?? 'savings',
+          interestRate: d.interestRate ?? null,
+        })
+        break
+      case 'pension':
+        await tx.insert(pensionDetails).values({
+          assetId: asset.id,
+          provider: d.provider,
+          pensionType: d.pensionType,
+          projectedAnnualBenefit: d.projectedAnnualBenefit ?? null,
+        })
+        break
+      case 'real_estate':
+        await tx.insert(realEstateDetails).values({
+          assetId: asset.id,
+          address: d.address ?? null,
+          propertyType: d.propertyType,
+          purchasePrice: d.purchasePrice,
+          purchaseCosts: d.purchaseCosts,
+          purchaseDate: d.purchaseDate,
+          wozValue: d.wozValue ?? null,
+        })
+        if (d.mortgage) {
+          await tx.insert(mortgages).values({
+            assetId: asset.id,
+            lender: d.mortgage.lender,
+            originalAmount: d.mortgage.originalAmount,
+            interestRate: d.mortgage.interestRate,
+            startDate: d.mortgage.startDate,
+            mortgageType: d.mortgage.mortgageType,
+          })
+        }
+        break
+    }
+
+    return asset
+  })
+}
+
+export async function updateAsset(
+  userId: string,
+  assetId: string,
+  data: { name: string; currency: string; details: AssetDetailsInput },
+) {
+  const tenantId = await getTenantId(userId)
+
+  return db.transaction(async (tx) => {
+    const [asset] = await tx
+      .update(assets)
+      .set({ name: data.name, currency: data.currency, updatedAt: new Date() })
+      .where(and(eq(assets.id, assetId), eq(assets.tenantId, tenantId)))
+      .returning()
+
+    if (!asset) throw new Error('Asset niet gevonden')
+
+    const d = data.details
+    switch (d.kind) {
+      case 'stock_etf':
+        await tx
+          .update(stockEtfDetails)
+          .set({ ticker: d.ticker, isin: d.isin ?? null, broker: d.broker ?? null, accountType: d.accountType ?? 'taxable' })
+          .where(eq(stockEtfDetails.assetId, assetId))
+        break
+      case 'crypto':
+        await tx
+          .update(cryptoDetails)
+          .set({ ticker: d.ticker, walletOrExchange: d.walletOrExchange ?? null })
+          .where(eq(cryptoDetails.assetId, assetId))
+        break
+      case 'savings':
+        await tx
+          .update(savingsDetails)
+          .set({ bankName: d.bankName, accountType: d.accountType ?? 'savings', interestRate: d.interestRate ?? null })
+          .where(eq(savingsDetails.assetId, assetId))
+        break
+      case 'pension':
+        await tx
+          .update(pensionDetails)
+          .set({ provider: d.provider, pensionType: d.pensionType, projectedAnnualBenefit: d.projectedAnnualBenefit ?? null })
+          .where(eq(pensionDetails.assetId, assetId))
+        break
+      case 'real_estate':
+        await tx
+          .update(realEstateDetails)
+          .set({
+            address: d.address ?? null,
+            propertyType: d.propertyType,
+            purchasePrice: d.purchasePrice,
+            purchaseCosts: d.purchaseCosts,
+            purchaseDate: d.purchaseDate,
+            wozValue: d.wozValue ?? null,
+          })
+          .where(eq(realEstateDetails.assetId, assetId))
+        break
+    }
+
+    return asset
+  })
+}
+
+export async function deleteAsset(userId: string, assetId: string) {
+  const tenantId = await getTenantId(userId)
+  await db
+    .update(assets)
+    .set({ isActive: false, updatedAt: new Date() })
+    .where(and(eq(assets.id, assetId), eq(assets.tenantId, tenantId)))
+}
+
+// ─── Calculated values ────────────────────────────────────────────────────────
+
+export type AssetCalculations = {
+  currentValue: Decimal
+  netDeposit: Decimal
+  unrealizedGain: Decimal
+  xirr: Decimal | null
+  quantityHeld: Decimal | null
+  fetchedPrice: Decimal | null
+  priceCurrency: string | null
+}
+
+/**
+ * Returns a single asset with live calculations: current value, XIRR, net deposit.
+ * For stock_etf and crypto: fetches live price from Yahoo Finance.
+ * For savings: sums deposits/withdrawals.
+ * For real_estate/pension: uses latest valuation.
+ */
+export async function getAssetWithCalculations(
+  userId: string,
+  assetId: string,
+): Promise<{ asset: AssetDetail; calculations: AssetCalculations } | null> {
+  const asset = await getAsset(userId, assetId)
+  if (!asset) return null
+
+  const txRows = await db
+    .select()
+    .from(transactions)
+    .where(eq(transactions.assetId, assetId))
+    .orderBy(asc(transactions.transactionDate))
+
+  const txs = txRows.map(t => ({
+    transactionType: t.transactionType,
+    amount: t.amount,
+    quantity: t.quantity,
+    transactionDate: t.transactionDate,
+  }))
+
+  const netDeposit = calculateNetDeposit(txs)
+
+  let currentValue = new Decimal(0)
+  let fetchedPrice: Decimal | null = null
+  let priceCurrency: string | null = null
+  let quantityHeld: Decimal | null = null
+
+  const assetType = asset.assetType
+
+  if (assetType === 'stock_etf' || assetType === 'crypto') {
+    const ticker =
+      assetType === 'stock_etf'
+        ? asset.stockEtfDetails?.ticker
+        : asset.cryptoDetails?.ticker
+
+    if (ticker) {
+      try {
+        const priceResult = await getLatestPrice(ticker)
+        fetchedPrice = priceResult.price
+        priceCurrency = priceResult.currency
+        currentValue = calculateMarketValue(txs, priceResult.price)
+        quantityHeld = calculateQuantityHeld(txs)
+      } catch {
+        // price fetch failed — fall back to latest valuation
+        const latestVal = asset.valuations?.[0]
+        if (latestVal) currentValue = new Decimal(latestVal.value)
+      }
+    }
+  } else if (assetType === 'savings') {
+    currentValue = calculateSavingsBalance(txs)
+  } else {
+    // real_estate or pension: use latest stored valuation
+    const latestVal = asset.valuations?.[0]
+    if (latestVal) currentValue = new Decimal(latestVal.value)
+  }
+
+  const unrealizedGain = calculateUnrealizedGain(currentValue, netDeposit)
+
+  // XIRR: needs at least one outflow and one inflow
+  let xirr: Decimal | null = null
+  const cashflows: Cashflow[] = txRows
+    .filter(t => ['buy', 'sell', 'deposit', 'withdrawal'].includes(t.transactionType))
+    .map(t => {
+      const sign = t.transactionType === 'buy' || t.transactionType === 'deposit' ? -1 : 1
+      return { amount: new Decimal(t.amount).mul(sign), date: new Date(t.transactionDate) }
+    })
+
+  if (cashflows.length >= 1 && currentValue.gt(0)) {
+    cashflows.push({ amount: currentValue, date: new Date() })
+    try {
+      xirr = calculateXirr(cashflows)
+    } catch {
+      xirr = null
+    }
+  }
+
+  return {
+    asset,
+    calculations: { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, fetchedPrice, priceCurrency },
+  }
+}
+
+export type AssetWithValue = AssetWithDetails & { currentValue: Decimal }
+
+/**
+ * Returns all active assets with their current value for the list view.
+ * Fetches prices for stock_etf and crypto in parallel; uses balance/valuation for others.
+ */
+export async function getAssetsWithValues(userId: string): Promise<AssetWithValue[]> {
+  const allAssets = await getAssets(userId)
+
+  const results = await Promise.all(
+    allAssets.map(async (asset) => {
+      let currentValue = new Decimal(0)
+
+      const txRows = await db
+        .select({ transactionType: transactions.transactionType, amount: transactions.amount, quantity: transactions.quantity })
+        .from(transactions)
+        .where(eq(transactions.assetId, asset.id))
+
+      const txs = txRows.map(t => ({
+        transactionType: t.transactionType,
+        amount: t.amount,
+        quantity: t.quantity,
+      }))
+
+      if (asset.assetType === 'stock_etf' || asset.assetType === 'crypto') {
+        const ticker =
+          asset.assetType === 'stock_etf'
+            ? asset.stockEtfDetails?.ticker
+            : asset.cryptoDetails?.ticker
+
+        if (ticker) {
+          try {
+            const { price } = await getLatestPrice(ticker)
+            currentValue = calculateMarketValue(txs, price)
+          } catch {
+            const latestVal = asset.valuations?.[0]
+            if (latestVal) currentValue = new Decimal(latestVal.value)
+          }
+        }
+      } else if (asset.assetType === 'savings') {
+        currentValue = calculateSavingsBalance(txs)
+      } else {
+        const latestVal = asset.valuations?.[0]
+        if (latestVal) currentValue = new Decimal(latestVal.value)
+      }
+
+      return { ...asset, currentValue }
+    }),
+  )
+
+  return results
+}
+
+// ─── Portfolio calculations ───────────────────────────────────────────────────
+
+const LIQUID_TYPES = ['stock_etf', 'crypto', 'savings'] as const
+
+export type PortfolioAssetRow = {
+  id: string
+  name: string
+  assetType: string
+  currentValue: Decimal
+  netDeposit: Decimal
+  unrealizedGain: Decimal
+  xirr: Decimal | null
+}
+
+/**
+ * Returns all liquid assets (stock_etf, crypto, savings) with full calculations
+ * for the Vermogen dashboard table.
+ */
+export async function getLiquidAssetsWithCalculations(userId: string): Promise<PortfolioAssetRow[]> {
+  const allAssets = await getAssetsWithValues(userId)
+  const liquidAssets = allAssets.filter(a => (LIQUID_TYPES as readonly string[]).includes(a.assetType))
+
+  return Promise.all(
+    liquidAssets.map(async (asset) => {
+      const txRows = await db
+        .select()
+        .from(transactions)
+        .where(eq(transactions.assetId, asset.id))
+        .orderBy(asc(transactions.transactionDate))
+
+      const txs = txRows.map(t => ({
+        transactionType: t.transactionType,
+        amount: t.amount,
+        quantity: t.quantity,
+        transactionDate: t.transactionDate,
+      }))
+
+      const netDeposit = calculateNetDeposit(txs)
+      const unrealizedGain = calculateUnrealizedGain(asset.currentValue, netDeposit)
+
+      // Build XIRR cashflows
+      let xirr: Decimal | null = null
+      if (asset.currentValue.gt(0)) {
+        const cashflows: Cashflow[] = txRows
+          .filter(t => ['buy', 'sell', 'deposit', 'withdrawal'].includes(t.transactionType))
+          .map(t => {
+            const sign = t.transactionType === 'buy' || t.transactionType === 'deposit' ? -1 : 1
+            return { amount: new Decimal(t.amount).mul(sign), date: new Date(t.transactionDate) }
+          })
+        if (cashflows.length >= 1) {
+          cashflows.push({ amount: asset.currentValue, date: new Date() })
+          try { xirr = calculateXirr(cashflows) } catch { /* not enough data */ }
+        }
+      }
+
+      return { id: asset.id, name: asset.name, assetType: asset.assetType, currentValue: asset.currentValue, netDeposit, unrealizedGain, xirr }
+    }),
+  )
+}
+
+/**
+ * Returns latest mortgage balance per asset (map: assetId → balance).
+ * Used to compute net worth including real estate liabilities.
+ */
+export async function getMortgageBalancesMap(userId: string): Promise<Map<string, Decimal>> {
+  const tenantId = await getTenantId(userId)
+
+  const rows = await db
+    .select({
+      assetId:            mortgages.assetId,
+      outstandingBalance: mortgageBalances.outstandingBalance,
+      balanceDate:        mortgageBalances.balanceDate,
+    })
+    .from(mortgages)
+    .innerJoin(assets, eq(assets.id, mortgages.assetId))
+    .innerJoin(mortgageBalances, eq(mortgageBalances.mortgageId, mortgages.id))
+    .where(eq(assets.tenantId, tenantId))
+    .orderBy(desc(mortgageBalances.balanceDate))
+
+  // Keep only the latest balance per asset
+  const map = new Map<string, Decimal>()
+  for (const row of rows) {
+    if (!map.has(row.assetId)) {
+      map.set(row.assetId, new Decimal(row.outstandingBalance))
+    }
+  }
+  return map
+}

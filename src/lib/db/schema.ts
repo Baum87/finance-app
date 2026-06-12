@@ -234,16 +234,40 @@ export const tenantUsersRelations = relations(tenantUsers, ({ one }) => ({
 }))
 
 export const assetsRelations = relations(assets, ({ one, many }) => ({
-  tenant:           one(tenants, { fields: [assets.tenantId], references: [tenants.id] }),
-  transactions:     many(transactions),
-  valuations:       many(assetValuations),
-  stockEtfDetails:  one(stockEtfDetails),
-  cryptoDetails:    one(cryptoDetails),
-  savingsDetails:   one(savingsDetails),
-  pensionDetails:   one(pensionDetails),
-  realEstateDetails: one(realEstateDetails),
-  mortgages:        many(mortgages),
-  taxMetadata:      one(assetTaxMetadata),
+  tenant:            one(tenants, { fields: [assets.tenantId], references: [tenants.id] }),
+  transactions:      many(transactions),
+  valuations:        many(assetValuations),
+  stockEtfDetails:   one(stockEtfDetails,   { fields: [assets.id], references: [stockEtfDetails.assetId] }),
+  cryptoDetails:     one(cryptoDetails,      { fields: [assets.id], references: [cryptoDetails.assetId] }),
+  savingsDetails:    one(savingsDetails,     { fields: [assets.id], references: [savingsDetails.assetId] }),
+  pensionDetails:    one(pensionDetails,     { fields: [assets.id], references: [pensionDetails.assetId] }),
+  realEstateDetails: one(realEstateDetails,  { fields: [assets.id], references: [realEstateDetails.assetId] }),
+  mortgages:         many(mortgages),
+  taxMetadata:       one(assetTaxMetadata,   { fields: [assets.id], references: [assetTaxMetadata.assetId] }),
+}))
+
+export const stockEtfDetailsRelations = relations(stockEtfDetails, ({ one }) => ({
+  asset: one(assets, { fields: [stockEtfDetails.assetId], references: [assets.id] }),
+}))
+
+export const cryptoDetailsRelations = relations(cryptoDetails, ({ one }) => ({
+  asset: one(assets, { fields: [cryptoDetails.assetId], references: [assets.id] }),
+}))
+
+export const savingsDetailsRelations = relations(savingsDetails, ({ one }) => ({
+  asset: one(assets, { fields: [savingsDetails.assetId], references: [assets.id] }),
+}))
+
+export const pensionDetailsRelations = relations(pensionDetails, ({ one }) => ({
+  asset: one(assets, { fields: [pensionDetails.assetId], references: [assets.id] }),
+}))
+
+export const realEstateDetailsRelations = relations(realEstateDetails, ({ one }) => ({
+  asset: one(assets, { fields: [realEstateDetails.assetId], references: [assets.id] }),
+}))
+
+export const assetTaxMetadataRelations = relations(assetTaxMetadata, ({ one }) => ({
+  asset: one(assets, { fields: [assetTaxMetadata.assetId], references: [assets.id] }),
 }))
 
 export const transactionsRelations = relations(transactions, ({ one }) => ({
