@@ -1,10 +1,47 @@
 import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
-import { calculateNetWorth } from '@/lib/finance'
+import { getNetWorthAtDate } from '@/lib/db/queries/cashflow'
+import { calculateNetWorth, calculateAllocation } from '@/lib/finance'
 import { formatCurrency } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
+
+const ASSET_TYPE_LABELS: Record<string, string> = {
+  stock_etf:   'Aandelen & ETF',
+  crypto:      'Crypto',
+  savings:     'Spaargeld',
+  real_estate: 'Vastgoed',
+  pension:     'Pensioen',
+}
+
+function buildInsightText(
+  netWorth: Decimal,
+  netWorthMonthAgo: Decimal | null,
+  biggestCategory: string | null,
+  biggestPct: number | null,
+): string {
+  const parts: string[] = []
+
+  if (biggestCategory && biggestPct != null) {
+    parts.push(
+      `Je grootste positie is ${biggestCategory} (${biggestPct.toFixed(0)}% van je totale vermogen).`,
+    )
+  }
+
+  if (netWorthMonthAgo != null) {
+    const delta = netWorth.minus(netWorthMonthAgo)
+    const sign  = delta.gte(0) ? '+' : ''
+    const word  = delta.gte(0) ? 'gegroeid' : 'gedaald'
+    parts.push(
+      `Je netto vermogen is de afgelopen 30 dagen ${word} met ${sign}${formatCurrency(delta.toNumber())}.`,
+    )
+  }
+
+  return parts.length > 0
+    ? parts.join(' ')
+    : 'Voeg assets en waarderingen toe om inzichten te zien.'
+}
 
 function getGreeting(): string {
   const hour = new Date().getHours()
@@ -17,9 +54,14 @@ export default async function OverzichtPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [assets, mortgageMap] = await Promise.all([
+  const monthAgoDate = new Date()
+  monthAgoDate.setDate(monthAgoDate.getDate() - 30)
+  const monthAgoStr = monthAgoDate.toISOString().slice(0, 10)
+
+  const [assets, mortgageMap, netWorthMonthAgo] = await Promise.all([
     getAssetsWithValues(user!.id),
     getMortgageBalancesMap(user!.id),
+    getNetWorthAtDate(user!.id, monthAgoStr),
   ])
 
   const netWorth = calculateNetWorth(
@@ -28,6 +70,15 @@ export default async function OverzichtPage() {
       liability: mortgageMap.get(a.id) ?? new Decimal(0),
     })),
   )
+
+  const allocationSlices = calculateAllocation(
+    assets.map(a => ({ assetType: a.assetType, value: a.currentValue })),
+  )
+  const biggest = allocationSlices.sort((x, y) => y.value.minus(x.value).toNumber())[0]
+  const biggestCategory = biggest ? (ASSET_TYPE_LABELS[biggest.assetType] ?? biggest.assetType) : null
+  const biggestPct = biggest ? biggest.percentage.toNumber() : null
+
+  const insightText = buildInsightText(netWorth, netWorthMonthAgo, biggestCategory, biggestPct)
 
   const firstName =
     (user?.user_metadata?.full_name as string | undefined)?.split(' ')[0]
@@ -56,19 +107,10 @@ export default async function OverzichtPage() {
           subtext={assets.length === 0 ? 'Voeg assets toe om je vermogen te zien.' : undefined}
         />
 
-        {/* Blok 3 — Actief doel */}
+        {/* Blok 3 — Belangrijkste inzicht */}
         <div className="bg-card border border-border rounded-3xl p-6">
-          <p className="text-sm font-medium text-muted-foreground">Actief doel</p>
-          <p className="mt-3 text-foreground">Stel een financieel doel in</p>
-          <div className="mt-4 h-1.5 w-full rounded-full bg-muted overflow-hidden">
-            <div className="h-full rounded-full bg-sage" style={{ width: '0%' }} />
-          </div>
-          <button
-            disabled
-            className="mt-4 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground cursor-not-allowed opacity-60"
-          >
-            Komt in een volgende versie
-          </button>
+          <p className="text-sm font-medium text-muted-foreground">Inzicht</p>
+          <p className="mt-3 text-foreground leading-relaxed">{insightText}</p>
         </div>
 
         {/* Blok 4 — AI Coach */}

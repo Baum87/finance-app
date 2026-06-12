@@ -1,16 +1,18 @@
 import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getLiquidAssetsWithCalculations, getAssetsWithValues } from '@/lib/db/queries/assets'
-import { calculateXirr } from '@/lib/finance'
+import { calculateXirr, calculateAllocation, calculateExcessReturn } from '@/lib/finance'
 import { buildNetWorthSeries } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { NetWorthChart } from '@/components/vermogen/NetWorthChart'
 import { AssetTable } from '@/components/vermogen/AssetTable'
+import { AllocationChart } from '@/components/vermogen/AllocationChart'
+import { getBenchmarkTwr } from '@/lib/services/benchmark'
 import { db } from '@/lib/db'
 import { transactions, assets, tenantUsers, assetValuations } from '@/lib/db/schema'
-import { and, eq, gte, inArray, asc, desc } from 'drizzle-orm'
+import { and, eq, gte, inArray, asc } from 'drizzle-orm'
 
 const LIQUID_TYPES = ['stock_etf', 'crypto', 'savings']
 
@@ -74,6 +76,17 @@ export default async function VermogenPage() {
     }
   }
 
+  // Allocatie op basis van alle assets (inclusief vastgoed + pensioen)
+  const allocationSlices = calculateAllocation(
+    allAssets.map(a => ({ assetType: a.assetType, value: a.currentValue })),
+  )
+
+  // Benchmark URTH TWR YTD
+  const benchmarkTwr = await getBenchmarkTwr(new Date(ytdStart), new Date()).catch(() => null)
+  const excessReturn = portfolioXirr && benchmarkTwr
+    ? calculateExcessReturn(portfolioXirr, benchmarkTwr)
+    : null
+
   // Vermogensontwikkeling tijdreeks — op basis van asset valuations
   const valuationRows = await db
     .select({
@@ -121,9 +134,10 @@ export default async function VermogenPage() {
             trend={portfolioXirr ? { value: formatPercent(portfolioXirr.toNumber()), positive: portfolioXirr.gt(0) } : undefined}
           />
           <KpiCard
-            label="vs. Benchmark"
-            value="—"
-            subtext="Benchmark-koppeling volgt in Sprint 3.4"
+            label="vs. URTH benchmark"
+            value={excessReturn ? `${excessReturn.gte(0) ? '+' : ''}${formatPercent(excessReturn.toNumber())}` : '—'}
+            subtext={benchmarkTwr ? `Benchmark: ${formatPercent(benchmarkTwr.toNumber())}` : 'Benchmark niet beschikbaar'}
+            trend={excessReturn ? { value: '', positive: excessReturn.gte(0) } : undefined}
           />
         </div>
 
@@ -135,6 +149,9 @@ export default async function VermogenPage() {
           <h2 className="text-lg font-semibold text-foreground mb-3">Posities</h2>
           <AssetTable assets={liquidAssets} />
         </div>
+
+        {/* Allocatie donut */}
+        <AllocationChart slices={allocationSlices} />
 
       </main>
     </>
