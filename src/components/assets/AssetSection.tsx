@@ -38,13 +38,13 @@ export function AssetSection({ title, addLabel, addHref, columns, rows }: Props)
         </div>
         <Link
           href={addHref}
-          className="px-3 py-1.5 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+          className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
         >
           {addLabel}
         </Link>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card overflow-hidden">
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
         {rows.length === 0 ? (
           <div className="px-6 py-8 text-center">
             <p className="text-sm text-muted-foreground">Nog geen {title.toLowerCase()} toegevoegd.</p>
@@ -52,7 +52,7 @@ export function AssetSection({ title, addLabel, addHref, columns, rows }: Props)
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border">
+              <tr className="bg-muted border-b border-border">
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Naam</th>
                 {columns.map(col => (
                   <th key={col.key} className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
