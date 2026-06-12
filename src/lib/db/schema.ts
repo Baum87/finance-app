@@ -25,11 +25,11 @@ export const users = pgTable('users', {
 // ─── tenant_users ────────────────────────────────────────────────────────────
 
 export const tenantUsers = pgTable('tenant_users', {
-  id:        uuid('id').primaryKey().defaultRandom(),
-  tenantId:  uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
-  userId:    uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  role:      text('role').notNull().default('owner'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  id:       uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  userId:   uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role:     text('role').notNull().default('owner'),
+  joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   unique('tenant_users_tenant_user_unique').on(t.tenantId, t.userId),
   check('tenant_users_role_check', sql`${t.role} IN ('owner', 'member')`),

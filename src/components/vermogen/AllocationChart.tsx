@@ -2,6 +2,7 @@
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
+import { CHART_PALETTE, CHART_STYLE } from '@/lib/utils/chart-colors'
 import type { AllocationSlice } from '@/lib/finance'
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
@@ -11,8 +12,6 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   real_estate: 'Vastgoed',
   pension:     'Pensioen',
 }
-
-const COLORS = ['#6E8F74', '#7B92B2', '#D4A05D', '#C97A6B']
 
 interface AllocationChartProps {
   slices: AllocationSlice[]
@@ -64,8 +63,8 @@ function CenterLabel({ cx = 0, cy = 0, largest }: CenterLabelProps) {
   if (!largest) return null
   return (
     <text textAnchor="middle" dominantBaseline="central">
-      <tspan x={cx} y={cy - 10} fontSize={12} fill="#6B7280">{largest.name}</tspan>
-      <tspan x={cx} y={cy + 10} fontSize={16} fontWeight={600} fill="#161616">
+      <tspan x={cx} y={cy - 10} fontSize={12} fill={CHART_STYLE.labelFill}>{largest.name}</tspan>
+      <tspan x={cx} y={cy + 10} fontSize={16} fontWeight={600} fill={CHART_STYLE.valueFill}>
         {formatPercent(largest.percentage / 100)}
       </tspan>
     </text>
@@ -101,7 +100,7 @@ export function AllocationChart({ slices }: AllocationChartProps) {
             paddingAngle={2}
           >
             {segments.map((_, i) => (
-              <Cell key={i} fill={COLORS[i % COLORS.length]} />
+              <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} />
             ))}
             <CenterLabel largest={largest} />
           </Pie>
@@ -110,7 +109,7 @@ export function AllocationChart({ slices }: AllocationChartProps) {
               `${formatCurrency(value as number)} (${formatPercent((segments.find(s => s.name === name)?.percentage ?? 0) / 100)})`,
               name,
             ]}
-            contentStyle={{ background: '#fff', borderRadius: '12px', border: '1px solid #ECEAE5' }}
+            contentStyle={CHART_STYLE.tooltipContent}
           />
         </PieChart>
       </ResponsiveContainer>

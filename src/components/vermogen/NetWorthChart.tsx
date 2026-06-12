@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
+import { CHART_COLORS, CHART_STYLE } from '@/lib/utils/chart-colors'
 
 type DataPoint = { date: string; value: number }
 
@@ -81,17 +82,17 @@ export function NetWorthChart({ data }: NetWorthChartProps) {
 
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={filtered} margin={{ top: 4, right: 4, bottom: 4, left: 8 }}>
-          <CartesianGrid vertical={false} stroke="#ECEAE5" strokeDasharray="0" />
+          <CartesianGrid vertical={false} stroke={CHART_STYLE.gridStroke} strokeDasharray="0" />
           <XAxis
             dataKey="date"
             tickFormatter={formatXAxis}
-            tick={{ fill: '#6B7280', fontSize: 12 }}
+            tick={{ fill: CHART_STYLE.axisTickFill, fontSize: 12 }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
             tickFormatter={formatYAxis}
-            tick={{ fill: '#6B7280', fontSize: 12 }}
+            tick={{ fill: CHART_STYLE.axisTickFill, fontSize: 12 }}
             axisLine={false}
             tickLine={false}
             width={60}
@@ -103,15 +104,15 @@ export function NetWorthChart({ data }: NetWorthChartProps) {
                 : String(v)
             }
             labelFormatter={(label) => typeof label === 'string' ? formatXAxis(label) : String(label)}
-            contentStyle={{ background: '#fff', borderRadius: '12px', border: '1px solid #ECEAE5' }}
+            contentStyle={CHART_STYLE.tooltipContent}
           />
           <Line
             type="monotone"
             dataKey="value"
-            stroke="#6E8F74"
+            stroke={CHART_COLORS.sage}
             strokeWidth={1.5}
             dot={false}
-            activeDot={{ r: 4, fill: '#6E8F74' }}
+            activeDot={{ r: 4, fill: CHART_COLORS.sage }}
           />
         </LineChart>
       </ResponsiveContainer>

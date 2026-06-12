@@ -183,6 +183,7 @@ Gevonden: `TOLERANCE = 1e-8` op de rate-delta, niet op NPV
 **[Convention] Hardcoded hex-kleuren in Recharts-componenten**
 Bestand: `src/components/vermogen/NetWorthChart.tsx`, `src/components/vermogen/AllocationChart.tsx`
 Gevonden: `#6E8F74`, `#6B7280`, `#161616` etc. hardcoded — gebruik CSS-variabelen waar mogelijk
+**✅ Opgelost:** kleuren gecentraliseerd in `src/lib/utils/chart-colors.ts` (`CHART_COLORS`, `CHART_PALETTE`, `CHART_STYLE`)
 
 ---
 
@@ -216,6 +217,7 @@ Gevonden: geen DELETE-policy op `asset_valuations` en type-specifieke detail-tab
 **[Convention] `tenant_users.joined_at` heet `createdAt` in schema**
 Verwacht: `joined_at` conform data-model.md
 Gevonden: kolom heet `createdAt` in het Drizzle-schema
+**✅ Opgelost:** kolom hernoemd naar `joined_at` in schema; migratie `0002_rename_joined_at.sql`
 
 ---
 

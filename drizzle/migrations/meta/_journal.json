@@ -15,6 +15,13 @@
       "when": 1781262984422,
       "tag": "0001_clear_groot",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781263553437,
+      "tag": "0002_rename_joined_at",
+      "breakpoints": true
     }
   ]
 }
