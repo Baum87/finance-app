@@ -11,6 +11,7 @@
 Bestand: `src/lib/db/schema.ts`
 Verwacht: `is_liquid BOOLEAN NOT NULL DEFAULT true` conform data-model.md
 Gevonden: workaround via hardcoded `LIQUID_TYPES`-array in `assets.ts`
+**✅ Opgelost:** kolom toegevoegd aan schema; `createAsset` zet `isLiquid` op basis van asset type
 
 ---
 
@@ -18,6 +19,7 @@ Gevonden: workaround via hardcoded `LIQUID_TYPES`-array in `assets.ts`
 Bestand: `src/lib/db/schema.ts`
 Verwacht: `fees NUMERIC(15,2) NOT NULL DEFAULT 0` — nodig voor correcte kostprijs (AVCO)
 Gevonden: `calculateCostBasis` gebruikt alleen `tx.amount`; fees worden genegeerd, kostprijs is structureel te laag
+**✅ Opgelost:** kolom toegevoegd aan schema (migratie `0001_clear_groot.sql`); fee-integratie in AVCO-berekening is Sprint 4 taak
 
 ---
 
@@ -149,12 +151,14 @@ Gevonden: directe `db`-imports en inline queries in pagina-bestanden
 **[Schema] Ontbrekende kolommen in `mortgages`**
 Verwacht: `interest_rate_fixed_until`, `is_active`, `updated_at` conform data-model.md
 Gevonden: ontbreken in Drizzle-schema
+**✅ Opgelost:** alle drie kolommen toegevoegd aan schema (migratie `0001_clear_groot.sql`)
 
 ---
 
 **[Schema] `liabilities.is_active` ontbreekt**
 Verwacht: `is_active BOOLEAN NOT NULL DEFAULT true` conform data-model.md
 Gevonden: kolom ontbreekt in Drizzle-schema
+**✅ Opgelost:** kolom toegevoegd (migratie `0001_clear_groot.sql`)
 
 ---
 

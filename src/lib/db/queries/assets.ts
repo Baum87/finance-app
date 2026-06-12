@@ -139,9 +139,16 @@ export async function createAsset(userId: string, data: CreateAssetInput) {
   const tenantId = await getOrCreateTenant(userId)
 
   return db.transaction(async (tx) => {
+    const LIQUID_ASSET_TYPES = new Set(['stock_etf', 'crypto', 'savings'])
     const [asset] = await tx
       .insert(assets)
-      .values({ tenantId, name: data.name, assetType: data.assetType, currency: data.currency })
+      .values({
+        tenantId,
+        name: data.name,
+        assetType: data.assetType,
+        currency: data.currency,
+        isLiquid: LIQUID_ASSET_TYPES.has(data.assetType),
+      })
       .returning()
 
     const d = data.details

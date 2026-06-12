@@ -45,6 +45,7 @@ export const assets = pgTable('assets', {
   assetType: text('asset_type').notNull(),
   currency:  text('currency').notNull().default('EUR'),
   isActive:  boolean('is_active').notNull().default(true),
+  isLiquid:  boolean('is_liquid').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -60,6 +61,7 @@ export const transactions = pgTable('transactions', {
   assetId:         uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   transactionType: text('transaction_type').notNull(),
   amount:          numeric('amount', { precision: 15, scale: 2 }).notNull(),
+  fees:            numeric('fees', { precision: 15, scale: 2 }).notNull().default('0'),
   quantity:        numeric('quantity', { precision: 15, scale: 8 }),
   pricePerUnit:    numeric('price_per_unit', { precision: 15, scale: 4 }),
   transactionDate: date('transaction_date').notNull(),
@@ -146,15 +148,18 @@ export const realEstateDetails = pgTable('real_estate_details', {
 // ─── mortgages ───────────────────────────────────────────────────────────────
 
 export const mortgages = pgTable('mortgages', {
-  id:             uuid('id').primaryKey().defaultRandom(),
-  assetId:        uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
-  lender:         text('lender').notNull(),
-  originalAmount: numeric('original_amount', { precision: 15, scale: 2 }).notNull(),
-  interestRate:   numeric('interest_rate', { precision: 8, scale: 4 }).notNull(),
-  startDate:      date('start_date').notNull(),
-  endDate:        date('end_date'),
-  mortgageType:   text('mortgage_type').notNull(),
-  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  id:                    uuid('id').primaryKey().defaultRandom(),
+  assetId:               uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  lender:                text('lender').notNull(),
+  originalAmount:        numeric('original_amount', { precision: 15, scale: 2 }).notNull(),
+  interestRate:          numeric('interest_rate', { precision: 8, scale: 4 }).notNull(),
+  interestRateFixedUntil: date('interest_rate_fixed_until'),
+  startDate:             date('start_date').notNull(),
+  endDate:               date('end_date'),
+  mortgageType:          text('mortgage_type').notNull(),
+  isActive:              boolean('is_active').notNull().default(true),
+  createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:             timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('mortgages_asset_id_idx').on(t.assetId),
   check('mortgages_type_check', sql`${t.mortgageType} IN ('annuity', 'linear', 'interest_only')`),
@@ -184,6 +189,7 @@ export const liabilities = pgTable('liabilities', {
   startDate:     date('start_date'),
   endDate:       date('end_date'),
   currency:      text('currency').notNull().default('EUR'),
+  isActive:      boolean('is_active').notNull().default(true),
   createdAt:     timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:     timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
