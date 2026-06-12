@@ -119,6 +119,7 @@ Gevonden: `initialInvestment = purchasePrice + purchaseCosts` (zonder hypotheeka
 Bestand: `src/app/vermogen/page.tsx`
 Verwacht: portfolio-waarde op 1 jan als negatieve openingscashflow
 Gevonden: alleen transacties ≥ ytdStart — structureel onjuist voor assets van vóór huidig jaar
+**✅ Opgelost:** openingswaarde per liquid asset op 1 jan bepaald uit valuationRows; toegevoegd als negatieve cashflow vóór de transacties
 
 ---
 

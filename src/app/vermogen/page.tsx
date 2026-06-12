@@ -52,6 +52,19 @@ export default async function VermogenPage() {
         return { amount: new Decimal(r.amount).mul(sign), date: new Date(r.transactionDate) }
       })
 
+    // Opening cashflow: portfolio value at start of year (negative = beginning investment)
+    const liquidAssetIdSet = new Set(liquidAssetIds)
+    const ytdOpeningByAsset = new Map<string, Decimal>()
+    for (const v of valuationRows) {
+      if (liquidAssetIdSet.has(v.assetId) && v.valuationDate <= ytdStart) {
+        ytdOpeningByAsset.set(v.assetId, new Decimal(v.value))
+      }
+    }
+    const openingValue = [...ytdOpeningByAsset.values()].reduce((s, v) => s.plus(v), new Decimal(0))
+    if (openingValue.gt(0)) {
+      cashflows.unshift({ amount: openingValue.negated(), date: new Date(ytdStart) })
+    }
+
     if (cashflows.length >= 1) {
       cashflows.push({ amount: totalLiquid, date: new Date() })
       try { portfolioXirr = calculateXirr(cashflows) } catch { /* insufficient data */ }
