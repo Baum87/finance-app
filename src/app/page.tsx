@@ -1,11 +1,11 @@
 import Decimal from 'decimal.js'
+import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
 import { getNetWorthAtDate } from '@/lib/db/queries/cashflow'
 import { calculateNetWorth, calculateAllocation } from '@/lib/finance'
 import { formatCurrency } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
-import { KpiCard } from '@/components/ui/KpiCard'
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
   stock_etf:   'Aandelen & ETF',
@@ -13,34 +13,6 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   savings:     'Spaargeld',
   real_estate: 'Vastgoed',
   pension:     'Pensioen',
-}
-
-function buildInsightText(
-  netWorth: Decimal,
-  netWorthMonthAgo: Decimal | null,
-  biggestCategory: string | null,
-  biggestPct: number | null,
-): string {
-  const parts: string[] = []
-
-  if (biggestCategory && biggestPct != null) {
-    parts.push(
-      `Je grootste positie is ${biggestCategory} (${biggestPct.toFixed(0)}% van je totale vermogen).`,
-    )
-  }
-
-  if (netWorthMonthAgo != null) {
-    const delta = netWorth.minus(netWorthMonthAgo)
-    const sign  = delta.gte(0) ? '+' : ''
-    const word  = delta.gte(0) ? 'gegroeid' : 'gedaald'
-    parts.push(
-      `Je netto vermogen is de afgelopen 30 dagen ${word} met ${sign}${formatCurrency(delta.toNumber())}.`,
-    )
-  }
-
-  return parts.length > 0
-    ? parts.join(' ')
-    : 'Voeg assets en waarderingen toe om inzichten te zien.'
 }
 
 function getGreeting(): string {
@@ -71,14 +43,18 @@ export default async function OverzichtPage() {
     })),
   )
 
+  const delta = netWorthMonthAgo != null ? netWorth.minus(netWorthMonthAgo) : null
+  const deltaPositive = delta?.gte(0) ?? true
+  const deltaStr = delta
+    ? `${deltaPositive ? '+' : ''}${formatCurrency(delta.toNumber())}`
+    : null
+
   const allocationSlices = calculateAllocation(
     assets.map(a => ({ assetType: a.assetType, value: a.currentValue })),
   )
   const biggest = allocationSlices.sort((x, y) => y.value.minus(x.value).toNumber())[0]
-  const biggestCategory = biggest ? (ASSET_TYPE_LABELS[biggest.assetType] ?? biggest.assetType) : null
-  const biggestPct = biggest ? biggest.percentage.toNumber() : null
-
-  const insightText = buildInsightText(netWorth, netWorthMonthAgo, biggestCategory, biggestPct)
+  const biggestLabel  = biggest ? (ASSET_TYPE_LABELS[biggest.assetType] ?? biggest.assetType) : null
+  const biggestPct    = biggest ? biggest.percentage.toNumber().toFixed(0) : null
 
   const firstName =
     (user?.user_metadata?.full_name as string | undefined)?.split(' ')[0]
@@ -100,23 +76,61 @@ export default async function OverzichtPage() {
           </p>
         </section>
 
-        {/* Blok 2 — Netto vermogen */}
-        <KpiCard
-          label="Netto vermogen"
-          value={netWorth.gt(0) ? formatCurrency(netWorth.toNumber()) : '—'}
-          subtext={assets.length === 0 ? 'Voeg assets toe om je vermogen te zien.' : undefined}
-        />
+        {/* Blok 2 — Inzichtkaart */}
+        <div className="bg-card border border-border rounded-3xl p-6 space-y-4">
+          <div>
+            <p className="text-sm text-muted-foreground">Netto vermogen</p>
+            <p className="mt-1 text-3xl font-semibold text-foreground">
+              {netWorth.gt(0) ? formatCurrency(netWorth.toNumber()) : '—'}
+            </p>
+            {deltaStr && (
+              <p className={`mt-0.5 text-sm font-medium ${deltaPositive ? 'text-sage' : 'text-terracotta'}`}>
+                {deltaStr} afgelopen 30 dagen
+              </p>
+            )}
+          </div>
 
-        {/* Blok 3 — Belangrijkste inzicht */}
+          {assets.length > 0 && (
+            <ul className="space-y-1 text-sm text-foreground">
+              {biggestLabel && biggestPct && (
+                <li className="before:content-['•'] before:mr-2 before:text-muted-foreground">
+                  Grootste positie: {biggestLabel} ({biggestPct}% van je vermogen)
+                </li>
+              )}
+              {delta != null && (
+                <li className="before:content-['•'] before:mr-2 before:text-muted-foreground">
+                  Vermogen {deltaPositive ? 'gegroeid' : 'gedaald'} t.o.v. 30 dagen geleden
+                </li>
+              )}
+              {assets.length === 0 && (
+                <li className="text-muted-foreground italic">Voeg assets en waarderingen toe om inzichten te zien.</li>
+              )}
+            </ul>
+          )}
+
+          <div className="flex justify-end">
+            <Link
+              href="/cashflow"
+              className="text-sm text-muted-foreground border border-border rounded-lg px-3 py-1.5 hover:bg-muted transition-colors"
+            >
+              Bekijk details →
+            </Link>
+          </div>
+        </div>
+
+        {/* Blok 3 — Actief doel (placeholder — doelen-datamodel volgt in Sprint 4) */}
         <div className="bg-card border border-border rounded-3xl p-6">
-          <p className="text-sm font-medium text-muted-foreground">Inzicht</p>
-          <p className="mt-3 text-foreground leading-relaxed">{insightText}</p>
+          <p className="text-sm font-medium text-muted-foreground">Actief doel</p>
+          <p className="mt-3 text-foreground text-sm">Geen actief doel ingesteld.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Stel hier een spaardoel of vermogensdoel in. Beschikbaar in Sprint 4.
+          </p>
         </div>
 
         {/* Blok 4 — AI Coach */}
         <div className="bg-card border border-border rounded-3xl p-6">
           <p className="text-sm font-medium text-muted-foreground">AI Coach</p>
-          <p className="mt-3 text-foreground">Komt in een volgende versie.</p>
+          <p className="mt-3 text-foreground text-sm">Komt in een volgende versie.</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Straks kun je hier vragen stellen over je financiën.
           </p>

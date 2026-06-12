@@ -89,12 +89,14 @@ Gevonden: gebruikers zonder `tenant_users` record konden niets opslaan of ophale
 Bestand: `src/app/page.tsx`
 Verwacht: één inzichtkaart met netto vermogen delta + twee bulletpoints + ghost-knop "Bekijk details"
 Gevonden: `KpiCard` zonder delta en apart tekstblok — verkeerde structuur
+**✅ Opgelost:** Inzichtkaart herschreven — netto vermogen + delta 30d + twee bulletpoints + ghost-knop "Bekijk details →"
 
 ---
 
 **[Frontend] Homepage mist "Actief doel" blok**
 Verwacht: vier blokken: Hero, Inzichtkaart, Actief doel (met voortgangsbalk), AI Coach
 Gevonden: "Actief doel" verwijderd in Sprint 3.4; doelen-datamodel bestaat niet
+**✅ Opgelost:** Actief doel blok toegevoegd als placeholder (doelen-datamodel volgt Sprint 4)
 
 ---
 
