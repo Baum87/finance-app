@@ -1,9 +1,17 @@
+'use client'
+
 import Link from 'next/link'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { deleteAssetAction } from '@/app/assets/actions'
-import type { AssetWithValue } from '@/lib/db/queries/assets'
+type AssetRow = {
+  id: string
+  name: string
+  assetType: string
+  currency: string
+  currentValue: number
+}
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
   stock_etf:    'Aandeel / ETF',
@@ -17,7 +25,7 @@ function formatCurrency(value: number, currency: string): string {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency }).format(value)
 }
 
-export function AssetList({ assets }: { assets: AssetWithValue[] }) {
+export function AssetList({ assets }: { assets: AssetRow[] }) {
   if (assets.length === 0) {
     return (
       <div className="rounded-[24px] border border-border bg-card p-12 flex flex-col items-center gap-4">
@@ -59,8 +67,8 @@ export function AssetList({ assets }: { assets: AssetWithValue[] }) {
               </TableCell>
               <TableCell className="text-muted-foreground">{asset.currency}</TableCell>
               <TableCell className="text-right font-medium">
-                {asset.currentValue.gt(0)
-                  ? formatCurrency(asset.currentValue.toNumber(), asset.currency)
+                {asset.currentValue > 0
+                  ? formatCurrency(asset.currentValue, asset.currency)
                   : '—'}
               </TableCell>
               <TableCell className="text-right">

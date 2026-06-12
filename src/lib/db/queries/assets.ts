@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import {
   assets, tenantUsers, stockEtfDetails, cryptoDetails,
   savingsDetails, pensionDetails, realEstateDetails,
-  mortgages, mortgageBalances, assetValuations, transactions,
+  mortgages, mortgageBalances, assetValuations, transactions, assetTaxMetadata,
 } from '@/lib/db/schema'
 import type { AssetType } from '@/types'
 import Decimal from 'decimal.js'
@@ -201,6 +201,9 @@ export async function createAsset(userId: string, data: CreateAssetInput) {
         break
     }
 
+    // Altijd een leeg tax_metadata record aanmaken (conform data-model.md)
+    await tx.insert(assetTaxMetadata).values({ assetId: asset.id, box: 3 })
+
     return asset
   })
 }
@@ -350,12 +353,14 @@ export async function getAssetWithCalculations(
 
   const unrealizedGain = calculateUnrealizedGain(currentValue, netDeposit)
 
-  // XIRR: needs at least one outflow and one inflow
+  // XIRR: all cashflow types conform finance-logic.md §6
+  const XIRR_OUTFLOWS = new Set(['buy', 'deposit', 'cost'])
+  const XIRR_INFLOWS  = new Set(['sell', 'withdrawal', 'dividend', 'interest', 'rental_income'])
   let xirr: Decimal | null = null
   const cashflows: Cashflow[] = txRows
-    .filter(t => ['buy', 'sell', 'deposit', 'withdrawal'].includes(t.transactionType))
+    .filter(t => XIRR_OUTFLOWS.has(t.transactionType) || XIRR_INFLOWS.has(t.transactionType))
     .map(t => {
-      const sign = t.transactionType === 'buy' || t.transactionType === 'deposit' ? -1 : 1
+      const sign = XIRR_OUTFLOWS.has(t.transactionType) ? -1 : 1
       return { amount: new Decimal(t.amount).mul(sign), date: new Date(t.transactionDate) }
     })
 

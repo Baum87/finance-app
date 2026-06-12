@@ -1,0 +1,9 @@
+
+ RUN  v4.1.8 C:/Users/remco.EISSINK01/Github/finance-app
+
+
+ Test Files  1 passed (1)
+      Tests  43 passed (43)
+   Start at  11:04:30
+   Duration  184ms (transform 53ms, setup 0ms, import 70ms, tests 12ms, environment 0ms)
+

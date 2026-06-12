@@ -26,7 +26,13 @@ export default async function AssetsPage() {
           </Link>
         </div>
 
-        <AssetList assets={assets} />
+        <AssetList assets={assets.map(a => ({
+          id: a.id,
+          name: a.name,
+          assetType: a.assetType,
+          currency: a.currency,
+          currentValue: a.currentValue.toNumber(),
+        }))} />
       </main>
     </>
   )

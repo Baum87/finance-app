@@ -12,6 +12,12 @@ export function calculateXirr(cashflows: Cashflow[]): Decimal {
     throw new Error('XIRR vereist minimaal 2 cashflows')
   }
 
+  const hasPositive = cashflows.some(cf => cf.amount.gt(0))
+  const hasNegative = cashflows.some(cf => cf.amount.lt(0))
+  if (!hasPositive || !hasNegative) {
+    throw new Error('XIRR vereist zowel positieve als negatieve cashflows')
+  }
+
   const sorted = [...cashflows].sort((a, b) => a.date.getTime() - b.date.getTime())
   const t0 = sorted[0].date.getTime()
   const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25

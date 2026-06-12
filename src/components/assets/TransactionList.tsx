@@ -1,7 +1,10 @@
+'use client'
+
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import Link from 'next/link'
+import Decimal from 'decimal.js'
 import { deleteTransactionAction } from '@/app/assets/actions'
 import type { Transaction } from '@/lib/db/queries/transactions'
 
@@ -17,7 +20,7 @@ const TX_TYPE_LABELS: Record<string, string> = {
 }
 
 function formatAmount(amount: string, currency: string): string {
-  return new Intl.NumberFormat('nl-NL', { style: 'currency', currency }).format(Number(amount))
+  return new Intl.NumberFormat('nl-NL', { style: 'currency', currency }).format(new Decimal(amount).toNumber())
 }
 
 function formatDate(date: string): string {

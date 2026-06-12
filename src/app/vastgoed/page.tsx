@@ -137,23 +137,28 @@ export default async function VastgoedPage() {
           const purchaseCosts = detail.realEstateDetails?.purchaseCosts
             ? new Decimal(detail.realEstateDetails.purchaseCosts)
             : new Decimal(0)
-          const initialInvestment = purchasePrice ? purchasePrice.plus(purchaseCosts) : null
+          const mortgageOriginal = latestMortgage?.originalAmount
+            ? new Decimal(latestMortgage.originalAmount)
+            : new Decimal(0)
+          const initialInvestment = purchasePrice
+            ? purchasePrice.plus(purchaseCosts).minus(mortgageOriginal)
+            : null
 
           const annualNetCashflow = annualIncome.minus(annualCosts)
           const cashOnCash = isRental && initialInvestment?.gt(0)
             ? calculateCashOnCash(annualNetCashflow, initialInvestment)
             : null
 
-          // XIRR for rental (cashflows from txs + equity as closing value)
+          // XIRR for rental (all cashflow types + equity as closing value)
           let rentalXirr: Decimal | null = null
           if (isRental && equity.gt(0)) {
+            const OUTFLOWS = new Set(['buy', 'cost', 'deposit'])
+            const INFLOWS  = new Set(['sell', 'rental_income', 'withdrawal', 'dividend', 'interest'])
             const cashflows = txList
-              .filter(t => ['buy', 'sell', 'rental_income', 'cost'].includes(t.transactionType))
               .map(t => {
-                const isOutflow = t.transactionType === 'buy'
-                const isInflow = t.transactionType === 'sell' || t.transactionType === 'rental_income'
-                const isCost = t.transactionType === 'cost'
-                const sign = isOutflow ? -1 : isInflow ? 1 : isCost ? -1 : 0
+                const sign = OUTFLOWS.has(t.transactionType) ? -1
+                  : INFLOWS.has(t.transactionType) ? 1
+                  : 0
                 return { amount: new Decimal(t.amount).mul(sign), date: new Date(t.transactionDate) }
               })
               .filter(c => !c.amount.isZero())
