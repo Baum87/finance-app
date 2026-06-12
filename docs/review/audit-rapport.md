@@ -56,6 +56,7 @@ Gevonden: saldo werd nooit geschreven → LTV en netto vermogen altijd onjuist
 **[Database] Geen UI of server actions voor `liabilities`**
 Verwacht: CRUD voor niet-vastgoed schulden (studentenlening, persoonlijke lening)
 Gevonden: tabel bestaat maar geen queries, actions of UI; netto vermogen mist schulden
+**✅ Opgelost:** volledig CRUD gebouwd — `queries/liabilities.ts`, `app/schulden/actions.ts`, `app/schulden/page.tsx`, `LiabilityForm`, `DeleteLiabilityButton`; "Schulden" toegevoegd aan navigatie
 
 ---
 

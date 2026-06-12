@@ -11,6 +11,7 @@ const navItems = [
   { href: '/vermogen',  label: 'Vermogen' },
   { href: '/vastgoed',  label: 'Vastgoed' },
   { href: '/cashflow',  label: 'Cashflow' },
+  { href: '/schulden',  label: 'Schulden' },
 ]
 
 export function Topbar() {
