@@ -28,9 +28,11 @@ type Props = {
   assetId: string
   transactionId?: string
   initialData?: Transaction
+  redirectTo?: string
+  cancelHref?: string
 }
 
-export function TransactionForm({ action, assetId, transactionId, initialData }: Props) {
+export function TransactionForm({ action, assetId, transactionId, initialData, redirectTo, cancelHref }: Props) {
   const [state, formAction, isPending] = useActionState(action, null)
   const [txType, setTxType] = useState<TransactionType>(
     (initialData?.transactionType as TransactionType) ?? 'buy'
@@ -42,6 +44,7 @@ export function TransactionForm({ action, assetId, transactionId, initialData }:
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="assetId" value={assetId} />
       {transactionId && <input type="hidden" name="transactionId" value={transactionId} />}
+      {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
 
       {state?.error && (
         <div className="rounded-lg border border-terracotta/30 bg-terracotta/10 p-3 text-sm text-terracotta">
@@ -163,7 +166,7 @@ export function TransactionForm({ action, assetId, transactionId, initialData }:
         >
           {isPending ? 'Opslaan…' : 'Opslaan'}
         </button>
-        <a href={`/assets/${assetId}`} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <a href={cancelHref ?? `/assets/${assetId}`} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
           Annuleren
         </a>
       </div>

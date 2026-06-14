@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues } from '@/lib/db/queries/assets'
 import { getTransactionsByAssets } from '@/lib/db/queries/transactions'
 import { buildSavingsGrowthSeries } from '@/lib/finance/savings-series'
-import { formatCurrency, formatPercent } from '@/lib/utils/format'
+import { formatCurrency } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { SavingsGrowthChart } from '@/components/portfolio/SavingsGrowthChart'
@@ -26,12 +26,14 @@ export default async function SpaarrekenigenPage() {
 
   const totaalSaldo = savings.reduce((s, a) => s.plus(a.currentValue), new Decimal(0))
 
-  const totaalInleg = allTxs
-    .filter(t => t.transactionType === 'deposit')
+  const thisYear = new Date().getFullYear()
+
+  const stortingenDitJaar = allTxs
+    .filter(t => t.transactionType === 'deposit' && new Date(t.transactionDate).getFullYear() === thisYear)
     .reduce((s, t) => s.plus(new Decimal(t.amount)), new Decimal(0))
 
-  const totaalRente = allTxs
-    .filter(t => t.transactionType === 'interest')
+  const opnamesDitJaar = allTxs
+    .filter(t => t.transactionType === 'withdrawal' && new Date(t.transactionDate).getFullYear() === thisYear)
     .reduce((s, t) => s.plus(new Decimal(t.amount)), new Decimal(0))
 
   // Gewogen gemiddelde rente op basis van saldo
@@ -50,12 +52,6 @@ export default async function SpaarrekenigenPage() {
 
   const chartData = buildSavingsGrowthSeries(allTxs)
 
-  // ── Rendementspercentage (rente / inleg) ──────────────────────────────────
-
-  const renteOpInleg = totaalInleg.gt(0)
-    ? totaalRente.div(totaalInleg)
-    : null
-
   return (
     <>
       <Topbar />
@@ -70,22 +66,18 @@ export default async function SpaarrekenigenPage() {
         </div>
 
         {/* KPI cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <KpiCard
             label="Totaal saldo"
             value={formatCurrency(totaalSaldo.toNumber())}
             subtext="Alle rekeningen"
           />
           <KpiCard
-            label="Totale inleg"
-            value={formatCurrency(totaalInleg.toNumber())}
-            subtext="Cumulatieve stortingen"
-          />
-          <KpiCard
-            label="Rente ontvangen"
-            value={formatCurrency(totaalRente.toNumber())}
-            subtext={renteOpInleg ? `${formatPercent(renteOpInleg.toNumber())} op inleg` : 'Op totale inleg'}
-            trend={totaalRente.gt(0) ? { value: '', positive: true } : undefined}
+            label="Storting / opname"
+            value={formatCurrency(stortingenDitJaar.minus(opnamesDitJaar).toNumber())}
+            subtext={opnamesDitJaar.gt(0)
+              ? `${formatCurrency(stortingenDitJaar.toNumber())} in · ${formatCurrency(opnamesDitJaar.toNumber())} uit · ${thisYear}`
+              : `Stortingen ${thisYear}`}
           />
           <KpiCard
             label="Gem. rente"
@@ -103,7 +95,7 @@ export default async function SpaarrekenigenPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-foreground">Rekeningen</h2>
               <a
-                href="/assets/new?type=savings"
+                href="/assets/new?type=savings&from=/portfolio/spaarrekeningen"
                 className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 + Nieuwe spaarrekening
@@ -127,7 +119,7 @@ export default async function SpaarrekenigenPage() {
           <div className="rounded-2xl border border-border bg-card p-12 text-center">
             <p className="text-sm text-muted-foreground mb-4">Nog geen spaarrekeningen toegevoegd.</p>
             <a
-              href="/assets/new?type=savings"
+              href="/assets/new?type=savings&from=/portfolio/spaarrekeningen"
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
             >
               + Nieuwe spaarrekening

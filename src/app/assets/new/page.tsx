@@ -17,25 +17,27 @@ const VALID_TYPES = new Set(['stock_etf', 'crypto', 'savings', 'real_estate', 'p
 export default async function NewAssetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string }>
+  searchParams: Promise<{ type?: string; from?: string; cancel?: string; broker?: string }>
 }) {
-  const { type } = await searchParams
+  const { type, from, cancel, broker } = await searchParams
   const lockedType = type && VALID_TYPES.has(type) ? type : undefined
   const label = lockedType ? TYPE_LABELS[lockedType] : 'Asset'
+  const cancelHref = cancel ?? from ?? '/assets'
+  const backHref = cancelHref
 
   return (
     <>
       <Topbar />
       <main className="mx-auto max-w-[1200px] px-8 py-12">
         <div className="mb-8">
-          <Link href="/assets" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            ← Terug naar beheer
+          <Link href={backHref} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            ← Terug
           </Link>
           <h1 className="mt-4 text-2xl font-semibold text-foreground">Nieuw {label.toLowerCase()}</h1>
         </div>
 
         <div className="max-w-2xl rounded-3xl border border-border bg-card p-8">
-          <AssetForm action={createAssetAction} lockedType={lockedType} />
+          <AssetForm action={createAssetAction} lockedType={lockedType} redirectBase={from} cancelHref={cancelHref} defaultBroker={broker} />
         </div>
       </main>
     </>

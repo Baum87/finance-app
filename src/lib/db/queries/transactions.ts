@@ -110,6 +110,29 @@ export type RawTransaction = {
  * All transactions for a set of asset IDs, optionally filtered from a date.
  * Used for portfolio XIRR/TWR calculations in page components.
  */
+export type DetailedTransaction = {
+  assetId: string
+  transactionType: string
+  amount: string
+  quantity: string | null
+  transactionDate: string
+}
+
+export async function getTransactionsByAssetsDetailed(assetIds: string[]): Promise<DetailedTransaction[]> {
+  if (assetIds.length === 0) return []
+  return db
+    .select({
+      assetId:         transactions.assetId,
+      transactionType: transactions.transactionType,
+      amount:          transactions.amount,
+      quantity:        transactions.quantity,
+      transactionDate: transactions.transactionDate,
+    })
+    .from(transactions)
+    .where(inArray(transactions.assetId, assetIds))
+    .orderBy(asc(transactions.transactionDate))
+}
+
 export async function getTransactionsByAssets(
   assetIds: string[],
   fromDate?: string,

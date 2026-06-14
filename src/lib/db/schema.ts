@@ -89,15 +89,28 @@ export const assetValuations = pgTable('asset_valuations', {
   index('asset_valuations_date_idx').on(t.valuationDate),
 ])
 
+// ─── brokers ─────────────────────────────────────────────────────────────────
+
+export const brokers = pgTable('brokers', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  tenantId:  uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  name:      text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('brokers_tenant_id_idx').on(t.tenantId),
+])
+
 // ─── stock_etf_details ───────────────────────────────────────────────────────
 
 export const stockEtfDetails = pgTable('stock_etf_details', {
-  id:          uuid('id').primaryKey().defaultRandom(),
-  assetId:     uuid('asset_id').notNull().unique().references(() => assets.id, { onDelete: 'cascade' }),
-  ticker:      text('ticker').notNull(),
-  isin:        text('isin'),
-  broker:      text('broker'),
-  accountType: text('account_type').default('taxable'),
+  id:             uuid('id').primaryKey().defaultRandom(),
+  assetId:        uuid('asset_id').notNull().unique().references(() => assets.id, { onDelete: 'cascade' }),
+  ticker:         text('ticker').notNull(),
+  isin:           text('isin'),
+  broker:         text('broker'),
+  accountType:    text('account_type').default('taxable'),
+  sector:         text('sector'),
+  instrumentType: text('instrument_type').default('stock'),
 })
 
 // ─── crypto_details ───────────────────────────────────────────────────────────
@@ -112,11 +125,12 @@ export const cryptoDetails = pgTable('crypto_details', {
 // ─── savings_details ──────────────────────────────────────────────────────────
 
 export const savingsDetails = pgTable('savings_details', {
-  id:           uuid('id').primaryKey().defaultRandom(),
-  assetId:      uuid('asset_id').notNull().unique().references(() => assets.id, { onDelete: 'cascade' }),
-  bankName:     text('bank_name').notNull(),
-  accountType:  text('account_type').default('savings'),
-  interestRate: numeric('interest_rate', { precision: 8, scale: 4 }),
+  id:                   uuid('id').primaryKey().defaultRandom(),
+  assetId:              uuid('asset_id').notNull().unique().references(() => assets.id, { onDelete: 'cascade' }),
+  bankName:             text('bank_name').notNull(),
+  accountType:          text('account_type').default('savings'),
+  interestRate:         numeric('interest_rate', { precision: 8, scale: 4 }),
+  monthlyDepositAmount: numeric('monthly_deposit_amount', { precision: 15, scale: 2 }),
 })
 
 // ─── pension_details ──────────────────────────────────────────────────────────
@@ -243,6 +257,11 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   tenantUsers: many(tenantUsers),
   assets:      many(assets),
   liabilities: many(liabilities),
+  brokers:     many(brokers),
+}))
+
+export const brokersRelations = relations(brokers, ({ one }) => ({
+  tenant: one(tenants, { fields: [brokers.tenantId], references: [tenants.id] }),
 }))
 
 export const usersRelations = relations(users, ({ many }) => ({

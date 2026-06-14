@@ -15,7 +15,7 @@ export function SavingsAccountTile({ id, name, bankName, accountType, interestRa
 
   return (
     <Link
-      href={`/assets/${id}`}
+      href={`/portfolio/spaarrekeningen/${id}`}
       className="block bg-card border border-border rounded-2xl p-6 hover:border-primary/40 transition-colors group"
     >
       <div className="mb-4">

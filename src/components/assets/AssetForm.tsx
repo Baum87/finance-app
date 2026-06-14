@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { ActionState } from '@/app/assets/actions'
 import type { AssetDetail } from '@/lib/db/queries/assets'
+import { StockSearchInput } from './StockSearchInput'
 
 type AssetType = 'stock_etf' | 'crypto' | 'savings' | 'real_estate' | 'pension' | 'vordering'
 
@@ -23,6 +24,10 @@ type Props = {
   initialData?: NonNullable<AssetDetail>
   assetId?: string
   lockedType?: string
+  redirectTo?: string
+  redirectBase?: string
+  cancelHref?: string
+  defaultBroker?: string
 }
 
 function Field({ label, name, type = 'text', defaultValue, placeholder, required }: {
@@ -190,7 +195,7 @@ function RealEstateSection({ data, propertyType, onPropertyTypeChange }: {
   )
 }
 
-export function AssetForm({ action, initialData, assetId, lockedType }: Props) {
+export function AssetForm({ action, initialData, assetId, lockedType, redirectTo, redirectBase, cancelHref = '/assets', defaultBroker }: Props) {
   const [state, formAction, isPending] = useActionState(action, null)
   const [assetType, setAssetType] = useState<AssetType>(
     (initialData?.assetType as AssetType) ?? (lockedType as AssetType) ?? 'stock_etf'
@@ -199,9 +204,14 @@ export function AssetForm({ action, initialData, assetId, lockedType }: Props) {
     initialData?.realEstateDetails?.propertyType ?? 'primary_residence'
   )
 
+  // For new stock_etf, StockSearchInput handles name and currency
+  const isNewStockEtf = assetType === 'stock_etf' && !initialData
+
   return (
     <form action={formAction} className="space-y-6">
       {assetId && <input type="hidden" name="assetId" value={assetId} />}
+      {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
+      {redirectBase && <input type="hidden" name="redirectBase" value={redirectBase} />}
 
       {state?.error && (
         <div className="rounded-lg border border-terracotta/30 bg-terracotta/10 p-3 text-sm text-terracotta">
@@ -211,9 +221,11 @@ export function AssetForm({ action, initialData, assetId, lockedType }: Props) {
 
       {/* Basisvelden */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2">
-          <Field label="Naam" name="name" defaultValue={initialData?.name} placeholder="VWRL ETF" required />
-        </div>
+        {!isNewStockEtf && (
+          <div className="col-span-2">
+            <Field label="Naam" name="name" defaultValue={initialData?.name} placeholder="VWRL ETF" required />
+          </div>
+        )}
         {!lockedType && !initialData && (
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="assetType">Type<span className="text-terracotta ml-0.5">*</span></Label>
@@ -233,20 +245,23 @@ export function AssetForm({ action, initialData, assetId, lockedType }: Props) {
         {(lockedType || initialData) && (
           <input type="hidden" name="assetType" value={assetType} />
         )}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="currency">Valuta</Label>
-          <select name="currency" id="currency" defaultValue={initialData?.currency ?? 'EUR'}
-            className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors">
-            <option value="EUR">EUR</option>
-            <option value="USD">USD</option>
-            <option value="GBP">GBP</option>
-            <option value="BTC">BTC</option>
-          </select>
-        </div>
+        {!isNewStockEtf && (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="currency">Valuta</Label>
+            <select name="currency" id="currency" defaultValue={initialData?.currency ?? 'EUR'}
+              className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors">
+              <option value="EUR">EUR</option>
+              <option value="USD">USD</option>
+              <option value="GBP">GBP</option>
+              <option value="BTC">BTC</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Type-specifieke velden */}
-      {assetType === 'stock_etf'   && <StockEtfSection   data={initialData?.stockEtfDetails ?? undefined} />}
+      {isNewStockEtf                && <StockSearchInput defaultBroker={defaultBroker} backHref={cancelHref} />}
+      {assetType === 'stock_etf' && initialData && <StockEtfSection data={initialData.stockEtfDetails ?? undefined} />}
       {assetType === 'crypto'      && <CryptoSection      data={initialData?.cryptoDetails ?? undefined} />}
       {assetType === 'savings'     && <SavingsSection     data={initialData?.savingsDetails ?? undefined} />}
       {assetType === 'pension'     && <PensionSection     data={initialData?.pensionDetails ?? undefined} />}
@@ -267,7 +282,7 @@ export function AssetForm({ action, initialData, assetId, lockedType }: Props) {
         >
           {isPending ? 'Opslaan…' : 'Opslaan'}
         </button>
-        <a href="/assets" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <a href={cancelHref} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
           Annuleren
         </a>
       </div>

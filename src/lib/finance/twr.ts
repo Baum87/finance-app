@@ -14,12 +14,11 @@ export type TwrPeriod = {
  * Returns decimal: 0.12 = 12%.
  */
 export function calculateTwr(periods: TwrPeriod[]): Decimal {
-  if (periods.length === 0) return new Decimal(0)
+  if (periods.length === 0) throw new Error('calculateTwr: periods mag niet leeg zijn')
 
   let product = new Decimal(1)
   for (const { startValue, endValue, cashflow } of periods) {
-    // startValue = 0: geen rendement te berekenen voor deze sub-periode → neutraal (factor 1)
-    if (startValue.isZero()) continue
+    if (startValue.isZero()) throw new Error('calculateTwr: startValue mag niet nul zijn')
     const growthFactor = endValue.minus(cashflow).div(startValue)
     product = product.mul(growthFactor)
   }

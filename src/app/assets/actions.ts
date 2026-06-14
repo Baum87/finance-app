@@ -10,9 +10,10 @@ import {
 import {
   createTransaction, updateTransaction, deleteTransaction,
 } from '@/lib/db/queries/transactions'
-import { createValuation } from '@/lib/db/queries/valuations'
+import { createValuation, deleteValuation } from '@/lib/db/queries/valuations'
 import { createMortgageBalance } from '@/lib/db/queries/mortgage-balances'
 import type { AssetDetailsInput } from '@/lib/db/queries/assets'
+import Decimal from 'decimal.js'
 
 export type ActionState = { error: string } | null
 
@@ -34,10 +35,12 @@ const baseSchema = z.object({
 })
 
 const stockEtfSchema = z.object({
-  ticker:      z.string().min(1, 'Ticker is verplicht'),
-  isin:        z.string().optional(),
-  broker:      z.string().optional(),
-  accountType: z.string().optional(),
+  ticker:         z.string().min(1, 'Ticker is verplicht'),
+  isin:           z.string().optional(),
+  broker:         z.string().optional(),
+  accountType:    z.string().optional(),
+  sector:         z.string().optional(),
+  instrumentType: z.string().optional(),
 })
 
 const cryptoSchema = z.object({
@@ -107,12 +110,14 @@ function parseDetails(assetType: string, fd: FormData): AssetDetailsInput {
   switch (assetType) {
     case 'stock_etf': {
       const d = stockEtfSchema.parse({
-        ticker:      str(fd, 'ticker'),
-        isin:        optStr(fd, 'isin'),
-        broker:      optStr(fd, 'broker'),
-        accountType: optStr(fd, 'accountType'),
+        ticker:         str(fd, 'ticker'),
+        isin:           optStr(fd, 'isin'),
+        broker:         optStr(fd, 'broker'),
+        accountType:    optStr(fd, 'accountType'),
+        sector:         optStr(fd, 'sector'),
+        instrumentType: optStr(fd, 'instrumentType'),
       })
-      return { kind: 'stock_etf', ticker: d.ticker, isin: d.isin, broker: d.broker, accountType: d.accountType }
+      return { kind: 'stock_etf', ticker: d.ticker, isin: d.isin, broker: d.broker, accountType: d.accountType, sector: d.sector, instrumentType: d.instrumentType }
     }
     case 'crypto': {
       const d = cryptoSchema.parse({ ticker: str(fd, 'ticker'), walletOrExchange: optStr(fd, 'walletOrExchange') })
@@ -182,7 +187,26 @@ export async function createAssetAction(prev: ActionState, fd: FormData): Promis
     const base = baseSchema.parse({ name: str(fd, 'name'), assetType: str(fd, 'assetType'), currency: str(fd, 'currency') || 'EUR' })
     const details = parseDetails(base.assetType, fd)
     const asset = await createAsset(user.id, { ...base, details })
-    redirect(`/assets/${asset.id}`)
+
+    // Initiële aankoop-transactie vanuit de zoekflow
+    const purchasePrice    = optStr(fd, 'purchasePrice')
+    const purchaseQuantity = optStr(fd, 'purchaseQuantity')
+    const purchaseDate     = optStr(fd, 'purchaseDate')
+    if (purchasePrice && purchaseQuantity && purchaseDate) {
+      const amount = new Decimal(purchasePrice).times(new Decimal(purchaseQuantity))
+      await createTransaction(user.id, asset.id, {
+        transactionType: 'buy',
+        amount:          amount.toFixed(2),
+        quantity:        purchaseQuantity,
+        pricePerUnit:    purchasePrice,
+        transactionDate: purchaseDate,
+        currency:        base.currency,
+        fxRate:          '1',
+      })
+    }
+
+    const redirectBase = str(fd, 'redirectBase')
+    redirect(redirectBase ? `${redirectBase}/${asset.id}` : `/assets/${asset.id}`)
   } catch (e) {
     if (isRedirectError(e)) throw e
     if (e instanceof z.ZodError) return { error: e.issues[0].message }
@@ -197,7 +221,7 @@ export async function updateAssetAction(prev: ActionState, fd: FormData): Promis
     const base = baseSchema.parse({ name: str(fd, 'name'), assetType: str(fd, 'assetType'), currency: str(fd, 'currency') || 'EUR' })
     const details = parseDetails(base.assetType, fd)
     await updateAsset(user.id, assetId, { name: base.name, currency: base.currency, details })
-    redirect(`/assets/${assetId}`)
+    redirect(str(fd, 'redirectTo') || `/assets/${assetId}`)
   } catch (e) {
     if (isRedirectError(e)) throw e
     if (e instanceof z.ZodError) return { error: e.issues[0].message }
@@ -208,8 +232,9 @@ export async function updateAssetAction(prev: ActionState, fd: FormData): Promis
 export async function deleteAssetAction(fd: FormData): Promise<void> {
   const user = await requireUser()
   const assetId = fd.get('assetId') as string
+  const redirectTo = fd.get('redirectTo') as string | null
   await deleteAsset(user.id, assetId)
-  redirect('/assets')
+  redirect(redirectTo ?? '/assets')
 }
 
 // ─── Transaction actions ──────────────────────────────────────────────────────
@@ -229,7 +254,7 @@ export async function createTransactionAction(prev: ActionState, fd: FormData): 
       notes:           optStr(fd, 'notes'),
     })
     await createTransaction(user.id, assetId, data)
-    redirect(`/assets/${assetId}`)
+    redirect(str(fd, 'redirectTo') || `/assets/${assetId}`)
   } catch (e) {
     if (isRedirectError(e)) throw e
     if (e instanceof z.ZodError) return { error: e.issues[0].message }
@@ -253,7 +278,7 @@ export async function updateTransactionAction(prev: ActionState, fd: FormData): 
       notes:           optStr(fd, 'notes'),
     })
     await updateTransaction(user.id, transactionId, data)
-    redirect(`/assets/${assetId}`)
+    redirect(str(fd, 'redirectTo') || `/assets/${assetId}`)
   } catch (e) {
     if (isRedirectError(e)) throw e
     if (e instanceof z.ZodError) return { error: e.issues[0].message }
@@ -265,8 +290,9 @@ export async function deleteTransactionAction(fd: FormData): Promise<void> {
   const user = await requireUser()
   const transactionId = fd.get('transactionId') as string
   const assetId = fd.get('assetId') as string
+  const redirectTo = fd.get('redirectTo') as string | null
   await deleteTransaction(user.id, transactionId)
-  redirect(`/assets/${assetId}`)
+  redirect(redirectTo ?? `/assets/${assetId}`)
 }
 
 // ─── Valuation actions ────────────────────────────────────────────────────────
@@ -287,12 +313,20 @@ export async function createValuationAction(prev: ActionState, fd: FormData): Pr
       currency:      str(fd, 'currency') || 'EUR',
     })
     await createValuation(user.id, assetId, data)
-    redirect(`/assets/${assetId}`)
+    redirect(str(fd, 'redirectTo') || `/assets/${assetId}`)
   } catch (e) {
     if (isRedirectError(e)) throw e
     if (e instanceof z.ZodError) return { error: e.issues[0].message }
     return { error: e instanceof Error ? e.message : 'Onbekende fout' }
   }
+}
+
+export async function deleteValuationAction(fd: FormData): Promise<void> {
+  const user = await requireUser()
+  const valuationId = fd.get('valuationId') as string
+  const redirectTo  = fd.get('redirectTo') as string | null
+  await deleteValuation(user.id, valuationId)
+  redirect(redirectTo ?? '/assets')
 }
 
 // ─── Mortgage balance actions ─────────────────────────────────────────────────

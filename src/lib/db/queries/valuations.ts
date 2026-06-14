@@ -31,6 +31,21 @@ export async function createValuation(
   return row
 }
 
+export async function deleteValuation(userId: string, valuationId: string) {
+  const tenantId = await getOrCreateTenant(userId)
+
+  const row = await db
+    .select({ id: assetValuations.id })
+    .from(assetValuations)
+    .innerJoin(assets, eq(assets.id, assetValuations.assetId))
+    .where(and(eq(assetValuations.id, valuationId), eq(assets.tenantId, tenantId)))
+    .limit(1)
+
+  if (!row[0]) throw new Error('Waardering niet gevonden')
+
+  await db.delete(assetValuations).where(eq(assetValuations.id, valuationId))
+}
+
 export async function getValuations(userId: string, assetId: string, limit = 10) {
   const tenantId = await getOrCreateTenant(userId)
 

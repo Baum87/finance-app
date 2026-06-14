@@ -82,6 +82,8 @@ export type StockEtfInput = {
   isin?: string | null
   broker?: string | null
   accountType?: string | null
+  sector?: string | null
+  instrumentType?: string | null
 }
 
 export type CryptoInput = {
@@ -173,6 +175,8 @@ export async function createAsset(userId: string, data: CreateAssetInput) {
           isin: d.isin ?? null,
           broker: d.broker ?? null,
           accountType: d.accountType ?? 'taxable',
+          sector: d.sector ?? null,
+          instrumentType: d.instrumentType ?? 'stock',
         })
         break
       case 'crypto':
@@ -260,7 +264,7 @@ export async function updateAsset(
       case 'stock_etf':
         await tx
           .update(stockEtfDetails)
-          .set({ ticker: d.ticker, isin: d.isin ?? null, broker: d.broker ?? null, accountType: d.accountType ?? 'taxable' })
+          .set({ ticker: d.ticker, isin: d.isin ?? null, broker: d.broker ?? null, accountType: d.accountType ?? 'taxable', sector: d.sector ?? null, instrumentType: d.instrumentType ?? 'stock' })
           .where(eq(stockEtfDetails.assetId, assetId))
         break
       case 'crypto':
@@ -331,6 +335,7 @@ export type AssetCalculations = {
   quantityHeld: Decimal | null
   fetchedPrice: Decimal | null
   priceCurrency: string | null
+  priceEur: Decimal | null
 }
 
 /**
@@ -364,6 +369,7 @@ export async function getAssetWithCalculations(
   let currentValue = new Decimal(0)
   let fetchedPrice: Decimal | null = null
   let priceCurrency: string | null = null
+  let priceEurCalc: Decimal | null = null
   let quantityHeld: Decimal | null = null
 
   const assetType = asset.assetType
@@ -379,7 +385,17 @@ export async function getAssetWithCalculations(
         const priceResult = await getLatestPrice(ticker)
         fetchedPrice = priceResult.price
         priceCurrency = priceResult.currency
-        currentValue = calculateMarketValue(txs, priceResult.price)
+
+        let priceEur = priceResult.price
+        if (priceResult.currency !== 'EUR') {
+          try {
+            const fx = await getLatestPrice(`${priceResult.currency}EUR=X`)
+            priceEur = priceResult.price.times(fx.price)
+          } catch { /* FX niet beschikbaar, gebruik native prijs */ }
+        }
+
+        priceEurCalc = priceEur
+        currentValue = calculateMarketValue(txs, priceEur)
         quantityHeld = calculateQuantityHeld(txs)
       } catch {
         // price fetch failed — fall back to latest valuation
@@ -408,18 +424,27 @@ export async function getAssetWithCalculations(
       return { amount: new Decimal(t.amount).mul(sign), date: new Date(t.transactionDate) }
     })
 
+  const MS_PER_DAY = 1000 * 60 * 60 * 24
+  const XIRR_MIN_DAYS = 30
+
   if (cashflows.length >= 1 && currentValue.gt(0)) {
-    cashflows.push({ amount: currentValue, date: new Date() })
-    try {
-      xirr = calculateXirr(cashflows)
-    } catch {
-      xirr = null
+    const firstDate = cashflows.reduce((min, cf) =>
+      cf.date.getTime() < min.getTime() ? cf.date : min, cashflows[0].date)
+    const daysSinceFirst = (Date.now() - firstDate.getTime()) / MS_PER_DAY
+
+    if (daysSinceFirst >= XIRR_MIN_DAYS) {
+      cashflows.push({ amount: currentValue, date: new Date() })
+      try {
+        xirr = calculateXirr(cashflows)
+      } catch {
+        xirr = null
+      }
     }
   }
 
   return {
     asset,
-    calculations: { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, fetchedPrice, priceCurrency },
+    calculations: { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, fetchedPrice, priceCurrency, priceEur: priceEurCalc },
   }
 }
 
@@ -455,8 +480,15 @@ export async function getAssetsWithValues(userId: string): Promise<AssetWithValu
 
         if (ticker) {
           try {
-            const { price } = await getLatestPrice(ticker)
-            currentValue = calculateMarketValue(txs, price)
+            const priceResult = await getLatestPrice(ticker)
+            let priceEur = priceResult.price
+            if (priceResult.currency !== 'EUR') {
+              try {
+                const fx = await getLatestPrice(`${priceResult.currency}EUR=X`)
+                priceEur = priceResult.price.times(fx.price)
+              } catch { /* FX niet beschikbaar, gebruik native prijs */ }
+            }
+            currentValue = calculateMarketValue(txs, priceEur)
           } catch {
             const latestVal = asset.valuations?.[0]
             if (latestVal) currentValue = new Decimal(latestVal.value)

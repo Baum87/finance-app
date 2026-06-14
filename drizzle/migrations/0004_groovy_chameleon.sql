@@ -1,0 +1,1 @@
+ALTER TABLE "savings_details" ADD COLUMN "monthly_deposit_amount" numeric(15, 2);
