@@ -78,7 +78,6 @@ async function seed() {
     assetId:     vwrl.id,
     ticker:      'VWRL',
     isin:        'IE00B3RBWM25',
-    broker:      'DEGIRO',
     accountType: 'taxable',
   })
 

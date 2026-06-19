@@ -39,6 +39,7 @@ export default async function AandeelDetailPage({
     transactionType: t.transactionType,
     amount: t.amount,
     quantity: t.quantity,
+    fees: t.fees ?? '0',
   })))
   const wac = wacPerUnit.gt(0) ? wacPerUnit.toNumber() : null
 
@@ -47,9 +48,10 @@ export default async function AandeelDetailPage({
   const fmtPrice = (v: number) =>
     new Intl.NumberFormat('nl-NL', { style: 'currency', currency: priceCurrency ?? 'EUR' }).format(v)
 
-  // Breadcrumb: vind broker op naam zodat we naar de broker-pagina kunnen linken
-  const brokerName = asset.stockEtfDetails?.broker?.trim()
-  const broker     = brokerName ? brokerList.find(b => b.name === brokerName) : undefined
+  // Breadcrumb: vind broker via brokerId zodat we naar de broker-pagina kunnen linken
+  const broker = asset.stockEtfDetails?.brokerId
+    ? brokerList.find(b => b.id === asset.stockEtfDetails!.brokerId)
+    : undefined
 
   return (
     <>

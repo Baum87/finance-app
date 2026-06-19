@@ -8,14 +8,17 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+type Broker = { id: string; name: string }
+
 type Props = {
-  defaultBroker?: string
+  defaultBrokerId?: string
+  brokerList?: Broker[]
   backHref?: string
 }
 
 const today = new Date().toISOString().split('T')[0]
 
-export function StockSearchInput({ defaultBroker = '', backHref = '/portfolio/aandelen-etf' }: Props) {
+export function StockSearchInput({ defaultBrokerId = '', brokerList = [], backHref = '/portfolio/aandelen-etf' }: Props) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<StockSearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -26,7 +29,7 @@ export function StockSearchInput({ defaultBroker = '', backHref = '/portfolio/aa
   const [name, setName] = useState('')
   const [ticker, setTicker] = useState('')
   const [isin, setIsin] = useState('')
-  const [broker, setBroker] = useState(defaultBroker)
+  const [brokerId, setBrokerId] = useState(defaultBrokerId)
   const [accountType, setAccountType] = useState('taxable')
   const [sector, setSector] = useState('')
   const [instrumentType, setInstrumentType] = useState('stock')
@@ -185,14 +188,19 @@ export function StockSearchInput({ defaultBroker = '', backHref = '/portfolio/aa
 
         {/* Broker */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="broker">Broker</Label>
-          <Input
-            id="broker"
-            name="broker"
-            placeholder="DEGIRO"
-            value={broker}
-            onChange={e => setBroker(e.target.value)}
-          />
+          <Label htmlFor="brokerId">Broker</Label>
+          <select
+            id="brokerId"
+            name="brokerId"
+            value={brokerId}
+            onChange={e => setBrokerId(e.target.value)}
+            className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors"
+          >
+            <option value="">— Geen broker —</option>
+            {brokerList.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
         </div>
 
         {/* Accounttype */}
@@ -247,7 +255,7 @@ export function StockSearchInput({ defaultBroker = '', backHref = '/portfolio/aa
             {duplicates.map(d => (
               <li key={d.assetId} className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">
-                  {d.assetName}{d.broker ? ` · ${d.broker}` : ''}
+                  {d.assetName}{d.brokerName ? ` · ${d.brokerName}` : ''}
                 </span>
                 <a
                   href={`/assets/${d.assetId}/transactions/new?from=${backHref}`}

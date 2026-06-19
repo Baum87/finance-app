@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { createServerSupabaseClient } from '@/lib/db/supabase-server'
+import { getBrokers } from '@/lib/db/queries/brokers'
 import { Topbar } from '@/components/layout/Topbar'
 import { AssetForm } from '@/components/assets/AssetForm'
 import { createAssetAction } from '@/app/assets/actions'
@@ -17,13 +19,17 @@ const VALID_TYPES = new Set(['stock_etf', 'crypto', 'savings', 'real_estate', 'p
 export default async function NewAssetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; from?: string; cancel?: string; broker?: string }>
+  searchParams: Promise<{ type?: string; from?: string; cancel?: string; brokerId?: string }>
 }) {
-  const { type, from, cancel, broker } = await searchParams
+  const { type, from, cancel, brokerId } = await searchParams
   const lockedType = type && VALID_TYPES.has(type) ? type : undefined
   const label = lockedType ? TYPE_LABELS[lockedType] : 'Asset'
   const cancelHref = cancel ?? from ?? '/assets'
   const backHref = cancelHref
+
+  const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const brokerList = user ? await getBrokers(user.id) : []
 
   return (
     <>
@@ -37,7 +43,7 @@ export default async function NewAssetPage({
         </div>
 
         <div className="max-w-2xl rounded-3xl border border-border bg-card p-8">
-          <AssetForm action={createAssetAction} lockedType={lockedType} redirectBase={from} cancelHref={cancelHref} defaultBroker={broker} />
+          <AssetForm action={createAssetAction} lockedType={lockedType} redirectBase={from} cancelHref={cancelHref} defaultBrokerId={brokerId} brokerList={brokerList} />
         </div>
       </main>
     </>

@@ -77,27 +77,46 @@ export async function buildStockPortfolioSeries(
     const currency = currencyByTicker.get(ticker) ?? 'EUR'
     if (currency === 'EUR') return nativePrice
     const fxMap = fxByBase.get(currency)
-    const fxRate = fxMap ? (lookupMonth(fxMap, month) ?? 1) : 1
+    const fxRate = fxMap ? lookupMonth(fxMap, month) : null
+    if (fxRate === null) return null
     return nativePrice * fxRate
   }
 
   let cumInleg = new Decimal(0)
-  const qtyHeld = new Map<string, Decimal>()
-  tickerByAssetId.forEach((_, id) => qtyHeld.set(id, new Decimal(0)))
+  const qtyHeld  = new Map<string, Decimal>()
+  const costHeld = new Map<string, Decimal>()
+  tickerByAssetId.forEach((_, id) => {
+    qtyHeld.set(id, new Decimal(0))
+    costHeld.set(id, new Decimal(0))
+  })
 
   let txIdx = 0
   const result: PortfolioDataPoint[] = []
 
   for (const month of months) {
-    const monthEnd = month + '-31'
+    const [my, mm] = month.split('-').map(Number)
+    const monthEnd = new Date(my, mm, 0).toISOString().slice(0, 10)
     while (txIdx < sorted.length && sorted[txIdx].transactionDate.slice(0, 10) <= monthEnd) {
       const tx = sorted[txIdx]
       if (tx.transactionType === 'buy') {
-        cumInleg = cumInleg.plus(new Decimal(tx.amount))
-        if (tx.quantity) qtyHeld.set(tx.assetId, (qtyHeld.get(tx.assetId) ?? new Decimal(0)).plus(new Decimal(tx.quantity)))
+        const cost = new Decimal(tx.amount).plus(new Decimal(tx.fees ?? '0'))
+        cumInleg = cumInleg.plus(cost)
+        if (tx.quantity) {
+          qtyHeld.set(tx.assetId, (qtyHeld.get(tx.assetId) ?? new Decimal(0)).plus(new Decimal(tx.quantity)))
+          costHeld.set(tx.assetId, (costHeld.get(tx.assetId) ?? new Decimal(0)).plus(cost))
+        }
       } else if (tx.transactionType === 'sell') {
-        cumInleg = cumInleg.minus(new Decimal(tx.amount))
-        if (tx.quantity) qtyHeld.set(tx.assetId, (qtyHeld.get(tx.assetId) ?? new Decimal(0)).minus(new Decimal(tx.quantity)))
+        if (tx.quantity) {
+          const qty      = new Decimal(tx.quantity)
+          const heldQty  = qtyHeld.get(tx.assetId) ?? new Decimal(0)
+          const heldCost = costHeld.get(tx.assetId) ?? new Decimal(0)
+          if (heldQty.gt(0)) {
+            const soldCost = heldCost.div(heldQty).mul(qty)
+            cumInleg = cumInleg.minus(soldCost)
+            costHeld.set(tx.assetId, heldCost.minus(soldCost))
+          }
+          qtyHeld.set(tx.assetId, heldQty.minus(qty))
+        }
       }
       txIdx++
     }

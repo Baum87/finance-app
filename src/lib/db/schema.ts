@@ -107,7 +107,7 @@ export const stockEtfDetails = pgTable('stock_etf_details', {
   assetId:        uuid('asset_id').notNull().unique().references(() => assets.id, { onDelete: 'cascade' }),
   ticker:         text('ticker').notNull(),
   isin:           text('isin'),
-  broker:         text('broker'),
+  brokerId:       uuid('broker_id').references(() => brokers.id, { onDelete: 'set null' }),
   accountType:    text('account_type').default('taxable'),
   sector:         text('sector'),
   instrumentType: text('instrument_type').default('stock'),
@@ -260,8 +260,9 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   brokers:     many(brokers),
 }))
 
-export const brokersRelations = relations(brokers, ({ one }) => ({
-  tenant: one(tenants, { fields: [brokers.tenantId], references: [tenants.id] }),
+export const brokersRelations = relations(brokers, ({ one, many }) => ({
+  tenant:         one(tenants, { fields: [brokers.tenantId], references: [tenants.id] }),
+  stockEtfDetails: many(stockEtfDetails),
 }))
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -288,7 +289,8 @@ export const assetsRelations = relations(assets, ({ one, many }) => ({
 }))
 
 export const stockEtfDetailsRelations = relations(stockEtfDetails, ({ one }) => ({
-  asset: one(assets, { fields: [stockEtfDetails.assetId], references: [assets.id] }),
+  asset:  one(assets,  { fields: [stockEtfDetails.assetId],  references: [assets.id] }),
+  broker: one(brokers, { fields: [stockEtfDetails.brokerId], references: [brokers.id] }),
 }))
 
 export const cryptoDetailsRelations = relations(cryptoDetails, ({ one }) => ({

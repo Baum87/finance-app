@@ -3,7 +3,7 @@
 import YahooFinance from 'yahoo-finance2'
 import { eq, and, ilike } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { assets, stockEtfDetails } from '@/lib/db/schema'
+import { assets, stockEtfDetails, brokers } from '@/lib/db/schema'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getOrCreateTenant } from '@/lib/db/queries/tenant'
 
@@ -45,7 +45,7 @@ export type StockQuote = {
 export type ExistingPosition = {
   assetId: string
   assetName: string
-  broker: string | null
+  brokerName: string | null
 }
 
 export async function checkTickerExistsAction(ticker: string): Promise<ExistingPosition[]> {
@@ -55,15 +55,16 @@ export async function checkTickerExistsAction(ticker: string): Promise<ExistingP
     if (!user) return []
     const tenantId = await getOrCreateTenant(user.id)
     const rows = await db
-      .select({ id: assets.id, name: assets.name, broker: stockEtfDetails.broker })
+      .select({ id: assets.id, name: assets.name, brokerName: brokers.name })
       .from(assets)
       .innerJoin(stockEtfDetails, eq(stockEtfDetails.assetId, assets.id))
+      .leftJoin(brokers, eq(brokers.id, stockEtfDetails.brokerId))
       .where(and(
         eq(assets.tenantId, tenantId),
         eq(assets.isActive, true),
         ilike(stockEtfDetails.ticker, ticker),
       ))
-    return rows.map(r => ({ assetId: r.id, assetName: r.name, broker: r.broker }))
+    return rows.map(r => ({ assetId: r.id, assetName: r.name, brokerName: r.brokerName ?? null }))
   } catch {
     return []
   }

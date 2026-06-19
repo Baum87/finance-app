@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues } from '@/lib/db/queries/assets'
+import { getBrokers } from '@/lib/db/queries/brokers'
 import { AssetSection } from '@/components/assets/AssetSection'
 import { Topbar } from '@/components/layout/Topbar'
 import type { SectionColumn, SectionRow } from '@/components/assets/AssetSection'
@@ -61,11 +62,15 @@ const PENSION_TYPE_LABELS: Record<string, string> = {
 export default async function AssetsPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const assets = await getAssetsWithValues(user!.id)
+  const [assets, brokerList] = await Promise.all([
+    getAssetsWithValues(user!.id),
+    getBrokers(user!.id),
+  ])
+  const brokerById = new Map(brokerList.map(b => [b.id, b.name]))
 
   const stockRows   = assets.filter(a => a.assetType === 'stock_etf').map(a => toRow(a, {
     ticker: a.stockEtfDetails?.ticker ?? null,
-    broker: a.stockEtfDetails?.broker ?? null,
+    broker: brokerById.get(a.stockEtfDetails?.brokerId ?? '') ?? null,
   }))
 
   const cryptoRows  = assets.filter(a => a.assetType === 'crypto').map(a => toRow(a, {

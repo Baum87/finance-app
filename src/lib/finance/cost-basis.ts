@@ -4,6 +4,7 @@ type TxInput = {
   transactionType: string
   amount: string
   quantity?: string | null
+  fees?: string | null
 }
 
 /**
@@ -21,7 +22,7 @@ export function calculateCostBasis(transactions: TxInput[]): Decimal {
 
     if (tx.transactionType === 'buy') {
       totalQty = totalQty.plus(qty)
-      totalCost = totalCost.plus(new Decimal(tx.amount))
+      totalCost = totalCost.plus(new Decimal(tx.amount)).plus(new Decimal(tx.fees ?? '0'))
     } else if (tx.transactionType === 'sell') {
       if (totalQty.gt(0)) {
         const avgCost = totalCost.div(totalQty)

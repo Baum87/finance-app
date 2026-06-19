@@ -15,6 +15,7 @@ type Props = {
 export function SavingsTransactionForm({ action, assetId, redirectTo, defaultMonthlyAmount }: Props) {
   const [state, formAction, isPending] = useActionState(action, null)
   const [isRecurring, setIsRecurring] = useState(false)
+  const [txType, setTxType] = useState('deposit')
   const today = new Date().toISOString().slice(0, 10)
 
   return (
@@ -36,10 +37,12 @@ export function SavingsTransactionForm({ action, assetId, redirectTo, defaultMon
             name="transactionType"
             id="transactionType"
             defaultValue="deposit"
+            onChange={e => setTxType(e.target.value)}
             className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors"
           >
             <option value="deposit">Storting</option>
             <option value="withdrawal">Opname</option>
+            <option value="interest">Rente bijboeken</option>
           </select>
         </div>
 
@@ -81,8 +84,8 @@ export function SavingsTransactionForm({ action, assetId, redirectTo, defaultMon
         </div>
       </div>
 
-      {/* Recurring */}
-      <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
+      {/* Recurring — alleen tonen bij stortingen */}
+      {txType === 'deposit' && <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
         <label className="flex items-center gap-3 cursor-pointer">
           <input
             type="checkbox"
@@ -99,7 +102,7 @@ export function SavingsTransactionForm({ action, assetId, redirectTo, defaultMon
             Dit bedrag wordt opgeslagen als maandelijks terugkerend bedrag. Je kunt het de volgende maand met één klik toepassen vanuit de rekening-overzichtspagina.
           </p>
         )}
-      </div>
+      </div>}
 
       <div className="flex items-center gap-3 pt-2">
         <button

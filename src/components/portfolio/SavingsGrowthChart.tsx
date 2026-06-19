@@ -2,7 +2,7 @@
 
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { CHART_COLORS, CHART_STYLE } from '@/lib/utils/chart-colors'
 import type { SavingsDataPoint } from '@/lib/finance/savings-series'
@@ -21,6 +21,8 @@ export function SavingsGrowthChart({ data }: Props) {
       </div>
     )
   }
+
+  const hasInterest = data.some(d => d.balance > d.deposits)
 
   return (
     <div className="bg-card border border-border rounded-2xl p-6">
@@ -42,10 +44,19 @@ export function SavingsGrowthChart({ data }: Props) {
             width={72}
           />
           <Tooltip
-            formatter={(value) => [formatEur(Number(value)), 'Werkelijk saldo']}
+            formatter={(value, name) => [
+              formatEur(Number(value)),
+              name === 'balance' ? 'Werkelijk saldo' : 'Eigen inleg',
+            ]}
             contentStyle={CHART_STYLE.tooltipContent}
             labelStyle={{ fontSize: 11, color: CHART_STYLE.labelFill }}
           />
+          {hasInterest && (
+            <Legend
+              formatter={name => name === 'balance' ? 'Werkelijk saldo' : 'Eigen inleg'}
+              wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+            />
+          )}
           <Line
             dataKey="balance"
             stroke={CHART_COLORS.sage}
@@ -53,6 +64,16 @@ export function SavingsGrowthChart({ data }: Props) {
             dot={false}
             activeDot={{ r: 4 }}
           />
+          {hasInterest && (
+            <Line
+              dataKey="deposits"
+              stroke={CHART_COLORS.sand}
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+              dot={false}
+              activeDot={{ r: 4 }}
+            />
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>

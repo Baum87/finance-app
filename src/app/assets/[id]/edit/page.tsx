@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAsset } from '@/lib/db/queries/assets'
+import { getBrokers } from '@/lib/db/queries/brokers'
 import { AssetForm } from '@/components/assets/AssetForm'
 import { updateAssetAction } from '@/app/assets/actions'
 import { Topbar } from '@/components/layout/Topbar'
@@ -18,7 +19,10 @@ export default async function EditAssetPage({
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const asset = await getAsset(user!.id, id)
+  const [asset, brokerList] = await Promise.all([
+    getAsset(user!.id, id),
+    getBrokers(user!.id),
+  ])
   if (!asset) notFound()
 
   const backHref = from ?? `/assets/${id}`
@@ -35,7 +39,7 @@ export default async function EditAssetPage({
         </div>
 
         <div className="max-w-2xl rounded-3xl border border-border bg-card p-8">
-          <AssetForm action={updateAssetAction} initialData={asset} assetId={asset.id} redirectTo={from} cancelHref={from ?? backHref} />
+          <AssetForm action={updateAssetAction} initialData={asset} assetId={asset.id} redirectTo={from} cancelHref={from ?? backHref} brokerList={brokerList} />
         </div>
       </main>
     </>

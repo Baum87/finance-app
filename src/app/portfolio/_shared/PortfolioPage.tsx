@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues } from '@/lib/db/queries/assets'
+import { getBrokers } from '@/lib/db/queries/brokers'
 import { AssetSection } from '@/components/assets/AssetSection'
 import { Topbar } from '@/components/layout/Topbar'
 import type { SectionColumn } from '@/components/assets/AssetSection'
@@ -18,13 +19,15 @@ const PENSION_TYPE_LABELS: Record<string, string> = {
   annuity:              'Lijfrente',
 }
 
+type DetailCtx = { brokerById?: Map<string, string> }
+
 type Config = {
   assetType: string
   title: string
   description: string
   addLabel: string
   columns: SectionColumn[]
-  getDetails: (a: AssetWithValue) => Record<string, string | null>
+  getDetails: (a: AssetWithValue, ctx?: DetailCtx) => Record<string, string | null>
 }
 
 export const CONFIGS: Record<string, Config> = {
@@ -37,9 +40,9 @@ export const CONFIGS: Record<string, Config> = {
       { header: 'Ticker',  key: 'ticker' },
       { header: 'Broker',  key: 'broker' },
     ],
-    getDetails: a => ({
+    getDetails: (a, ctx) => ({
       ticker: a.stockEtfDetails?.ticker ?? null,
-      broker: a.stockEtfDetails?.broker ?? null,
+      broker: ctx?.brokerById?.get(a.stockEtfDetails?.brokerId ?? '') ?? null,
     }),
   },
   'crypto': {
@@ -120,7 +123,11 @@ export async function PortfolioPage({ assetType }: { assetType: string }) {
 
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const allAssets = await getAssetsWithValues(user!.id)
+  const [allAssets, brokerList] = await Promise.all([
+    getAssetsWithValues(user!.id),
+    assetType === 'stock_etf' ? getBrokers(user!.id) : Promise.resolve([]),
+  ])
+  const brokerById = new Map(brokerList.map(b => [b.id, b.name]))
 
   const rows = allAssets
     .filter(a => a.assetType === assetType)
@@ -129,7 +136,7 @@ export async function PortfolioPage({ assetType }: { assetType: string }) {
       name:         a.name,
       currentValue: a.currentValue.toNumber(),
       currency:     a.currency,
-      details:      config.getDetails(a),
+      details:      config.getDetails(a, { brokerById }),
     }))
 
   return (

@@ -10,7 +10,7 @@ type TransactionType =
   | 'buy' | 'sell' | 'deposit' | 'withdrawal'
   | 'dividend' | 'interest' | 'rental_income' | 'cost'
 
-const TX_OPTIONS: { value: TransactionType; label: string }[] = [
+const ALL_TX_OPTIONS: { value: TransactionType; label: string }[] = [
   { value: 'buy',           label: 'Aankoop' },
   { value: 'sell',          label: 'Verkoop' },
   { value: 'deposit',       label: 'Storting' },
@@ -30,19 +30,30 @@ type Props = {
   initialData?: Transaction
   redirectTo?: string
   cancelHref?: string
+  allowedTypes?: TransactionType[]
 }
 
-export function TransactionForm({ action, assetId, transactionId, initialData, redirectTo, cancelHref }: Props) {
+export function TransactionForm({ action, assetId, transactionId, initialData, redirectTo, cancelHref, allowedTypes }: Props) {
   const [state, formAction, isPending] = useActionState(action, null)
-  const [txType, setTxType] = useState<TransactionType>(
-    (initialData?.transactionType as TransactionType) ?? 'buy'
-  )
+
+  const options = allowedTypes
+    ? ALL_TX_OPTIONS.filter(o => allowedTypes.includes(o.value))
+    : ALL_TX_OPTIONS
+
+  const defaultType = (initialData?.transactionType as TransactionType)
+    ?? options[0]?.value
+    ?? 'buy'
+
+  const [txType, setTxType] = useState<TransactionType>(defaultType)
 
   const showQuantity = WITH_QUANTITY.includes(txType)
+  const today = new Date().toISOString().slice(0, 10)
 
   return (
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="assetId" value={assetId} />
+      <input type="hidden" name="currency" value="EUR" />
+      <input type="hidden" name="fxRate" value="1" />
       {transactionId && <input type="hidden" name="transactionId" value={transactionId} />}
       {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
 
@@ -63,7 +74,7 @@ export function TransactionForm({ action, assetId, transactionId, initialData, r
             onChange={e => setTxType(e.target.value as TransactionType)}
             className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors"
           >
-            {TX_OPTIONS.map(o => (
+            {options.map(o => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
@@ -76,13 +87,13 @@ export function TransactionForm({ action, assetId, transactionId, initialData, r
             id="transactionDate"
             name="transactionDate"
             type="date"
-            defaultValue={initialData?.transactionDate ?? new Date().toISOString().slice(0, 10)}
+            defaultValue={initialData?.transactionDate ?? today}
           />
         </div>
 
         {/* Bedrag */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="amount">Bedrag (€)<span className="text-terracotta ml-0.5">*</span></Label>
+        <div className={`flex flex-col gap-1.5 ${showQuantity ? '' : 'col-span-2'}`}>
+          <Label htmlFor="amount">Bedrag (EUR)<span className="text-terracotta ml-0.5">*</span></Label>
           <Input
             id="amount"
             name="amount"
@@ -91,17 +102,6 @@ export function TransactionForm({ action, assetId, transactionId, initialData, r
             defaultValue={initialData?.amount}
             placeholder="1250.00"
           />
-        </div>
-
-        {/* Valuta */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="currency">Valuta</Label>
-          <select name="currency" id="currency" defaultValue={initialData?.currency ?? 'EUR'}
-            className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors">
-            <option value="EUR">EUR</option>
-            <option value="USD">USD</option>
-            <option value="GBP">GBP</option>
-          </select>
         </div>
 
         {/* Aantal + koers — alleen bij buy/sell */}
@@ -119,7 +119,7 @@ export function TransactionForm({ action, assetId, transactionId, initialData, r
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="pricePerUnit">Koers per stuk (€)</Label>
+              <Label htmlFor="pricePerUnit">Koers per stuk (EUR)</Label>
               <Input
                 id="pricePerUnit"
                 name="pricePerUnit"
@@ -132,19 +132,6 @@ export function TransactionForm({ action, assetId, transactionId, initialData, r
           </>
         )}
 
-        {/* Wisselkoers (alleen tonen als niet EUR) */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="fxRate">Wisselkoers</Label>
-          <Input
-            id="fxRate"
-            name="fxRate"
-            type="text"
-            inputMode="decimal"
-            defaultValue={initialData?.fxRate ?? '1'}
-            placeholder="1"
-          />
-        </div>
-
         {/* Notitie */}
         <div className="col-span-2 flex flex-col gap-1.5">
           <Label htmlFor="notes">Notitie</Label>
@@ -153,7 +140,7 @@ export function TransactionForm({ action, assetId, transactionId, initialData, r
             name="notes"
             type="text"
             defaultValue={initialData?.notes ?? ''}
-            placeholder="Maandelijkse inleg"
+            placeholder="bijv. Q2 dividend uitkering"
           />
         </div>
       </div>

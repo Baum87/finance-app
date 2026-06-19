@@ -116,6 +116,7 @@ export type DetailedTransaction = {
   amount: string
   quantity: string | null
   transactionDate: string
+  fees: string
 }
 
 export async function getTransactionsByAssetsDetailed(assetIds: string[]): Promise<DetailedTransaction[]> {
@@ -127,6 +128,7 @@ export async function getTransactionsByAssetsDetailed(assetIds: string[]): Promi
       amount:          transactions.amount,
       quantity:        transactions.quantity,
       transactionDate: transactions.transactionDate,
+      fees:            transactions.fees,
     })
     .from(transactions)
     .where(inArray(transactions.assetId, assetIds))

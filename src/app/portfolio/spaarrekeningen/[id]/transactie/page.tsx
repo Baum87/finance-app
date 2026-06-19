@@ -28,7 +28,7 @@ export default async function SavingsTransactiePage({ params }: { params: Promis
           >
             ← {asset.name}
           </Link>
-          <h1 className="mt-4 text-2xl font-semibold text-foreground">Storting / opname toevoegen</h1>
+          <h1 className="mt-4 text-2xl font-semibold text-foreground">Transactie toevoegen</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {asset.savingsDetails?.bankName ?? asset.name}
           </p>

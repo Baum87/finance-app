@@ -98,13 +98,13 @@ export default async function AandelenEtfPage() {
 
   const assetsByBroker = new Map<string, typeof assets>()
   for (const a of assets) {
-    const name = a.stockEtfDetails?.broker?.trim() ?? ''
-    if (!assetsByBroker.has(name)) assetsByBroker.set(name, [])
-    assetsByBroker.get(name)!.push(a)
+    const key = a.stockEtfDetails?.brokerId ?? ''
+    if (!assetsByBroker.has(key)) assetsByBroker.set(key, [])
+    assetsByBroker.get(key)!.push(a)
   }
 
   const brokerStats = brokerList.map(broker => {
-    const positions = assetsByBroker.get(broker.name) ?? []
+    const positions = assetsByBroker.get(broker.id) ?? []
     const waarde    = positions.reduce((s, a) => s.plus(a.currentValue), new Decimal(0))
     const inleg     = positions.reduce((s, a) => s.plus(nettoInlegByAsset.get(a.id) ?? 0), new Decimal(0))
     const wv        = waarde.minus(inleg)

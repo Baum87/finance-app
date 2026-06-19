@@ -25,7 +25,7 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
   if (!broker) notFound()
 
   const assets = allAssets.filter(
-    a => a.assetType === 'stock_etf' && a.stockEtfDetails?.broker?.trim() === broker.name,
+    a => a.assetType === 'stock_etf' && a.stockEtfDetails?.brokerId === broker.id,
   )
 
   const assetIds = assets.map(a => a.id)
@@ -71,7 +71,7 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
               </p>
             </div>
             <Link
-              href={`/assets/new?type=stock_etf&from=/portfolio/aandelen-etf&cancel=${backTo}&broker=${encodeURIComponent(broker.name)}`}
+              href={`/assets/new?type=stock_etf&from=/portfolio/aandelen-etf&cancel=${backTo}&brokerId=${broker.id}`}
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
             >
               + Nieuwe positie
@@ -105,7 +105,7 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
           <div className="rounded-2xl border border-border bg-card p-10 text-center">
             <p className="text-sm text-muted-foreground mb-4">Nog geen posities bij deze broker.</p>
             <Link
-              href={`/assets/new?type=stock_etf&from=/portfolio/aandelen-etf&cancel=${backTo}&broker=${encodeURIComponent(broker.name)}`}
+              href={`/assets/new?type=stock_etf&from=/portfolio/aandelen-etf&cancel=${backTo}&brokerId=${broker.id}`}
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
             >
               + Nieuwe positie

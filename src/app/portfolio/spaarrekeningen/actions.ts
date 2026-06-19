@@ -11,7 +11,7 @@ import { savingsDetails } from '@/lib/db/schema'
 import type { ActionState } from '@/app/assets/actions'
 
 const savingsTxSchema = z.object({
-  transactionType: z.enum(['deposit', 'withdrawal']),
+  transactionType: z.enum(['deposit', 'withdrawal', 'interest']),
   amount:          z.string().min(1, 'Bedrag is verplicht'),
   transactionDate: z.string().min(1, 'Datum is verplicht'),
   notes:           z.string().optional(),

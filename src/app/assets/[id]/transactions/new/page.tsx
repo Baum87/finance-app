@@ -43,6 +43,7 @@ export default async function NewTransactionPage({
       transactionType: t.transactionType,
       amount: t.amount,
       quantity: t.quantity,
+      fees: t.fees ?? '0',
     }))
     quantityHeld = calculateQuantityHeld(txInputs).toNumber()
     const wacDecimal = calculateCostBasis(txInputs)
@@ -131,6 +132,7 @@ export default async function NewTransactionPage({
                 assetId={asset.id}
                 redirectTo={from}
                 cancelHref={backHref}
+                allowedTypes={isStockEtf ? ['dividend', 'cost'] : undefined}
               />
             )}
           </div>

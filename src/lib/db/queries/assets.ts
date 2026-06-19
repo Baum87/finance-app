@@ -80,7 +80,7 @@ export type StockEtfInput = {
   kind: 'stock_etf'
   ticker: string
   isin?: string | null
-  broker?: string | null
+  brokerId?: string | null
   accountType?: string | null
   sector?: string | null
   instrumentType?: string | null
@@ -173,7 +173,7 @@ export async function createAsset(userId: string, data: CreateAssetInput) {
           assetId: asset.id,
           ticker: d.ticker,
           isin: d.isin ?? null,
-          broker: d.broker ?? null,
+          brokerId: d.brokerId ?? null,
           accountType: d.accountType ?? 'taxable',
           sector: d.sector ?? null,
           instrumentType: d.instrumentType ?? 'stock',
@@ -264,7 +264,7 @@ export async function updateAsset(
       case 'stock_etf':
         await tx
           .update(stockEtfDetails)
-          .set({ ticker: d.ticker, isin: d.isin ?? null, broker: d.broker ?? null, accountType: d.accountType ?? 'taxable', sector: d.sector ?? null, instrumentType: d.instrumentType ?? 'stock' })
+          .set({ ticker: d.ticker, isin: d.isin ?? null, brokerId: d.brokerId ?? null, accountType: d.accountType ?? 'taxable', sector: d.sector ?? null, instrumentType: d.instrumentType ?? 'stock' })
           .where(eq(stockEtfDetails.assetId, assetId))
         break
       case 'crypto':
@@ -362,6 +362,7 @@ export async function getAssetWithCalculations(
     amount: t.amount,
     quantity: t.quantity,
     transactionDate: t.transactionDate,
+    fees: t.fees ?? '0',
   }))
 
   const netDeposit = calculateNetDeposit(txs)
@@ -543,6 +544,7 @@ export async function getLiquidAssetsWithCalculations(userId: string): Promise<P
         amount: t.amount,
         quantity: t.quantity,
         transactionDate: t.transactionDate,
+        fees: t.fees ?? '0',
       }))
 
       const netDeposit = calculateNetDeposit(txs)

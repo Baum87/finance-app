@@ -19,6 +19,8 @@ const ASSET_TYPE_OPTIONS: { value: AssetType; label: string }[] = [
   { value: 'vordering',   label: 'Vordering' },
 ]
 
+type Broker = { id: string; name: string }
+
 type Props = {
   action: (prev: ActionState, fd: FormData) => Promise<ActionState>
   initialData?: NonNullable<AssetDetail>
@@ -27,7 +29,8 @@ type Props = {
   redirectTo?: string
   redirectBase?: string
   cancelHref?: string
-  defaultBroker?: string
+  defaultBrokerId?: string
+  brokerList?: Broker[]
 }
 
 function Field({ label, name, type = 'text', defaultValue, placeholder, required }: {
@@ -46,14 +49,28 @@ function Field({ label, name, type = 'text', defaultValue, placeholder, required
   )
 }
 
-function StockEtfSection({ data }: { data?: NonNullable<AssetDetail>['stockEtfDetails'] }) {
+function StockEtfSection({ data, brokerList, defaultBrokerId }: {
+  data?: NonNullable<AssetDetail>['stockEtfDetails']
+  brokerList?: Broker[]
+  defaultBrokerId?: string
+}) {
+  const currentBrokerId = data?.brokerId ?? defaultBrokerId ?? ''
   return (
     <div className="space-y-4 pt-4 border-t border-border">
       <p className="text-sm font-medium text-foreground">Beleggingsdetails</p>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Ticker" name="ticker" defaultValue={data?.ticker} placeholder="VWRL" required />
         <Field label="ISIN" name="isin" defaultValue={data?.isin ?? ''} placeholder="IE00B3RBWM25" />
-        <Field label="Broker" name="broker" defaultValue={data?.broker ?? ''} placeholder="DEGIRO" />
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="brokerId">Broker</Label>
+          <select name="brokerId" id="brokerId" defaultValue={currentBrokerId}
+            className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors">
+            <option value="">— Geen broker —</option>
+            {(brokerList ?? []).map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="accountType">Accounttype</Label>
           <select name="accountType" id="accountType" defaultValue={data?.accountType ?? 'taxable'}
@@ -195,7 +212,7 @@ function RealEstateSection({ data, propertyType, onPropertyTypeChange }: {
   )
 }
 
-export function AssetForm({ action, initialData, assetId, lockedType, redirectTo, redirectBase, cancelHref = '/assets', defaultBroker }: Props) {
+export function AssetForm({ action, initialData, assetId, lockedType, redirectTo, redirectBase, cancelHref = '/assets', defaultBrokerId, brokerList }: Props) {
   const [state, formAction, isPending] = useActionState(action, null)
   const [assetType, setAssetType] = useState<AssetType>(
     (initialData?.assetType as AssetType) ?? (lockedType as AssetType) ?? 'stock_etf'
@@ -260,8 +277,8 @@ export function AssetForm({ action, initialData, assetId, lockedType, redirectTo
       </div>
 
       {/* Type-specifieke velden */}
-      {isNewStockEtf                && <StockSearchInput defaultBroker={defaultBroker} backHref={cancelHref} />}
-      {assetType === 'stock_etf' && initialData && <StockEtfSection data={initialData.stockEtfDetails ?? undefined} />}
+      {isNewStockEtf                && <StockSearchInput defaultBrokerId={defaultBrokerId} brokerList={brokerList} backHref={cancelHref} />}
+      {assetType === 'stock_etf' && initialData && <StockEtfSection data={initialData.stockEtfDetails ?? undefined} brokerList={brokerList} defaultBrokerId={defaultBrokerId} />}
       {assetType === 'crypto'      && <CryptoSection      data={initialData?.cryptoDetails ?? undefined} />}
       {assetType === 'savings'     && <SavingsSection     data={initialData?.savingsDetails ?? undefined} />}
       {assetType === 'pension'     && <PensionSection     data={initialData?.pensionDetails ?? undefined} />}

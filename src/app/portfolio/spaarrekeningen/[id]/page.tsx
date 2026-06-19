@@ -7,10 +7,7 @@ import { getTransactions } from '@/lib/db/queries/transactions'
 import { formatCurrency } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
-import { ValuationForm } from '@/components/assets/ValuationForm'
 import { TransactionList } from '@/components/assets/TransactionList'
-import { createValuationAction } from '@/app/assets/actions'
-import { DeleteValuationButton } from '@/components/portfolio/DeleteValuationButton'
 import { DeleteAssetButton } from '@/components/portfolio/DeleteAssetButton'
 import { applyMonthlyDepositAction } from '@/app/portfolio/spaarrekeningen/actions'
 
@@ -41,24 +38,49 @@ export default async function SpaarrekenigDetailPage({ params }: { params: Promi
     .filter(t => t.transactionType === 'deposit' && new Date(t.transactionDate).getFullYear() === thisYear)
     .reduce((s, t) => s.plus(new Decimal(t.amount)), new Decimal(0))
 
-  // Verwachte rente dit jaar (interestRate is opgeslagen als getal, bv. 2.5 = 2.5%)
+  // Verwachte rente dit jaar — op basis van beginsaldo + gewogen stortingen/opnames
   const interestRateNum = asset.savingsDetails?.interestRate
     ? parseFloat(asset.savingsDetails.interestRate)
     : null
-  const verwachteRenteDitJaar = interestRateNum !== null && currentValue.gt(0)
-    ? currentValue.mul(new Decimal(interestRateNum)).div(100)
-    : null
+
+  let verwachteRenteDitJaar: Decimal | null = null
+  if (interestRateNum !== null) {
+    const yearStart = `${thisYear}-01-01`
+    const yearEndDate = new Date(`${thisYear}-12-31`)
+
+    const balanceAtYearStart = txList
+      .filter(t => t.transactionDate < yearStart)
+      .reduce((sum, t) => {
+        if (t.transactionType === 'deposit' || t.transactionType === 'interest') return sum.plus(t.amount)
+        if (t.transactionType === 'withdrawal') return sum.minus(t.amount)
+        return sum
+      }, new Decimal(0))
+
+    const weightedNetThisYear = txList
+      .filter(t => t.transactionDate >= yearStart)
+      .reduce((sum, t) => {
+        const daysLeft = Math.max(0, (yearEndDate.getTime() - new Date(t.transactionDate).getTime()) / 86400000)
+        const weight = new Decimal(Math.round(daysLeft)).div(365)
+        if (t.transactionType === 'deposit') return sum.plus(new Decimal(t.amount).mul(weight))
+        if (t.transactionType === 'withdrawal') return sum.minus(new Decimal(t.amount).mul(weight))
+        return sum
+      }, new Decimal(0))
+
+    verwachteRenteDitJaar = balanceAtYearStart.plus(weightedNetThisYear)
+      .mul(new Decimal(interestRateNum)).div(100)
+  }
 
   const monthlyAmount = asset.savingsDetails?.monthlyDepositAmount
     ? new Decimal(asset.savingsDetails.monthlyDepositAmount)
     : null
 
-  // Check of maandelijkse storting al toegepast is deze maand
+  // Check of maandelijkse storting al toegepast is deze maand (alleen via "Toepassen"-knop)
   const now = new Date()
   const alToegepaatDezeMaand = txList.some(t => {
     if (t.transactionType !== 'deposit') return false
     const d = new Date(t.transactionDate)
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+    const sameMonth = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+    return sameMonth && (t.notes?.startsWith('Maandelijkse storting') ?? false)
   })
 
   const redirectTo = `/portfolio/spaarrekeningen/${id}`
@@ -174,7 +196,7 @@ export default async function SpaarrekenigDetailPage({ params }: { params: Promi
               href={`/portfolio/spaarrekeningen/${asset.id}/transactie`}
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
             >
-              + Storting / opname
+              + Storting / opname / rente
             </Link>
           </div>
           <TransactionList
@@ -183,34 +205,6 @@ export default async function SpaarrekenigDetailPage({ params }: { params: Promi
             addHref={`/portfolio/spaarrekeningen/${asset.id}/transactie`}
             redirectTo={redirectTo}
           />
-        </div>
-
-        {/* Saldo bijwerken — onderaan */}
-        <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-          <ValuationForm
-            assetId={asset.id}
-            currency={asset.currency}
-            action={createValuationAction}
-            description="Registreer het actuele saldo zoals je dat in je bank-app ziet."
-            defaultValue={currentValue.toNumber()}
-            redirectTo={redirectTo}
-          />
-          {asset.valuations && asset.valuations.length > 0 && (
-            <div className="space-y-1 pt-4 border-t border-border">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Saldo-historie</p>
-              {asset.valuations.map(v => (
-                <div key={v.id} className="flex items-center justify-between py-1.5">
-                  <span className="text-sm text-muted-foreground">{v.valuationDate}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-foreground">
-                      {formatCurrency(Number(v.value))}
-                    </span>
-                    <DeleteValuationButton valuationId={v.id} redirectTo={redirectTo} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Rekening verwijderen */}

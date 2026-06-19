@@ -37,7 +37,7 @@ const baseSchema = z.object({
 const stockEtfSchema = z.object({
   ticker:         z.string().min(1, 'Ticker is verplicht'),
   isin:           z.string().optional(),
-  broker:         z.string().optional(),
+  brokerId:       z.string().optional(),
   accountType:    z.string().optional(),
   sector:         z.string().optional(),
   instrumentType: z.string().optional(),
@@ -112,12 +112,12 @@ function parseDetails(assetType: string, fd: FormData): AssetDetailsInput {
       const d = stockEtfSchema.parse({
         ticker:         str(fd, 'ticker'),
         isin:           optStr(fd, 'isin'),
-        broker:         optStr(fd, 'broker'),
+        brokerId:       optStr(fd, 'brokerId'),
         accountType:    optStr(fd, 'accountType'),
         sector:         optStr(fd, 'sector'),
         instrumentType: optStr(fd, 'instrumentType'),
       })
-      return { kind: 'stock_etf', ticker: d.ticker, isin: d.isin, broker: d.broker, accountType: d.accountType, sector: d.sector, instrumentType: d.instrumentType }
+      return { kind: 'stock_etf', ticker: d.ticker, isin: d.isin, brokerId: d.brokerId, accountType: d.accountType, sector: d.sector, instrumentType: d.instrumentType }
     }
     case 'crypto': {
       const d = cryptoSchema.parse({ ticker: str(fd, 'ticker'), walletOrExchange: optStr(fd, 'walletOrExchange') })

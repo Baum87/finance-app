@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetWithCalculations } from '@/lib/db/queries/assets'
 import { getTransactions } from '@/lib/db/queries/transactions'
+import { getBrokers } from '@/lib/db/queries/brokers'
 import { TransactionList } from '@/components/assets/TransactionList'
 import { ValuationForm } from '@/components/assets/ValuationForm'
 import { MortgageBalanceForm } from '@/components/assets/MortgageBalanceForm'
@@ -97,9 +98,10 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [result, txList] = await Promise.all([
+  const [result, txList, brokerList] = await Promise.all([
     getAssetWithCalculations(user!.id, id),
     getTransactions(user!.id, id),
+    getBrokers(user!.id),
   ])
 
   if (!result) notFound()
@@ -217,7 +219,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
             <>
               <DetailRow label="Ticker" value={asset.stockEtfDetails.ticker} />
               <DetailRow label="ISIN" value={asset.stockEtfDetails.isin} />
-              <DetailRow label="Broker" value={asset.stockEtfDetails.broker} />
+              <DetailRow label="Broker" value={brokerList.find(b => b.id === asset.stockEtfDetails!.brokerId)?.name ?? null} />
               <DetailRow label="Accounttype" value={asset.stockEtfDetails.accountType} />
             </>
           )}
