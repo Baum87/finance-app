@@ -298,9 +298,14 @@ export async function deleteTransactionAction(fd: FormData): Promise<void> {
 
 // ─── Valuation actions ────────────────────────────────────────────────────────
 
+const positiveAmount = (label: string) =>
+  z.string()
+    .min(1, `${label} is verplicht`)
+    .refine(v => !Number.isNaN(Number(v)) && Number(v) >= 0, { message: `${label} moet een positief getal zijn` })
+
 const valuationSchema = z.object({
   valuationDate: z.string().min(1, 'Datum is verplicht'),
-  value:         z.string().min(1, 'Waarde is verplicht'),
+  value:         positiveAmount('Waarde'),
   currency:      z.string().default('EUR'),
 })
 
@@ -334,7 +339,7 @@ export async function deleteValuationAction(fd: FormData): Promise<void> {
 
 const mortgageBalanceSchema = z.object({
   balanceDate:        z.string().min(1, 'Datum is verplicht'),
-  outstandingBalance: z.string().min(1, 'Restschuld is verplicht'),
+  outstandingBalance: positiveAmount('Restschuld'),
 })
 
 export async function createMortgageBalanceAction(prev: ActionState, fd: FormData): Promise<ActionState> {
