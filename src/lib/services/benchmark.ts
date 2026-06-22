@@ -2,7 +2,10 @@ import Decimal from 'decimal.js'
 import { getHistoricalPrices } from './prices'
 import { calculateTwr } from '@/lib/finance'
 
-const BENCHMARK_SYMBOL = 'URTH'
+// IWDA.AS = iShares Core MSCI World UCITS ETF, EUR-genoteerd op Euronext Amsterdam.
+// Gekozen boven URTH (USD) omdat EUR-beleggers anders het EUR/USD-koerseffect zien
+// als benchmark-rendement, wat een systematisch vertekend beeld geeft.
+const BENCHMARK_SYMBOL = 'IWDA.AS'
 
 /**
  * Calculates the Time-Weighted Return for the URTH benchmark between two dates.

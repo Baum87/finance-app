@@ -387,19 +387,20 @@ export async function getAssetWithCalculations(
         fetchedPrice = priceResult.price
         priceCurrency = priceResult.currency
 
-        let priceEur = priceResult.price
-        if (priceResult.currency !== 'EUR') {
-          try {
-            const fx = await getLatestPrice(`${priceResult.currency}EUR=X`)
-            priceEur = priceResult.price.times(fx.price)
-          } catch { /* FX niet beschikbaar, gebruik native prijs */ }
+        let priceEur: Decimal
+        if (priceResult.currency === 'EUR') {
+          priceEur = priceResult.price
+        } else {
+          // Gooit een fout als FX niet beschikbaar — valt door naar valuation-fallback
+          const fx = await getLatestPrice(`${priceResult.currency}EUR=X`)
+          priceEur = priceResult.price.times(fx.price)
         }
 
         priceEurCalc = priceEur
         currentValue = calculateMarketValue(txs, priceEur)
         quantityHeld = calculateQuantityHeld(txs)
       } catch {
-        // price fetch failed — fall back to latest valuation
+        // Koers of wisselkoers niet beschikbaar — gebruik meest recente valuation
         const latestVal = asset.valuations?.[0]
         if (latestVal) currentValue = new Decimal(latestVal.value)
       }
@@ -482,12 +483,12 @@ export async function getAssetsWithValues(userId: string): Promise<AssetWithValu
         if (ticker) {
           try {
             const priceResult = await getLatestPrice(ticker)
-            let priceEur = priceResult.price
-            if (priceResult.currency !== 'EUR') {
-              try {
-                const fx = await getLatestPrice(`${priceResult.currency}EUR=X`)
-                priceEur = priceResult.price.times(fx.price)
-              } catch { /* FX niet beschikbaar, gebruik native prijs */ }
+            let priceEur: Decimal
+            if (priceResult.currency === 'EUR') {
+              priceEur = priceResult.price
+            } else {
+              const fx = await getLatestPrice(`${priceResult.currency}EUR=X`)
+              priceEur = priceResult.price.times(fx.price)
             }
             currentValue = calculateMarketValue(txs, priceEur)
           } catch {
@@ -550,18 +551,28 @@ export async function getLiquidAssetsWithCalculations(userId: string): Promise<P
       const netDeposit = calculateNetDeposit(txs)
       const unrealizedGain = calculateUnrealizedGain(asset.currentValue, netDeposit)
 
-      // Build XIRR cashflows
+      // Build XIRR cashflows — zelfde logica als getAssetWithCalculations
+      const XIRR_OUT = new Set(['buy', 'deposit', 'cost'])
+      const XIRR_IN  = new Set(['sell', 'withdrawal', 'dividend', 'interest', 'rental_income'])
+      const MS_PER_DAY_XIRR = 1000 * 60 * 60 * 24
+      const XIRR_MIN_DAYS_XIRR = 30
+
       let xirr: Decimal | null = null
       if (asset.currentValue.gt(0)) {
         const cashflows: Cashflow[] = txRows
-          .filter(t => ['buy', 'sell', 'deposit', 'withdrawal'].includes(t.transactionType))
+          .filter(t => XIRR_OUT.has(t.transactionType) || XIRR_IN.has(t.transactionType))
           .map(t => {
-            const sign = t.transactionType === 'buy' || t.transactionType === 'deposit' ? -1 : 1
+            const sign = XIRR_OUT.has(t.transactionType) ? -1 : 1
             return { amount: new Decimal(t.amount).mul(sign), date: new Date(t.transactionDate) }
           })
         if (cashflows.length >= 1) {
-          cashflows.push({ amount: asset.currentValue, date: new Date() })
-          try { xirr = calculateXirr(cashflows) } catch { /* not enough data */ }
+          const firstDate = cashflows.reduce((min, cf) =>
+            cf.date.getTime() < min.getTime() ? cf.date : min, cashflows[0].date)
+          const daysSinceFirst = (Date.now() - firstDate.getTime()) / MS_PER_DAY_XIRR
+          if (daysSinceFirst >= XIRR_MIN_DAYS_XIRR) {
+            cashflows.push({ amount: asset.currentValue, date: new Date() })
+            try { xirr = calculateXirr(cashflows) } catch { /* niet genoeg data */ }
+          }
         }
       }
 

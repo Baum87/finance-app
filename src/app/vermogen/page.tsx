@@ -138,7 +138,7 @@ export default async function VermogenPage() {
           <KpiCard
             label="Marktrendement (MSCI World)"
             value={benchmarkTwr ? formatPercent(benchmarkTwr.toNumber()) : '—'}
-            subtext="URTH ETF, ter referentie"
+            subtext="IWDA ETF (EUR), ter referentie"
           />
         </div>
 
