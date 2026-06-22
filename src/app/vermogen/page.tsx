@@ -136,9 +136,9 @@ export default async function VermogenPage() {
             trend={portfolioXirr ? { value: formatPercent(portfolioXirr.toNumber()), positive: portfolioXirr.gt(0) } : undefined}
           />
           <KpiCard
-            label="URTH benchmark YTD"
+            label="Marktrendement (MSCI World)"
             value={benchmarkTwr ? formatPercent(benchmarkTwr.toNumber()) : '—'}
-            subtext="MSCI World ETF (TWR, ter referentie)"
+            subtext="URTH ETF, ter referentie"
           />
         </div>
 

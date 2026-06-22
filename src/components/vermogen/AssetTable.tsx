@@ -68,7 +68,9 @@ export function AssetTable({ assets }: AssetTableProps) {
                   </span>
                 </TableCell>
                 <TableCell className="text-right font-medium">
-                  {formatCurrency(asset.currentValue.toNumber())}
+                  {asset.currentValue.isZero() && asset.netDeposit.isZero()
+                    ? <span className="text-muted-foreground" title="Voer een waarde in via het asset-detail.">—</span>
+                    : formatCurrency(asset.currentValue.toNumber())}
                 </TableCell>
                 <TableCell className="text-right text-muted-foreground">
                   {formatCurrency(asset.netDeposit.toNumber())}
