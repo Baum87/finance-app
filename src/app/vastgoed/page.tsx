@@ -222,22 +222,22 @@ export default async function VastgoedPage() {
                     <KpiCard
                       label="Bruto huurrendement"
                       value={grossRentalYield ? formatPercent(grossRentalYield.toNumber()) : '—'}
-                      subtext="Jaarinkomen / pandwaarde"
+                      subtext="Jaarinkomen / pandwaarde — bruto, excl. belasting"
                     />
                     <KpiCard
                       label="Netto huurrendement"
                       value={netRentalYield ? formatPercent(netRentalYield.toNumber()) : '—'}
-                      subtext="Na kosten, op jaarbasis"
+                      subtext="Na exploitatiekosten — bruto, excl. belasting"
                     />
                     <KpiCard
                       label="Cash-on-cash rendement"
                       value={cashOnCash ? formatPercent(cashOnCash.toNumber()) : '—'}
-                      subtext="Netto cashflow / eigen inleg"
+                      subtext="Op eigen inleg excl. hypotheek — bruto, excl. belasting"
                     />
                     <KpiCard
-                      label="Totaalrendement (XIRR)"
+                      label="Totaalrendement"
                       value={rentalXirr ? formatPercent(rentalXirr.toNumber()) : '—'}
-                      subtext="Inclusief waardeontwikkeling"
+                      subtext="Jaarlijks rendement incl. waardeontwikkeling — bruto, excl. belasting"
                       trend={rentalXirr ? { value: formatPercent(rentalXirr.toNumber()), positive: rentalXirr.gt(0) } : undefined}
                     />
                   </>

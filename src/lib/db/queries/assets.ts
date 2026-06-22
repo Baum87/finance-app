@@ -572,16 +572,27 @@ export async function getLiquidAssetsWithCalculations(userId: string): Promise<P
 
 /**
  * Returns latest mortgage balance per asset (map: assetId → balance).
- * Used to compute net worth including real estate liabilities.
+ * Falls back to originalAmount when no balance has been recorded yet,
+ * so net worth is never silently under-reported.
  */
 export async function getMortgageBalancesMap(userId: string): Promise<Map<string, Decimal>> {
   const tenantId = await getOrCreateTenant(userId)
 
-  const rows = await db
+  const mortgageRows = await db
+    .select({
+      assetId:        mortgages.assetId,
+      originalAmount: mortgages.originalAmount,
+    })
+    .from(mortgages)
+    .innerJoin(assets, eq(assets.id, mortgages.assetId))
+    .where(eq(assets.tenantId, tenantId))
+
+  if (mortgageRows.length === 0) return new Map()
+
+  const balanceRows = await db
     .select({
       assetId:            mortgages.assetId,
       outstandingBalance: mortgageBalances.outstandingBalance,
-      balanceDate:        mortgageBalances.balanceDate,
     })
     .from(mortgages)
     .innerJoin(assets, eq(assets.id, mortgages.assetId))
@@ -589,12 +600,16 @@ export async function getMortgageBalancesMap(userId: string): Promise<Map<string
     .where(eq(assets.tenantId, tenantId))
     .orderBy(desc(mortgageBalances.balanceDate))
 
-  // Keep only the latest balance per asset
-  const map = new Map<string, Decimal>()
-  for (const row of rows) {
-    if (!map.has(row.assetId)) {
-      map.set(row.assetId, new Decimal(row.outstandingBalance))
+  const latestBalance = new Map<string, Decimal>()
+  for (const row of balanceRows) {
+    if (!latestBalance.has(row.assetId)) {
+      latestBalance.set(row.assetId, new Decimal(row.outstandingBalance))
     }
+  }
+
+  const map = new Map<string, Decimal>()
+  for (const row of mortgageRows) {
+    map.set(row.assetId, latestBalance.get(row.assetId) ?? new Decimal(row.originalAmount))
   }
   return map
 }

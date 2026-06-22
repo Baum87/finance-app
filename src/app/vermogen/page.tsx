@@ -3,9 +3,10 @@ import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getLiquidAssetsWithCalculations, getAssetsWithValues } from '@/lib/db/queries/assets'
 import { getTransactionsByAssets } from '@/lib/db/queries/transactions'
 import { getValuationTimeSeries, getMortgageBalanceTimeSeries } from '@/lib/db/queries/cashflow'
-import { calculateXirr, calculateAllocation, calculateExcessReturn } from '@/lib/finance'
+import { calculateXirr, calculateAllocation } from '@/lib/finance'
 import { buildNetWorthSeries } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
+import Link from 'next/link'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { NetWorthChart } from '@/components/vermogen/NetWorthChart'
@@ -76,11 +77,8 @@ export default async function VermogenPage() {
     allAssets.map(a => ({ assetType: a.assetType, value: a.currentValue })),
   )
 
-  // Benchmark URTH TWR YTD
+  // Benchmark URTH TWR YTD (voor referentie — niet aftrekken van XIRR: appels vs peren)
   const benchmarkTwr = await getBenchmarkTwr(new Date(ytdStart), new Date()).catch(() => null)
-  const excessReturn = portfolioXirr && benchmarkTwr
-    ? calculateExcessReturn(portfolioXirr, benchmarkTwr)
-    : null
 
   // Vermogensontwikkeling tijdreeks — valuations met hypotheeksaldi
   const latestMortgageAtDate = (assetId: string, date: string) => {
@@ -112,6 +110,18 @@ export default async function VermogenPage() {
           <p className="mt-1 text-sm text-muted-foreground">Liquide portfolio — aandelen, crypto en spaargeld</p>
         </div>
 
+        {liquidAssets.length === 0 && (
+          <div className="bg-card border border-border rounded-3xl p-12 text-center">
+            <p className="text-sm text-muted-foreground">Nog geen beleggingen, crypto of spaarrekeningen toegevoegd.</p>
+            <Link
+              href="/assets/new"
+              className="mt-3 inline-block px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              Voeg een asset toe
+            </Link>
+          </div>
+        )}
+
         {/* KPI cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <KpiCard
@@ -126,10 +136,9 @@ export default async function VermogenPage() {
             trend={portfolioXirr ? { value: formatPercent(portfolioXirr.toNumber()), positive: portfolioXirr.gt(0) } : undefined}
           />
           <KpiCard
-            label="vs. URTH benchmark"
-            value={excessReturn ? `${excessReturn.gte(0) ? '+' : ''}${formatPercent(excessReturn.toNumber())}` : '—'}
-            subtext={benchmarkTwr ? `Benchmark: ${formatPercent(benchmarkTwr.toNumber())}` : 'Benchmark niet beschikbaar'}
-            trend={excessReturn ? { value: '', positive: excessReturn.gte(0) } : undefined}
+            label="URTH benchmark YTD"
+            value={benchmarkTwr ? formatPercent(benchmarkTwr.toNumber()) : '—'}
+            subtext="MSCI World ETF (TWR, ter referentie)"
           />
         </div>
 

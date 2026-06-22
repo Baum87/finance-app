@@ -70,12 +70,21 @@ export async function getNetWorthAtDate(userId: string, date: string): Promise<D
     }
   }
 
-  // Get latest mortgage balances on or before the date
-  const mortgageRows = await db
+  // All mortgages for this tenant (needed for originalAmount fallback)
+  const allMortgageRows = await db
+    .select({
+      assetId:        mortgages.assetId,
+      originalAmount: mortgages.originalAmount,
+    })
+    .from(mortgages)
+    .innerJoin(assets, eq(assets.id, mortgages.assetId))
+    .where(eq(assets.tenantId, tenantId))
+
+  // Latest recorded balance on or before the date
+  const mortgageBalanceRows = await db
     .select({
       assetId:            mortgages.assetId,
       outstandingBalance: mortgageBalances.outstandingBalance,
-      balanceDate:        mortgageBalances.balanceDate,
     })
     .from(mortgageBalances)
     .innerJoin(mortgages, eq(mortgages.id, mortgageBalances.mortgageId))
@@ -84,9 +93,15 @@ export async function getNetWorthAtDate(userId: string, date: string): Promise<D
     .orderBy(desc(mortgageBalances.balanceDate))
 
   const latestMortgage = new Map<string, Decimal>()
-  for (const row of mortgageRows) {
+  for (const row of mortgageBalanceRows) {
     if (!latestMortgage.has(row.assetId)) {
       latestMortgage.set(row.assetId, new Decimal(row.outstandingBalance))
+    }
+  }
+  // Fall back to originalAmount when no balance recorded on or before the date
+  for (const row of allMortgageRows) {
+    if (!latestMortgage.has(row.assetId)) {
+      latestMortgage.set(row.assetId, new Decimal(row.originalAmount))
     }
   }
 

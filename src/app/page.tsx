@@ -43,6 +43,10 @@ export default async function OverzichtPage() {
     })),
   )
 
+  const illiquidNetValue = assets
+    .filter(a => !a.isLiquid)
+    .reduce((sum, a) => sum.plus(a.currentValue).minus(mortgageMap.get(a.id) ?? new Decimal(0)), new Decimal(0))
+
   const delta = netWorthMonthAgo != null ? netWorth.minus(netWorthMonthAgo) : null
   const deltaPositive = delta?.gte(0) ?? true
   const deltaStr = delta
@@ -86,6 +90,11 @@ export default async function OverzichtPage() {
             {deltaStr && (
               <p className={`mt-0.5 text-sm font-medium ${deltaPositive ? 'text-sage' : 'text-terracotta'}`}>
                 {deltaStr} afgelopen 30 dagen
+              </p>
+            )}
+            {illiquidNetValue.gt(0) && (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                waarvan {formatCurrency(illiquidNetValue.toNumber())} illiquide (vastgoed + pensioen)
               </p>
             )}
           </div>

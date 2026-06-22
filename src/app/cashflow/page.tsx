@@ -84,8 +84,10 @@ export default async function CashflowPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <KpiCard
             label="Passief inkomen dit jaar"
-            value={formatCurrency(totalPassive.toNumber())}
-            subtext={`Dividend, rente en huurinkomsten t/m ${todayStr}`}
+            value={txData.length === 0 ? '—' : formatCurrency(totalPassive.toNumber())}
+            subtext={txData.length === 0
+              ? 'Nog geen inkomsten geregistreerd dit jaar'
+              : `Dividend, rente en huurinkomsten t/m ${todayStr} — excl. hypotheeklasten`}
           />
           <KpiCard
             label="Netto vermogen groei dit jaar"
