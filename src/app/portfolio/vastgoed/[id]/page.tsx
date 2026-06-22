@@ -143,6 +143,9 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
               assetId={asset.id}
               mortgageId={mortgage.id}
               lender={mortgage.lender}
+              originalAmount={mortgage.originalAmount}
+              interestRate={mortgage.interestRate}
+              endDate={mortgage.endDate}
               action={createMortgageBalanceAction}
             />
             <BalanceHistory balances={mortgage.balances ?? []} />

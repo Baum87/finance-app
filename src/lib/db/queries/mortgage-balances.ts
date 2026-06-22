@@ -31,6 +31,22 @@ export async function createMortgageBalance(
   return row
 }
 
+export async function deleteMortgageBalance(userId: string, balanceId: string): Promise<void> {
+  const tenantId = await getOrCreateTenant(userId)
+
+  const row = await db
+    .select({ id: mortgageBalances.id })
+    .from(mortgageBalances)
+    .innerJoin(mortgages, eq(mortgages.id, mortgageBalances.mortgageId))
+    .innerJoin(assets, eq(assets.id, mortgages.assetId))
+    .where(and(eq(mortgageBalances.id, balanceId), eq(assets.tenantId, tenantId)))
+    .limit(1)
+
+  if (!row[0]) throw new Error('Saldo-snapshot niet gevonden')
+
+  await db.delete(mortgageBalances).where(eq(mortgageBalances.id, balanceId))
+}
+
 export async function getMortgageBalanceHistory(userId: string, mortgageId: string, limit = 10) {
   const tenantId = await getOrCreateTenant(userId)
 

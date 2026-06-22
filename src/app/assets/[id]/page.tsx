@@ -6,7 +6,9 @@ import { getTransactions } from '@/lib/db/queries/transactions'
 import { getBrokers } from '@/lib/db/queries/brokers'
 import { TransactionList } from '@/components/assets/TransactionList'
 import { ValuationForm } from '@/components/assets/ValuationForm'
+import { ValuationHistory } from '@/components/assets/ValuationHistory'
 import { MortgageBalanceForm } from '@/components/assets/MortgageBalanceForm'
+import { MortgageBalanceHistory } from '@/components/assets/MortgageBalanceHistory'
 import { createValuationAction, createMortgageBalanceAction } from '@/app/assets/actions'
 import { Topbar } from '@/components/layout/Topbar'
 import { formatCurrency } from '@/lib/utils/format'
@@ -54,44 +56,6 @@ function KpiCard({
   )
 }
 
-function ValuationHistory({ valuations, currency }: {
-  valuations: { id: string; valuationDate: string; value: string }[]
-  currency: string
-}) {
-  if (valuations.length === 0) return null
-  return (
-    <div className="space-y-1 pt-4 border-t border-border">
-      <p className="text-xs font-medium text-muted-foreground mb-2">Recente waarderingen</p>
-      {valuations.map(v => (
-        <div key={v.id} className="flex justify-between py-1.5">
-          <span className="text-sm text-muted-foreground">{v.valuationDate}</span>
-          <span className="text-sm font-medium text-foreground">
-            {formatCurrency(Number(v.value))}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function MortgageBalanceHistory({ balances }: {
-  balances: { id: string; balanceDate: string; outstandingBalance: string }[]
-}) {
-  if (balances.length === 0) return null
-  return (
-    <div className="space-y-1 pt-4 border-t border-border">
-      <p className="text-xs font-medium text-muted-foreground mb-2">Recente saldo-updates</p>
-      {balances.map(b => (
-        <div key={b.id} className="flex justify-between py-1.5">
-          <span className="text-sm text-muted-foreground">{b.balanceDate}</span>
-          <span className="text-sm font-medium text-foreground">
-            {formatCurrency(Number(b.outstandingBalance))}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
 
 export default async function AssetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -195,7 +159,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
                   : 'Marktwaarde registreren'
               }
             />
-            <ValuationHistory valuations={asset.valuations ?? []} currency={asset.currency} />
+            <ValuationHistory assetId={asset.id} valuations={asset.valuations ?? []} />
           </div>
         )}
 
@@ -206,9 +170,16 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
               assetId={asset.id}
               mortgageId={mortgage.id}
               lender={mortgage.lender}
+              originalAmount={mortgage.originalAmount}
+              interestRate={mortgage.interestRate}
+              endDate={mortgage.endDate}
               action={createMortgageBalanceAction}
             />
-            <MortgageBalanceHistory balances={mortgage.balances ?? []} />
+            <MortgageBalanceHistory
+              assetId={asset.id}
+              originalAmount={mortgage.originalAmount}
+              balances={mortgage.balances ?? []}
+            />
           </div>
         ))}
 

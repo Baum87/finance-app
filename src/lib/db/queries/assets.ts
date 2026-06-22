@@ -60,13 +60,13 @@ export async function getAsset(userId: string, assetId: string) {
         with: {
           balances: {
             orderBy: [desc(mortgageBalances.balanceDate)],
-            limit: 1,
+            limit: 10,
           },
         },
       },
       valuations: {
         orderBy: [desc(assetValuations.valuationDate)],
-        limit: 5,
+        limit: 12,
       },
     },
   })

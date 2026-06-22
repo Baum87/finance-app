@@ -11,7 +11,8 @@ import {
   createTransaction, updateTransaction, deleteTransaction,
 } from '@/lib/db/queries/transactions'
 import { createValuation, deleteValuation } from '@/lib/db/queries/valuations'
-import { createMortgageBalance } from '@/lib/db/queries/mortgage-balances'
+import { createMortgageBalance, deleteMortgageBalance } from '@/lib/db/queries/mortgage-balances'
+import { revalidatePath } from 'next/cache'
 import type { AssetDetailsInput } from '@/lib/db/queries/assets'
 import Decimal from 'decimal.js'
 
@@ -346,10 +347,20 @@ export async function createMortgageBalanceAction(prev: ActionState, fd: FormDat
       outstandingBalance: str(fd, 'outstandingBalance'),
     })
     await createMortgageBalance(user.id, mortgageId, data)
+    revalidatePath('/vastgoed')
     redirect(`/assets/${assetId}`)
   } catch (e) {
     if (isRedirectError(e)) throw e
     if (e instanceof z.ZodError) return { error: e.issues[0].message }
     return { error: e instanceof Error ? e.message : 'Onbekende fout' }
   }
+}
+
+export async function deleteMortgageBalanceAction(fd: FormData): Promise<void> {
+  const user = await requireUser()
+  const balanceId  = fd.get('balanceId') as string
+  const redirectTo = fd.get('redirectTo') as string | null
+  await deleteMortgageBalance(user.id, balanceId)
+  revalidatePath('/vastgoed')
+  redirect(redirectTo ?? '/assets')
 }
