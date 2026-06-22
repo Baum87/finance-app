@@ -5,8 +5,9 @@ import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { z } from 'zod'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import {
-  createAsset, updateAsset, deleteAsset,
+  createAsset, updateAsset, deleteAsset, getAsset,
 } from '@/lib/db/queries/assets'
+import type { TransactionType, AssetType } from '@/types'
 import {
   createTransaction, updateTransaction, deleteTransaction,
 } from '@/lib/db/queries/transactions'
@@ -84,6 +85,15 @@ const realEstateSchema = z.object({
   mortgageStartDate:      z.string().optional(),
   mortgageType:           z.string().optional(),
 })
+
+const ALLOWED_TX_TYPES: Record<AssetType, TransactionType[]> = {
+  stock_etf:   ['buy', 'sell', 'dividend', 'cost'],
+  crypto:      ['buy', 'sell'],
+  savings:     ['deposit', 'withdrawal', 'interest'],
+  real_estate: ['buy', 'sell', 'rental_income', 'cost'],
+  pension:     ['deposit'],
+  vordering:   ['deposit', 'withdrawal', 'interest'],
+}
 
 const transactionSchema = z.object({
   transactionType: z.enum(['buy', 'sell', 'deposit', 'withdrawal', 'dividend', 'interest', 'rental_income', 'cost']),
@@ -254,6 +264,12 @@ export async function createTransactionAction(prev: ActionState, fd: FormData): 
       fxRate:          str(fd, 'fxRate') || '1',
       notes:           optStr(fd, 'notes'),
     })
+    const asset = await getAsset(user.id, assetId)
+    if (!asset) return { error: 'Asset niet gevonden' }
+    const allowed = ALLOWED_TX_TYPES[asset.assetType as AssetType]
+    if (allowed && !allowed.includes(data.transactionType as TransactionType)) {
+      return { error: `Transactietype '${data.transactionType}' is niet toegestaan voor dit asset type` }
+    }
     await createTransaction(user.id, assetId, data)
     redirect(str(fd, 'redirectTo') || `/assets/${assetId}`)
   } catch (e) {

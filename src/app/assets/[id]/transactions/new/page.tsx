@@ -9,8 +9,18 @@ import { SellTransactionForm } from '@/components/assets/SellTransactionForm'
 import { TransactionForm } from '@/components/assets/TransactionForm'
 import { createTransactionAction } from '@/app/assets/actions'
 import { Topbar } from '@/components/layout/Topbar'
+import type { TransactionType } from '@/types'
 
 type Mode = 'buy' | 'sell' | 'other'
+
+const ALLOWED_TYPES: Record<string, TransactionType[]> = {
+  stock_etf:   ['buy', 'sell', 'dividend', 'cost'],
+  crypto:      ['buy', 'sell'],
+  savings:     ['deposit', 'withdrawal', 'interest'],
+  real_estate: ['buy', 'sell', 'rental_income', 'cost'],
+  pension:     ['deposit'],
+  vordering:   ['deposit', 'withdrawal', 'interest'],
+}
 
 export default async function NewTransactionPage({
   params,
@@ -132,7 +142,7 @@ export default async function NewTransactionPage({
                 assetId={asset.id}
                 redirectTo={from}
                 cancelHref={backHref}
-                allowedTypes={isStockEtf ? ['dividend', 'cost'] : undefined}
+                allowedTypes={isStockEtf ? ['dividend', 'cost'] : ALLOWED_TYPES[asset.assetType]}
               />
             )}
           </div>

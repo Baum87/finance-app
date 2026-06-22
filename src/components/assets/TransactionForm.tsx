@@ -93,7 +93,7 @@ export function TransactionForm({ action, assetId, transactionId, initialData, r
 
         {/* Bedrag */}
         <div className={`flex flex-col gap-1.5 ${showQuantity ? '' : 'col-span-2'}`}>
-          <Label htmlFor="amount">Bedrag (EUR)<span className="text-terracotta ml-0.5">*</span></Label>
+          <Label htmlFor="amount">Bedrag<span className="text-terracotta ml-0.5">*</span></Label>
           <Input
             id="amount"
             name="amount"
@@ -102,6 +102,12 @@ export function TransactionForm({ action, assetId, transactionId, initialData, r
             defaultValue={initialData?.amount}
             placeholder="1250.00"
           />
+          {txType === 'dividend' && (
+            <p className="text-xs text-muted-foreground">Voer het netto ontvangen bedrag in (na ingehouden dividendbelasting).</p>
+          )}
+          {txType !== 'dividend' && (
+            <p className="text-xs text-muted-foreground">Voer het bedrag in euro's in. Andere valuta? Reken eerst om naar euro's.</p>
+          )}
         </div>
 
         {/* Aantal + koers — alleen bij buy/sell */}
