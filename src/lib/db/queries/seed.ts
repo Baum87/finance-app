@@ -15,7 +15,7 @@ import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { eq } from 'drizzle-orm'
 import { createClient } from '@supabase/supabase-js'
-import * as schema from './schema'
+import * as schema from '../schema'
 
 const TEST_EMAIL    = 'test@finance.local'
 const TEST_PASSWORD = 'Test1234!'

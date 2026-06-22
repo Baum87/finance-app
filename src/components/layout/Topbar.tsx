@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useRef, useEffect } from 'react'
 import { Bell, LogOut, Menu, X, ChevronDown } from 'lucide-react'
-import { signOut } from '@/app/login/actions'
+import { signOut } from '@/app/(auth)/login/actions'
 
 const portfolioItems = [
   { href: '/portfolio/aandelen-etf',    label: 'Aandelen & ETFs' },
