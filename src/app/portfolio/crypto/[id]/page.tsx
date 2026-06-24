@@ -22,12 +22,12 @@ export default async function CryptoDetailPage({ params }: { params: Promise<{ i
   if (!result || result.asset.assetType !== 'crypto') notFound()
 
   const { asset, calculations } = result
-  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, fetchedPrice, priceCurrency } = calculations
+  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, priceEur } = calculations
 
   const gainAccent = unrealizedGain.gt(0) ? 'positive' : unrealizedGain.lt(0) ? 'negative' : undefined
 
-  const fmtPrice = (v: number) =>
-    new Intl.NumberFormat('nl-NL', { style: 'currency', currency: priceCurrency ?? 'EUR' }).format(v)
+  const fmtKoers = (v: number) =>
+    new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(v)
 
   return (
     <>
@@ -62,7 +62,7 @@ export default async function CryptoDetailPage({ params }: { params: Promise<{ i
           <KpiCard
             label="Marktwaarde"
             value={currentValue.gt(0) ? formatCurrency(currentValue.toNumber()) : '—'}
-            subtext={fetchedPrice ? `Koers: ${fmtPrice(fetchedPrice.toNumber())}` : undefined}
+            subtext={priceEur ? `Koers: ${fmtKoers(priceEur.toNumber())}` : undefined}
           />
           <KpiCard
             label="Totale inleg"
@@ -78,9 +78,9 @@ export default async function CryptoDetailPage({ params }: { params: Promise<{ i
             trend={gainAccent ? { value: '', positive: gainAccent === 'positive' } : undefined}
           />
           <KpiCard
-            label="XIRR"
+            label="Rendement"
             value={xirr ? formatPercent(xirr.toNumber()) : '—'}
-            subtext={xirr ? 'Jaarlijks rendement' : 'Te weinig data'}
+            subtext={xirr ? 'Jaarlijks, berekend via XIRR' : 'Te weinig data'}
             trend={xirr ? { value: '', positive: xirr.gt(0) } : undefined}
           />
         </div>

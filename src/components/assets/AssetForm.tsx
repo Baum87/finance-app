@@ -89,7 +89,11 @@ function CryptoSection({ data }: { data?: NonNullable<AssetDetail>['cryptoDetail
     <div className="space-y-4 pt-4 border-t border-border">
       <p className="text-sm font-medium text-foreground">Crypto details</p>
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Symbol" name="ticker" defaultValue={data?.ticker} placeholder="BTC" required />
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="ticker">Symbol<span className="text-terracotta ml-0.5">*</span></Label>
+          <Input id="ticker" name="ticker" defaultValue={data?.ticker} placeholder="BTC-EUR" />
+          <p className="text-xs text-muted-foreground">Crypto-ticker. Wordt automatisch in euro's opgehaald. Voorbeelden: BTC-EUR, ETH-EUR, SOL-EUR.</p>
+        </div>
         <Field label="Wallet / Exchange" name="walletOrExchange" defaultValue={data?.walletOrExchange ?? ''} placeholder="Bitvavo" />
       </div>
     </div>

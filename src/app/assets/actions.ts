@@ -16,6 +16,7 @@ import { createMortgageBalance, deleteMortgageBalance } from '@/lib/db/queries/m
 import { revalidatePath } from 'next/cache'
 import type { AssetDetailsInput } from '@/lib/db/queries/assets'
 import Decimal from 'decimal.js'
+import { getLatestPrice } from '@/lib/services/prices'
 
 export type ActionState = { error: string } | null
 
@@ -132,7 +133,9 @@ function parseDetails(assetType: string, fd: FormData): AssetDetailsInput {
     }
     case 'crypto': {
       const d = cryptoSchema.parse({ ticker: str(fd, 'ticker'), walletOrExchange: optStr(fd, 'walletOrExchange') })
-      return { kind: 'crypto', ticker: d.ticker, walletOrExchange: d.walletOrExchange }
+      const rawTicker = d.ticker.trim().toUpperCase()
+      const normalizedTicker = rawTicker.includes('-') ? rawTicker : `${rawTicker}-EUR`
+      return { kind: 'crypto', ticker: normalizedTicker, walletOrExchange: d.walletOrExchange }
     }
     case 'savings': {
       const d = savingsSchema.parse({ bankName: str(fd, 'bankName'), savingsAccountType: optStr(fd, 'savingsAccountType'), interestRate: optStr(fd, 'interestRate') })
@@ -197,6 +200,15 @@ export async function createAssetAction(prev: ActionState, fd: FormData): Promis
     const user = await requireUser()
     const base = baseSchema.parse({ name: str(fd, 'name'), assetType: str(fd, 'assetType'), currency: str(fd, 'currency') || 'EUR' })
     const details = parseDetails(base.assetType, fd)
+
+    if (details.kind === 'crypto') {
+      try {
+        await getLatestPrice(details.ticker)
+      } catch {
+        return { error: `Geen koers gevonden voor '${details.ticker}'. Controleer het symbool of voeg het handmatig toe via een waarderingsinvoer.` }
+      }
+    }
+
     const asset = await createAsset(user.id, { ...base, details })
 
     // Initiële aankoop-transactie vanuit de zoekflow

@@ -1,8 +1,9 @@
 import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues } from '@/lib/db/queries/assets'
-import { getTransactionsByAssets } from '@/lib/db/queries/transactions'
-import { formatCurrency } from '@/lib/utils/format'
+import { getTransactionsByAssetsDetailed } from '@/lib/db/queries/transactions'
+import { calculateNetDeposit } from '@/lib/finance'
+import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { PortfolioTile } from '@/components/portfolio/PortfolioTile'
@@ -16,19 +17,11 @@ export default async function CryptoPage() {
   const assets = allAssets.filter(a => a.assetType === 'crypto')
   const assetIds = assets.map(a => a.id)
 
-  const allTxs = assetIds.length > 0 ? await getTransactionsByAssets(assetIds) : []
+  const allTxs = assetIds.length > 0 ? await getTransactionsByAssetsDetailed(assetIds) : []
 
   const totaleWaarde = assets.reduce((s, a) => s.plus(a.currentValue), new Decimal(0))
 
-  const totaleInleg = allTxs
-    .filter(t => t.transactionType === 'buy')
-    .reduce((s, t) => s.plus(new Decimal(t.amount)), new Decimal(0))
-
-  const totaleVerkoop = allTxs
-    .filter(t => t.transactionType === 'sell')
-    .reduce((s, t) => s.plus(new Decimal(t.amount)), new Decimal(0))
-
-  const netDeposit = totaleInleg.minus(totaleVerkoop)
+  const netDeposit = calculateNetDeposit(allTxs)
   const totaleWinst = totaleWaarde.minus(netDeposit)
 
   return (
@@ -55,10 +48,10 @@ export default async function CryptoPage() {
             subtext="Koop min verkoop"
           />
           <KpiCard
-            label="Ongerealiseerde winst"
+            label="Rendement (totaal)"
             value={netDeposit.gt(0) ? formatCurrency(totaleWinst.toNumber()) : '—'}
             subtext={netDeposit.gt(0)
-              ? `${totaleWinst.div(netDeposit).mul(100).toDecimalPlaces(1).toNumber()}% op inleg`
+              ? `${formatPercent(totaleWinst.div(netDeposit).toNumber())} op inleg`
               : undefined}
             trend={netDeposit.gt(0) ? { value: '', positive: totaleWinst.gte(0) } : undefined}
           />
