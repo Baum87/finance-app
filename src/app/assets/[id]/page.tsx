@@ -71,13 +71,13 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
   if (!result) notFound()
 
   const { asset, calculations } = result
-  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, fetchedPrice, priceCurrency } = calculations
-
-  const fmt = (v: number) =>
-    new Intl.NumberFormat('nl-NL', { style: 'currency', currency: asset.currency }).format(v)
+  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, fetchedPrice, priceCurrency, priceEur } = calculations
 
   const fmtPct = (v: number) =>
     new Intl.NumberFormat('nl-NL', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v)
+
+  const fmtKoers = (v: number) =>
+    new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(v)
 
   const gainAccent = unrealizedGain.gt(0) ? 'positive' : unrealizedGain.lt(0) ? 'negative' : undefined
   const showValuationSection = VALUATION_TYPES.includes(asset.assetType)
@@ -111,27 +111,25 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
             label="Huidige waarde"
-            value={currentValue.gt(0) ? fmt(currentValue.toNumber()) : '—'}
-            sub={fetchedPrice && priceCurrency
-              ? `Koers: ${new Intl.NumberFormat('nl-NL', { style: 'currency', currency: priceCurrency }).format(fetchedPrice.toNumber())}`
-              : undefined}
+            value={currentValue.gt(0) ? formatCurrency(currentValue.toNumber()) : '—'}
+            sub={priceEur ? `Koers: ${fmtKoers(priceEur.toNumber())}` : undefined}
           />
           <KpiCard
             label="Ingelegd"
-            value={fmt(netDeposit.toNumber())}
+            value={formatCurrency(netDeposit.toNumber())}
           />
           <KpiCard
-            label="Ongerealiseerde winst"
-            value={currentValue.gt(0) ? fmt(unrealizedGain.toNumber()) : '—'}
+            label="Rendement (totaal)"
+            value={currentValue.gt(0) ? formatCurrency(unrealizedGain.toNumber()) : '—'}
             sub={currentValue.gt(0) && netDeposit.gt(0)
               ? fmtPct(unrealizedGain.div(netDeposit).toNumber())
               : undefined}
             accent={gainAccent}
           />
           <KpiCard
-            label="XIRR (rendement)"
+            label="Rendement"
             value={xirr ? fmtPct(xirr.toNumber()) : '—'}
-            sub={xirr ? 'Jaarlijks rendement' : 'Te weinig data'}
+            sub={xirr ? 'Jaarlijks, berekend via XIRR' : 'Te weinig data'}
             accent={xirr?.gt(0) ? 'positive' : xirr?.lt(0) ? 'negative' : undefined}
           />
         </div>

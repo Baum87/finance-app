@@ -416,6 +416,8 @@ export async function getAssetWithCalculations(
   const unrealizedGain = calculateUnrealizedGain(currentValue, netDeposit)
 
   // XIRR: all cashflow types conform finance-logic.md §6
+  // amount is altijd in EUR (UI forceert currency=EUR, fxRate=1).
+  // Als Optie B (vreemde valuta) ooit wordt ingevoerd: pas hier t.amount × t.fxRate toe.
   const XIRR_OUTFLOWS = new Set(['buy', 'deposit', 'cost'])
   const XIRR_INFLOWS  = new Set(['sell', 'withdrawal', 'dividend', 'interest', 'rental_income'])
   let xirr: Decimal | null = null
@@ -559,6 +561,8 @@ export async function getLiquidAssetsWithCalculations(userId: string): Promise<P
 
       let xirr: Decimal | null = null
       if (asset.currentValue.gt(0)) {
+        // amount is altijd in EUR (UI forceert currency=EUR, fxRate=1).
+        // Als Optie B (vreemde valuta) ooit wordt ingevoerd: pas hier t.amount × t.fxRate toe.
         const cashflows: Cashflow[] = txRows
           .filter(t => XIRR_OUT.has(t.transactionType) || XIRR_IN.has(t.transactionType))
           .map(t => {

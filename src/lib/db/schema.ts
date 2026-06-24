@@ -226,6 +226,10 @@ export const liabilities = pgTable('liabilities', {
 ])
 
 // ─── fx_rates (geen RLS — gedeeld, niet user-gebonden) ───────────────────────
+// Gereserveerd voor multi-currency / Optie B (transactievaluta met automatische
+// EUR-omrekening). Nog niet in gebruik in v1: alle transacties worden in EUR
+// ingevoerd (currency=EUR, fxRate=1). Niet verwijderen — verwijdering vereist
+// een aparte migratie wanneer Optie B wordt ingevoerd.
 
 export const fxRates = pgTable('fx_rates', {
   id:           uuid('id').primaryKey().defaultRandom(),
