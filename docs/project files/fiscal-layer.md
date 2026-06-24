@@ -350,3 +350,76 @@ Als dit ontwerp akkoord is:
 - `docs/project files/data-model.md` — `tax_parameters`, `tax_profile`, `asset_tax_metadata`-uitbreiding
 - `docs/project files/finance-logic.md` — `calculateBox3Tax` + `calculateAfterTaxReturn` als contract
 - `docs/project files/decisions.md` — nieuwe beslissing: fiscale laag via parameter-tabel
+
+---
+
+## 11. FISCAAL-LATER backlog (uit Fase D reviews)
+
+Concrete items gevonden tijdens de multi-expert reviews per portfolio-onderdeel.
+Elk item heeft een herkomst (welk onderdeel), de eis, en de fase waarin het landt.
+
+### Uit de Aandelen/ETF-review
+
+| # | Item | Eis voor Fase E |
+|---|---|---|
+| **F1** | `box3_category` vullen | Bij `createAsset` voor `stock_etf` direct `box3_category = 'investments'` zetten in `asset_tax_metadata`. Voorkomt latere datamigratie. (Hoort bij Fase E2.) |
+| **F2** | Dividendbelasting vastleggen | Veld `dividend_tax_withheld` op dividend-transacties voor de 15% ingehouden DWT, t.b.v. later inzicht in verrekenbare belasting. App registreert dividend nu **netto** (na DWT) — zie F2-detail hieronder. |
+| **F3** | Peildatumkoers 1 januari | Box 3 peildatum is 1 januari, maar dat is een **beursfeestdag**. De koers-ophaling moet de **laatste handelsdag van december** pakken (bijv. `period1 = 2025-12-29`, `period2 = 2025-12-31`, neem de laatste beschikbare slotkoers). Geldt voor alle transactie-gedreven assets (stock_etf, crypto). |
+| **F4** | Disclaimer bij toerekening | De box 3-heffing per asset (naar rato van waarde) is **indicatief, niet auditable**. Verplichte disclaimer bij elke per-asset netto-rendementsweergave: "Indicatieve schatting — geen belastingaangifte." |
+| **F5** | XIRR met FX bij Optie B | Als ooit Optie B (transacties in vreemde valuta) wordt ingevoerd: `t.amount × t.fxRate` toepassen in de XIRR-cashflows. Nu veilig omdat alle transacties EUR zijn (fxRate=1). Comment staat in de code. |
+
+### F2-detail — dividend bruto/netto (besloten in Fase D)
+
+**Besluit:** de app registreert dividend **netto** (het daadwerkelijk ontvangen
+bedrag na ingehouden 15% dividendbelasting). De `TransactionForm` toont de
+helpzin: "Voer het netto ontvangen bedrag in (na ingehouden dividendbelasting)."
+
+**Reden:** netto sluit aan bij wat op het rekeningoverzicht binnenkomt en geeft
+een correcte XIRR op werkelijk ontvangen cashflow.
+
+**Openstaand voor Fase E (F2):** een optioneel veld `dividend_tax_withheld` zodat
+de ingehouden DWT apart vastligt. Dit maakt later inzicht mogelijk in de
+verrekenbare dividendbelasting (box 3-aangifte verrekent ingehouden DWT met de
+te betalen belasting). Niet nodig voor de v1-rendementsberekening, wel voor het
+latere fiscale inzicht.
+
+### F3-detail — beursfeestdag-guard
+
+De `getHistoricalPrices`-service moet een helper krijgen die, gegeven een
+belastingjaar, de slotkoers op de laatste handelsdag vóór of op 1 januari
+teruggeeft, in EUR. Pseudocode-eis:
+
+```
+peildatumkoers(jaar, ticker):
+  haal slotkoersen op voor [jaar-1-12-28 .. jaar-1-12-31]
+  retourneer de laatste beschikbare slotkoers in EUR
+  (1 januari zelf is beursfeestdag — nooit een koers op die dag verwachten)
+```
+
+Dit raakt de box 3-waardering van zowel aandelen/ETF als crypto, omdat beide
+transactie-gedreven zijn en geen `asset_valuations` hebben.
+
+---
+
+## 12. Doorlopende open vraag — toerekening per asset
+
+Status na Aandelen/ETF-review: **verdedigbaar, mits disclaimer (F4)**.
+
+Het fiscaal-expert-oordeel: box 3-heffing naar rato van vermogenswaarde per asset
+toerekenen geeft een bruikbaar indicatief netto-rendement, maar is geen
+auditeerbare aangifte. Acceptabel voor inzicht, niet voor de Belastingdienst.
+
+Dit oordeel wordt herbevestigd of bijgesteld per volgend onderdeel (Crypto,
+Vastgoed, Pensioen). Eindbesluit valt wanneer alle onderdelen gereviewd zijn,
+vóór de bouw van Fase E3 (de fiscale UI).
+
+---
+
+## Verwerkingsinstructie
+
+Wanneer Fase E start:
+- F1 → Fase E2 (asset_tax_metadata vullen)
+- F2 → Fase E2 (schema-veld) + E3 (optionele invoer)
+- F3 → Fase E1 (box3.ts peildatum-helper)
+- F4 → Fase E3 (UI-disclaimer)
+- F5 → blijft latent tot/tenzij Optie B wordt ingevoerd
