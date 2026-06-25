@@ -32,7 +32,7 @@ export default async function AandeelDetailPage({
   if (!result || result.asset.assetType !== 'stock_etf') notFound()
 
   const { asset, calculations } = result
-  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, fetchedPrice, priceCurrency, priceEur } = calculations
+  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, priceEur } = calculations
 
   // WAC via AVCO (correct bij deelverkopen)
   const wacPerUnit = calculateCostBasis(txList.map(t => ({
@@ -45,8 +45,8 @@ export default async function AandeelDetailPage({
 
   const gainAccent = unrealizedGain.gt(0) ? 'positive' : unrealizedGain.lt(0) ? 'negative' : undefined
 
-  const fmtPrice = (v: number) =>
-    new Intl.NumberFormat('nl-NL', { style: 'currency', currency: priceCurrency ?? 'EUR' }).format(v)
+  const fmtKoers = (v: number) =>
+    new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(v)
 
   // Breadcrumb: vind broker via brokerId zodat we naar de broker-pagina kunnen linken
   const broker = asset.stockEtfDetails?.brokerId
@@ -101,7 +101,7 @@ export default async function AandeelDetailPage({
           <KpiCard
             label="Marktwaarde"
             value={currentValue.gt(0) ? formatCurrency(currentValue.toNumber()) : '—'}
-            subtext={fetchedPrice ? `Koers: ${fmtPrice(fetchedPrice.toNumber())}` : undefined}
+            subtext={priceEur ? `Koers: ${fmtKoers(priceEur.toNumber())}` : undefined}
           />
           <KpiCard
             label="Winst / verlies"
@@ -112,9 +112,9 @@ export default async function AandeelDetailPage({
             trend={gainAccent ? { value: '', positive: gainAccent === 'positive' } : undefined}
           />
           <KpiCard
-            label="Jaarrendement"
+            label="Rendement"
             value={xirr ? formatPercent(xirr.toNumber()) : '—'}
-            subtext={xirr ? 'XIRR – gecorrigeerd voor instaptiming' : 'Beschikbaar na 30 dagen'}
+            subtext={xirr ? 'Jaarlijks, berekend via XIRR' : 'Beschikbaar na 30 dagen'}
             trend={xirr ? { value: '', positive: xirr.gt(0) } : undefined}
           />
         </div>
@@ -135,9 +135,7 @@ export default async function AandeelDetailPage({
             <KpiCard
               label="Huidige koers"
               value={priceEur ? formatCurrency(priceEur.toNumber()) : '—'}
-              subtext={fetchedPrice && priceCurrency && priceCurrency !== 'EUR'
-                ? `${fmtPrice(fetchedPrice.toNumber())} ${priceCurrency}`
-                : 'Live marktkoers in EUR'}
+              subtext="Live marktkoers in EUR"
             />
           </div>
         )}
