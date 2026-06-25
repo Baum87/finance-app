@@ -105,6 +105,7 @@ const transactionSchema = z.object({
   currency:        z.string().default('EUR'),
   fxRate:          z.string().default('1'),
   notes:           z.string().optional(),
+  fees:            z.string().optional(),
 })
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -275,6 +276,7 @@ export async function createTransactionAction(prev: ActionState, fd: FormData): 
       currency:        str(fd, 'currency') || 'EUR',
       fxRate:          str(fd, 'fxRate') || '1',
       notes:           optStr(fd, 'notes'),
+      fees:            optStr(fd, 'fees'),
     })
     const asset = await getAsset(user.id, assetId)
     if (!asset) return { error: 'Asset niet gevonden' }
@@ -305,6 +307,7 @@ export async function updateTransactionAction(prev: ActionState, fd: FormData): 
       currency:        str(fd, 'currency') || 'EUR',
       fxRate:          str(fd, 'fxRate') || '1',
       notes:           optStr(fd, 'notes'),
+      fees:            optStr(fd, 'fees'),
     })
     await updateTransaction(user.id, transactionId, data)
     redirect(str(fd, 'redirectTo') || `/assets/${assetId}`)

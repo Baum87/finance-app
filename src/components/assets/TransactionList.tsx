@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import Decimal from 'decimal.js'
+import { Trash2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { deleteTransactionAction } from '@/app/assets/actions'
 import { useSortable } from '@/lib/utils/use-sortable'
 import { SortableHeader } from '@/components/ui/SortableHeader'
@@ -37,6 +39,7 @@ export function TransactionList({ transactions, assetId, addHref, redirectTo, cu
   redirectTo?: string
   currentPriceEur?: number
 }) {
+  const router = useRouter()
   const { sort, toggle, sorted } = useSortable<SortKey>('transactionDate', 'desc')
   const showLotGain = !!currentPriceEur
 
@@ -88,10 +91,12 @@ export function TransactionList({ transactions, assetId, addHref, redirectTo, cu
             : null
           const lotPos = lotGain !== null && lotGain >= 0
 
+          const editHref = `/assets/${assetId}/transactions/${tx.id}/edit${redirectTo ? `?from=${encodeURIComponent(redirectTo)}` : ''}`
           return (
             <div
               key={tx.id}
-              className={`grid gap-4 items-center px-6 py-3.5 hover:bg-muted/50 transition-colors ${showLotGain ? 'grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto_auto_auto_auto]'}`}
+              onClick={() => router.push(editHref)}
+              className={`grid gap-4 items-center px-6 py-3.5 hover:bg-muted/50 transition-colors cursor-pointer ${showLotGain ? 'grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto_auto_auto_auto]'}`}
             >
               <span className="text-sm text-muted-foreground">{formatDate(tx.transactionDate)}</span>
               <span className="w-24">
@@ -118,17 +123,17 @@ export function TransactionList({ transactions, assetId, addHref, redirectTo, cu
                   </span>
                 </>
               )}
-              <div className="w-16 flex justify-end">
+              <div className="w-16 flex justify-end" onClick={e => e.stopPropagation()}>
                 <form action={deleteTransactionAction}>
                   <input type="hidden" name="transactionId" value={tx.id} />
                   <input type="hidden" name="assetId" value={assetId} />
                   {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
                   <button
                     type="submit"
-                    className="text-xs text-terracotta hover:opacity-70 transition-opacity"
+                    className="text-muted-foreground hover:text-terracotta transition-colors"
                     onClick={e => { if (!confirm('Transactie verwijderen?')) e.preventDefault() }}
                   >
-                    Verwijderen
+                    <Trash2 size={16} />
                   </button>
                 </form>
               </div>

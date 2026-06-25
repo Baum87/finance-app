@@ -46,6 +46,7 @@ export type CreateTransactionInput = {
   currency?: string
   fxRate?: string
   notes?: string | null
+  fees?: string | null
 }
 
 export async function createTransaction(
@@ -66,6 +67,7 @@ export async function createTransaction(
       currency: data.currency ?? 'EUR',
       fxRate: data.fxRate ?? '1',
       notes: data.notes ?? null,
+      fees: data.fees ?? '0',
     })
     .returning()
   return tx
@@ -88,10 +90,21 @@ export async function updateTransaction(
       currency: data.currency ?? 'EUR',
       fxRate: data.fxRate ?? '1',
       notes: data.notes ?? null,
+      fees: data.fees ?? '0',
     })
     .where(eq(transactions.id, transactionId))
     .returning()
   return tx
+}
+
+export async function getTransactionById(userId: string, transactionId: string) {
+  await verifyTransactionAccess(userId, transactionId)
+  const [tx] = await db
+    .select()
+    .from(transactions)
+    .where(eq(transactions.id, transactionId))
+    .limit(1)
+  return tx ?? null
 }
 
 export async function deleteTransaction(userId: string, transactionId: string) {

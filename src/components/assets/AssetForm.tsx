@@ -31,6 +31,7 @@ type Props = {
   cancelHref?: string
   defaultBrokerId?: string
   brokerList?: Broker[]
+  walletList?: string[]
 }
 
 function Field({ label, name, type = 'text', defaultValue, placeholder, required }: {
@@ -84,17 +85,35 @@ function StockEtfSection({ data, brokerList, defaultBrokerId }: {
   )
 }
 
-function CryptoSection({ data }: { data?: NonNullable<AssetDetail>['cryptoDetails'] }) {
+function CryptoSection({ data, walletList }: {
+  data?: NonNullable<AssetDetail>['cryptoDetails']
+  walletList?: string[]
+}) {
+  const hasWallets = (walletList?.length ?? 0) > 0
   return (
     <div className="space-y-4 pt-4 border-t border-border">
       <p className="text-sm font-medium text-foreground">Crypto details</p>
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
+          <Label htmlFor="walletOrExchange">Wallet / Exchange</Label>
+          <Input
+            id="walletOrExchange"
+            name="walletOrExchange"
+            defaultValue={data?.walletOrExchange ?? ''}
+            placeholder="Bitvavo"
+            list={hasWallets ? 'wallet-suggestions' : undefined}
+          />
+          {hasWallets && (
+            <datalist id="wallet-suggestions">
+              {walletList!.map(w => <option key={w} value={w} />)}
+            </datalist>
+          )}
+        </div>
+        <div className="flex flex-col gap-1.5">
           <Label htmlFor="ticker">Symbol<span className="text-terracotta ml-0.5">*</span></Label>
           <Input id="ticker" name="ticker" defaultValue={data?.ticker} placeholder="BTC-EUR" />
           <p className="text-xs text-muted-foreground">Crypto-ticker. Wordt automatisch in euro's opgehaald. Voorbeelden: BTC-EUR, ETH-EUR, SOL-EUR.</p>
         </div>
-        <Field label="Wallet / Exchange" name="walletOrExchange" defaultValue={data?.walletOrExchange ?? ''} placeholder="Bitvavo" />
       </div>
     </div>
   )
@@ -216,7 +235,7 @@ function RealEstateSection({ data, propertyType, onPropertyTypeChange }: {
   )
 }
 
-export function AssetForm({ action, initialData, assetId, lockedType, redirectTo, redirectBase, cancelHref = '/assets', defaultBrokerId, brokerList }: Props) {
+export function AssetForm({ action, initialData, assetId, lockedType, redirectTo, redirectBase, cancelHref = '/assets', defaultBrokerId, brokerList, walletList }: Props) {
   const [state, formAction, isPending] = useActionState(action, null)
   const [assetType, setAssetType] = useState<AssetType>(
     (initialData?.assetType as AssetType) ?? (lockedType as AssetType) ?? 'stock_etf'
@@ -283,7 +302,7 @@ export function AssetForm({ action, initialData, assetId, lockedType, redirectTo
       {/* Type-specifieke velden */}
       {isNewStockEtf                && <StockSearchInput defaultBrokerId={defaultBrokerId} brokerList={brokerList} backHref={cancelHref} />}
       {assetType === 'stock_etf' && initialData && <StockEtfSection data={initialData.stockEtfDetails ?? undefined} brokerList={brokerList} defaultBrokerId={defaultBrokerId} />}
-      {assetType === 'crypto'      && <CryptoSection      data={initialData?.cryptoDetails ?? undefined} />}
+      {assetType === 'crypto'      && <CryptoSection      data={initialData?.cryptoDetails ?? undefined} walletList={walletList} />}
       {assetType === 'savings'     && <SavingsSection     data={initialData?.savingsDetails ?? undefined} />}
       {assetType === 'pension'     && <PensionSection     data={initialData?.pensionDetails ?? undefined} />}
       {assetType === 'vordering'   && <VorderingSection   data={initialData?.vorderingDetails ?? undefined} />}

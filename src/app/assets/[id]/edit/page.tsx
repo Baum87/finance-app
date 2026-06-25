@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
-import { getAsset } from '@/lib/db/queries/assets'
+import { getAsset, getCryptoWallets } from '@/lib/db/queries/assets'
 import { getBrokers } from '@/lib/db/queries/brokers'
 import { AssetForm } from '@/components/assets/AssetForm'
 import { updateAssetAction } from '@/app/assets/actions'
@@ -25,6 +25,8 @@ export default async function EditAssetPage({
   ])
   if (!asset) notFound()
 
+  const walletList = asset.assetType === 'crypto' ? await getCryptoWallets(user!.id) : []
+
   const backHref = from ?? `/assets/${id}`
 
   return (
@@ -39,7 +41,7 @@ export default async function EditAssetPage({
         </div>
 
         <div className="max-w-2xl rounded-3xl border border-border bg-card p-8">
-          <AssetForm action={updateAssetAction} initialData={asset} assetId={asset.id} redirectTo={from} cancelHref={from ?? backHref} brokerList={brokerList} />
+          <AssetForm action={updateAssetAction} initialData={asset} assetId={asset.id} redirectTo={from} cancelHref={from ?? backHref} brokerList={brokerList} walletList={walletList} />
         </div>
       </main>
     </>

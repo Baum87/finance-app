@@ -70,7 +70,8 @@ export async function PortfolioOverview({ config, userId }: {
   if (config.showChart) {
     const tickerByAssetId = new Map<string, string>()
     for (const a of assets) {
-      if (a.stockEtfDetails?.ticker) tickerByAssetId.set(a.id, a.stockEtfDetails.ticker)
+      const ticker = a.stockEtfDetails?.ticker ?? a.cryptoDetails?.ticker
+      if (ticker) tickerByAssetId.set(a.id, ticker)
     }
     const series = await buildStockPortfolioSeries(allTxs, tickerByAssetId)
     chartData = series.length > 0

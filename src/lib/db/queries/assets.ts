@@ -650,3 +650,13 @@ export async function getMortgageBalancesMap(userId: string): Promise<Map<string
   }
   return map
 }
+
+export async function getCryptoWallets(userId: string): Promise<string[]> {
+  const tenantId = await getOrCreateTenant(userId)
+  const rows = await db
+    .select({ wallet: cryptoDetails.walletOrExchange })
+    .from(cryptoDetails)
+    .innerJoin(assets, eq(assets.id, cryptoDetails.assetId))
+    .where(and(eq(assets.tenantId, tenantId), eq(assets.isActive, true)))
+  return [...new Set(rows.map(r => r.wallet).filter((w): w is string => !!w))]
+}

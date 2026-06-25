@@ -135,6 +135,18 @@ export function TransactionForm({ action, assetId, transactionId, initialData, r
                 placeholder="119.05"
               />
             </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="fees">Transactiekosten (€)</Label>
+              <Input
+                id="fees"
+                name="fees"
+                type="text"
+                inputMode="decimal"
+                defaultValue={initialData?.fees ?? ''}
+                placeholder="0.00"
+              />
+              <p className="text-xs text-muted-foreground">Commissie, spread of andere kosten</p>
+            </div>
           </>
         )}
 
