@@ -1,26 +1,27 @@
 import { and, eq, desc, asc, inArray, gte } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { transactions, assets, tenantUsers } from '@/lib/db/schema'
+import { transactions, assets } from '@/lib/db/schema'
+import { getOrCreateTenant } from './tenant'
 import type { TransactionType } from '@/types'
 
 async function verifyAssetAccess(userId: string, assetId: string): Promise<void> {
+  const tenantId = await getOrCreateTenant(userId)
   const rows = await db
     .select({ id: assets.id })
     .from(assets)
-    .innerJoin(tenantUsers, eq(tenantUsers.tenantId, assets.tenantId))
-    .where(and(eq(assets.id, assetId), eq(tenantUsers.userId, userId)))
+    .where(and(eq(assets.id, assetId), eq(assets.tenantId, tenantId)))
     .limit(1)
 
   if (!rows[0]) throw new Error('Asset niet gevonden of geen toegang')
 }
 
 async function verifyTransactionAccess(userId: string, transactionId: string): Promise<void> {
+  const tenantId = await getOrCreateTenant(userId)
   const rows = await db
     .select({ id: transactions.id })
     .from(transactions)
     .innerJoin(assets, eq(assets.id, transactions.assetId))
-    .innerJoin(tenantUsers, eq(tenantUsers.tenantId, assets.tenantId))
-    .where(and(eq(transactions.id, transactionId), eq(tenantUsers.userId, userId)))
+    .where(and(eq(transactions.id, transactionId), eq(assets.tenantId, tenantId)))
     .limit(1)
 
   if (!rows[0]) throw new Error('Transactie niet gevonden of geen toegang')
