@@ -32,7 +32,7 @@ export default async function AandeelDetailPage({
   if (!result || result.asset.assetType !== 'stock_etf') notFound()
 
   const { asset, calculations } = result
-  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, priceEur } = calculations
+  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, priceEur, priceStatus } = calculations
 
   // WAC via AVCO (correct bij deelverkopen)
   const wacPerUnit = calculateCostBasis(txList.map(t => ({
@@ -118,6 +118,18 @@ export default async function AandeelDetailPage({
             trend={xirr ? { value: '', positive: xirr.gt(0) } : undefined}
           />
         </div>
+
+        {/* Koersstatus */}
+        {priceStatus === 'fallback' && (
+          <p className="text-xs text-muted-foreground -mt-2">
+            Live koers niet beschikbaar. Waarde gebaseerd op laatste bekende waardering.
+          </p>
+        )}
+        {priceStatus === 'unavailable' && (
+          <p className="text-xs text-muted-foreground -mt-2">
+            Live koers niet beschikbaar en geen waardering aanwezig. Voeg een waardering toe om de huidige waarde te zien.
+          </p>
+        )}
 
         {/* Rij 2: positie-details */}
         {quantityHeld && (

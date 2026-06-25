@@ -22,7 +22,7 @@ export default async function CryptoDetailPage({ params }: { params: Promise<{ i
   if (!result || result.asset.assetType !== 'crypto') notFound()
 
   const { asset, calculations } = result
-  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, priceEur } = calculations
+  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, priceEur, priceStatus } = calculations
 
   const gainAccent = unrealizedGain.gt(0) ? 'positive' : unrealizedGain.lt(0) ? 'negative' : undefined
 
@@ -84,6 +84,18 @@ export default async function CryptoDetailPage({ params }: { params: Promise<{ i
             trend={xirr ? { value: '', positive: xirr.gt(0) } : undefined}
           />
         </div>
+
+        {/* Koersstatus */}
+        {priceStatus === 'fallback' && (
+          <p className="text-xs text-muted-foreground -mt-2">
+            Live koers niet beschikbaar. Waarde gebaseerd op laatste bekende waardering.
+          </p>
+        )}
+        {priceStatus === 'unavailable' && (
+          <p className="text-xs text-muted-foreground -mt-2">
+            Live koers niet beschikbaar en geen waardering aanwezig. Voeg een waardering toe om de huidige waarde te zien.
+          </p>
+        )}
 
         {quantityHeld && (
           <div className="grid grid-cols-2 gap-4">

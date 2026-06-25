@@ -71,7 +71,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
   if (!result) notFound()
 
   const { asset, calculations } = result
-  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, fetchedPrice, priceCurrency, priceEur } = calculations
+  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, fetchedPrice, priceCurrency, priceEur, priceStatus } = calculations
 
   const fmtPct = (v: number) =>
     new Intl.NumberFormat('nl-NL', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v)
@@ -133,6 +133,18 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
             accent={xirr?.gt(0) ? 'positive' : xirr?.lt(0) ? 'negative' : undefined}
           />
         </div>
+
+        {/* Koersstatus — alleen voor stock_etf en crypto */}
+        {priceStatus === 'fallback' && (
+          <p className="text-xs text-muted-foreground -mt-2">
+            Live koers niet beschikbaar. Waarde gebaseerd op laatste bekende waardering.
+          </p>
+        )}
+        {priceStatus === 'unavailable' && (
+          <p className="text-xs text-muted-foreground -mt-2">
+            Live koers niet beschikbaar en geen waardering aanwezig. Voeg een waardering toe om de huidige waarde te zien.
+          </p>
+        )}
 
         {/* Quantity / price row for stock/crypto */}
         {quantityHeld && (

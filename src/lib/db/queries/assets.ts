@@ -336,6 +336,7 @@ export type AssetCalculations = {
   fetchedPrice: Decimal | null
   priceCurrency: string | null
   priceEur: Decimal | null
+  priceStatus?: 'live' | 'fallback' | 'unavailable'
 }
 
 /**
@@ -372,6 +373,7 @@ export async function getAssetWithCalculations(
   let priceCurrency: string | null = null
   let priceEurCalc: Decimal | null = null
   let quantityHeld: Decimal | null = null
+  let priceStatus: 'live' | 'fallback' | 'unavailable' | undefined = undefined
 
   const assetType = asset.assetType
 
@@ -399,10 +401,18 @@ export async function getAssetWithCalculations(
         priceEurCalc = priceEur
         currentValue = calculateMarketValue(txs, priceEur)
         quantityHeld = calculateQuantityHeld(txs)
+        priceStatus = 'live'
       } catch {
-        // Koers of wisselkoers niet beschikbaar — gebruik meest recente valuation
+        // Live koers niet beschikbaar — priceStatus geeft de UI een expliciet signaal
+        console.error(`[prices] Koersophaling gefaald voor ${ticker}`)
         const latestVal = asset.valuations?.[0]
-        if (latestVal) currentValue = new Decimal(latestVal.value)
+        if (latestVal) {
+          currentValue = new Decimal(latestVal.value)
+          priceStatus = 'fallback'
+        } else {
+          // currentValue blijft 0 — priceStatus='unavailable' onderscheidt dit van een echte nulwaarde
+          priceStatus = 'unavailable'
+        }
       }
     }
   } else if (assetType === 'savings') {
@@ -448,11 +458,14 @@ export async function getAssetWithCalculations(
 
   return {
     asset,
-    calculations: { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, fetchedPrice, priceCurrency, priceEur: priceEurCalc },
+    calculations: { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, fetchedPrice, priceCurrency, priceEur: priceEurCalc, priceStatus },
   }
 }
 
-export type AssetWithValue = AssetWithDetails & { currentValue: Decimal }
+export type AssetWithValue = AssetWithDetails & {
+  currentValue: Decimal
+  priceStatus?: 'live' | 'fallback' | 'unavailable'
+}
 
 /**
  * Returns all active assets with their current value for the list view.
@@ -476,6 +489,8 @@ export async function getAssetsWithValues(userId: string): Promise<AssetWithValu
         quantity: t.quantity,
       }))
 
+      let priceStatus: 'live' | 'fallback' | 'unavailable' | undefined = undefined
+
       if (asset.assetType === 'stock_etf' || asset.assetType === 'crypto') {
         const ticker =
           asset.assetType === 'stock_etf'
@@ -493,9 +508,16 @@ export async function getAssetsWithValues(userId: string): Promise<AssetWithValu
               priceEur = priceResult.price.times(fx.price)
             }
             currentValue = calculateMarketValue(txs, priceEur)
+            priceStatus = 'live'
           } catch {
+            console.error(`[prices] Koersophaling gefaald voor ${ticker}`)
             const latestVal = asset.valuations?.[0]
-            if (latestVal) currentValue = new Decimal(latestVal.value)
+            if (latestVal) {
+              currentValue = new Decimal(latestVal.value)
+              priceStatus = 'fallback'
+            } else {
+              priceStatus = 'unavailable'
+            }
           }
         }
       } else if (asset.assetType === 'savings') {
@@ -505,7 +527,7 @@ export async function getAssetsWithValues(userId: string): Promise<AssetWithValu
         if (latestVal) currentValue = new Decimal(latestVal.value)
       }
 
-      return { ...asset, currentValue }
+      return { ...asset, currentValue, priceStatus }
     }),
   )
 
