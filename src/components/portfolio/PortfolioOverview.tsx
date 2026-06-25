@@ -5,7 +5,8 @@ import { getTransactionsByAssetsDetailed } from '@/lib/db/queries/transactions'
 import { getBrokers } from '@/lib/db/queries/brokers'
 import { buildStockPortfolioSeries } from '@/lib/finance/stock-series'
 import { buildInlegSeries } from '@/lib/finance/portfolio-series'
-import { calculateNetDeposit } from '@/lib/finance'
+import { calculateNetDeposit, calculateXirr } from '@/lib/finance'
+import type { Cashflow } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
@@ -36,7 +37,24 @@ export async function PortfolioOverview({ config, userId }: {
   const totaleWaarde = assets.reduce((s, a) => s.plus(a.currentValue), new Decimal(0))
   const netDeposit   = calculateNetDeposit(allTxs)
   const winst        = totaleWaarde.minus(netDeposit)
-  const rendement    = netDeposit.gt(0) ? winst.div(netDeposit) : null
+
+  // ─── Portfolio XIRR ───────────────────────────────────────────────────────────
+  let portfolioXirr: Decimal | null = null
+  const xirrFlows: Cashflow[] = allTxs.flatMap(tx => {
+    if (tx.transactionType === 'buy' || tx.transactionType === 'deposit') {
+      return [{ amount: new Decimal(tx.amount).plus(new Decimal(tx.fees ?? '0')).negated(), date: new Date(tx.transactionDate) }]
+    }
+    if (tx.transactionType === 'sell' || tx.transactionType === 'withdrawal') {
+      return [{ amount: new Decimal(tx.amount), date: new Date(tx.transactionDate) }]
+    }
+    return []
+  })
+  if (totaleWaarde.gt(0)) xirrFlows.push({ amount: totaleWaarde, date: new Date() })
+  try {
+    if (xirrFlows.length >= 2) portfolioXirr = calculateXirr(xirrFlows)
+  } catch {
+    portfolioXirr = null
+  }
 
   // ─── Brokers (stock_etf only) ─────────────────────────────────────────────────
   const brokerList = config.assetType === 'stock_etf' ? await getBrokers(userId) : []
@@ -89,52 +107,25 @@ export async function PortfolioOverview({ config, userId }: {
     }))
   }
 
-  // ─── Broker stats (stock_etf only) ───────────────────────────────────────────
+  // ─── Per-asset netDeposit & tabelrijen ────────────────────────────────────────
   const netDepositByAsset = new Map<string, Decimal>()
-  if (config.assetType === 'stock_etf') {
-    for (const a of assets) {
-      const assetTxs = allTxs.filter(t => t.assetId === a.id)
-      netDepositByAsset.set(a.id, calculateNetDeposit(assetTxs))
-    }
-  }
-
-  const assetsByBroker = new Map<string, AssetWithValue[]>()
   for (const a of assets) {
-    const key = a.stockEtfDetails?.brokerId ?? ''
-    if (!assetsByBroker.has(key)) assetsByBroker.set(key, [])
-    assetsByBroker.get(key)!.push(a)
+    netDepositByAsset.set(a.id, calculateNetDeposit(allTxs.filter(t => t.assetId === a.id)))
   }
 
-  const brokerStats = brokerList.map(broker => {
-    const positions = assetsByBroker.get(broker.id) ?? []
-    const waarde    = positions.reduce((s, a) => s.plus(a.currentValue), new Decimal(0))
-    const inleg     = positions.reduce((s, a) => s.plus(netDepositByAsset.get(a.id) ?? 0), new Decimal(0))
-    const wv        = waarde.minus(inleg)
-    const pct       = inleg.gt(0) ? wv.div(inleg) : null
-    return { broker, positions, waarde, inleg, wv, pct }
-  })
-
-  // ─── Crypto groepering (crypto only) ─────────────────────────────────────────
-  const cryptoNetDepositByAsset = new Map<string, Decimal>()
-  let cryptoGroupRows: Parameters<typeof PortfolioGroupTable>[0]['rows'] = []
-
-  if (config.assetType === 'crypto') {
-    for (const a of assets) {
-      const assetTxs = allTxs.filter(t => t.assetId === a.id)
-      cryptoNetDepositByAsset.set(a.id, calculateNetDeposit(assetTxs))
-    }
-    cryptoGroupRows = assets.map(a => ({
-      id:           a.id,
-      name:         a.name,
-      ticker:       a.cryptoDetails?.ticker ?? null,
-      groupKey:     a.cryptoDetails?.walletOrExchange || config.emptyGroupLabel,
-      currentValue: a.currentValue,
-      netDeposit:   cryptoNetDepositByAsset.get(a.id) ?? new Decimal(0),
-      detailHref:   `${config.detailBasePath}/${a.id}`,
-    }))
-  }
-
-  const hasAssets = assets.length > 0
+  const groupRows = assets.map(a => ({
+    id:           a.id,
+    name:         a.name,
+    ticker:       config.assetType === 'stock_etf'
+      ? (a.stockEtfDetails?.ticker ?? null)
+      : (a.cryptoDetails?.ticker ?? null),
+    groupKey:     config.assetType === 'stock_etf'
+      ? (brokerById.get(a.stockEtfDetails?.brokerId ?? '') ?? config.emptyGroupLabel)
+      : (a.cryptoDetails?.walletOrExchange || config.emptyGroupLabel),
+    currentValue: a.currentValue,
+    netDeposit:   netDepositByAsset.get(a.id) ?? new Decimal(0),
+    detailHref:   `${config.detailBasePath}/${a.id}`,
+  }))
 
   return (
     <>
@@ -159,16 +150,18 @@ export async function PortfolioOverview({ config, userId }: {
             subtext="Aankopen minus verkopen"
           />
           <KpiCard
-            label="Winst / verlies"
+            label="Rendement (totaal)"
             value={netDeposit.gt(0) ? formatCurrency(winst.toNumber()) : '—'}
-            subtext={rendement ? formatPercent(rendement.toNumber()) : undefined}
+            subtext={netDeposit.gt(0)
+              ? formatPercent(winst.div(netDeposit).toNumber())
+              : undefined}
             trend={netDeposit.gt(0) ? { value: '', positive: winst.gte(0) } : undefined}
           />
           <KpiCard
             label="Rendement"
-            value={rendement ? formatPercent(rendement.toNumber()) : '—'}
-            subtext="Op netto inleg"
-            trend={rendement ? { value: '', positive: winst.gte(0) } : undefined}
+            value={portfolioXirr ? formatPercent(portfolioXirr.toNumber()) : '—'}
+            subtext={portfolioXirr ? 'Jaarlijks, berekend via XIRR' : 'Te weinig data'}
+            trend={portfolioXirr ? { value: '', positive: portfolioXirr.gt(0) } : undefined}
           />
         </div>
 
@@ -183,8 +176,8 @@ export async function PortfolioOverview({ config, userId }: {
           </div>
         )}
 
-        {/* Posities / broker-tabel */}
-        {hasAssets ? (
+        {/* Posities */}
+        {assets.length > 0 ? (
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-foreground">{config.sectionTitle}</h2>
@@ -195,52 +188,7 @@ export async function PortfolioOverview({ config, userId }: {
                 {config.newAssetLabel}
               </Link>
             </div>
-
-            {/* Broker-tabel (aandelen) */}
-            {config.assetType === 'stock_etf' && (
-              <div className="rounded-2xl border border-border bg-card overflow-hidden">
-                <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto] gap-6 px-6 py-2.5 border-b border-border bg-muted/30">
-                  <span className="text-xs text-muted-foreground">Broker</span>
-                  <span className="text-xs text-muted-foreground text-right w-28">Waarde</span>
-                  <span className="text-xs text-muted-foreground text-right w-28">Netto inleg</span>
-                  <span className="text-xs text-muted-foreground text-right w-28">W/V</span>
-                  <span className="text-xs text-muted-foreground text-right w-20">%</span>
-                </div>
-                <div className="divide-y divide-border">
-                  {brokerStats.map(({ broker, positions, waarde, inleg, wv, pct }) => (
-                    <Link
-                      key={broker.id}
-                      href={`/portfolio/aandelen-etf/broker/${broker.id}`}
-                      className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto_auto_auto] gap-6 items-center px-6 py-4 hover:bg-muted/50 transition-colors"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{broker.name}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {positions.length} positie{positions.length !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                      <span className="text-sm font-semibold text-foreground text-right w-28">
-                        {positions.length > 0 ? formatCurrency(waarde.toNumber()) : '—'}
-                      </span>
-                      <span className="text-sm text-muted-foreground text-right w-28 hidden md:block">
-                        {inleg.gt(0) ? formatCurrency(inleg.toNumber()) : '—'}
-                      </span>
-                      <span className={`text-sm font-medium text-right w-28 hidden md:block ${inleg.gt(0) ? (wv.gte(0) ? 'text-sage' : 'text-terracotta') : 'text-muted-foreground'}`}>
-                        {inleg.gt(0) ? formatCurrency(wv.toNumber()) : '—'}
-                      </span>
-                      <span className={`text-sm font-medium text-right w-20 hidden md:block ${pct ? (pct.gte(0) ? 'text-sage' : 'text-terracotta') : 'text-muted-foreground'}`}>
-                        {pct ? formatPercent(pct.toNumber()) : '—'}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Asset-tabel gegroepeerd per wallet/exchange (crypto) */}
-            {config.assetType === 'crypto' && (
-              <PortfolioGroupTable rows={cryptoGroupRows} emptyGroupLabel={config.emptyGroupLabel} />
-            )}
+            <PortfolioGroupTable rows={groupRows} emptyGroupLabel={config.emptyGroupLabel} />
           </div>
         ) : (
           <div className="rounded-2xl border border-border bg-card p-12 text-center">
