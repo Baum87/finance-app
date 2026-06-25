@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetWithCalculations } from '@/lib/db/queries/assets'
 import { getTransactions } from '@/lib/db/queries/transactions'
-import { formatCurrency, formatPercent } from '@/lib/utils/format'
+import { formatCurrency, formatPercent, formatQuantity } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { TransactionList } from '@/components/assets/TransactionList'
@@ -58,6 +58,7 @@ export default async function CryptoDetailPage({ params }: { params: Promise<{ i
           </div>
         </div>
 
+        {/* Rij 1: portfolio-prestatie */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KpiCard
             label="Marktwaarde"
@@ -65,12 +66,12 @@ export default async function CryptoDetailPage({ params }: { params: Promise<{ i
             subtext={priceEur ? `Koers: ${fmtKoers(priceEur.toNumber())}` : undefined}
           />
           <KpiCard
-            label="Totale inleg"
+            label="Netto inleg"
             value={formatCurrency(netDeposit.toNumber())}
-            subtext="Koop min verkoop"
+            subtext="Aankopen minus verkopen"
           />
           <KpiCard
-            label="Winst / verlies"
+            label="Rendement (totaal)"
             value={currentValue.gt(0) ? formatCurrency(unrealizedGain.toNumber()) : '—'}
             subtext={currentValue.gt(0) && netDeposit.gt(0)
               ? formatPercent(unrealizedGain.div(netDeposit).toNumber())
@@ -80,7 +81,7 @@ export default async function CryptoDetailPage({ params }: { params: Promise<{ i
           <KpiCard
             label="Rendement"
             value={xirr ? formatPercent(xirr.toNumber()) : '—'}
-            subtext={xirr ? 'Jaarlijks, berekend via XIRR' : 'Te weinig data'}
+            subtext={xirr ? 'Jaarlijks, berekend via XIRR' : 'Beschikbaar na 30 dagen'}
             trend={xirr ? { value: '', positive: xirr.gt(0) } : undefined}
           />
         </div>
@@ -97,17 +98,18 @@ export default async function CryptoDetailPage({ params }: { params: Promise<{ i
           </p>
         )}
 
+        {/* Rij 2: positie-details */}
         {quantityHeld && (
           <div className="grid grid-cols-2 gap-4">
             <KpiCard
-              label="Hoeveelheid"
-              value={quantityHeld.toFixed(8).replace(/\.?0+$/, '')}
+              label="Hoeveelheid in bezit"
+              value={formatQuantity(quantityHeld.toNumber())}
               subtext={asset.cryptoDetails?.ticker ?? undefined}
             />
             <KpiCard
-              label="Transacties"
-              value={String(txList.length)}
-              subtext="Totaal geregistreerd"
+              label="Huidige koers"
+              value={priceEur ? fmtKoers(priceEur.toNumber()) : '—'}
+              subtext="Live marktkoers in EUR"
             />
           </div>
         )}
@@ -115,18 +117,27 @@ export default async function CryptoDetailPage({ params }: { params: Promise<{ i
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground">Transacties</h2>
-            <Link
-              href={`/assets/${asset.id}/transactions/new?from=/portfolio/crypto/${asset.id}`}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              + Transactie
-            </Link>
+            <div className="flex gap-2">
+              <Link
+                href={`/assets/${asset.id}/transactions/new?from=/portfolio/crypto/${asset.id}`}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                + Kopen
+              </Link>
+              <Link
+                href={`/assets/${asset.id}/transactions/new?from=/portfolio/crypto/${asset.id}&type=sell`}
+                className="px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              >
+                Verkopen
+              </Link>
+            </div>
           </div>
           <TransactionList
             transactions={txList}
             assetId={asset.id}
             addHref={`/assets/${asset.id}/transactions/new?from=/portfolio/crypto/${asset.id}`}
             redirectTo={`/portfolio/crypto/${asset.id}`}
+            currentPriceEur={priceEur?.toNumber()}
           />
         </div>
 

@@ -97,14 +97,19 @@ export default async function AandeelDetailPage({
         </div>
 
         {/* Rij 1: portfolio-prestatie */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KpiCard
             label="Marktwaarde"
             value={currentValue.gt(0) ? formatCurrency(currentValue.toNumber()) : '—'}
             subtext={priceEur ? `Koers: ${fmtKoers(priceEur.toNumber())}` : undefined}
           />
           <KpiCard
-            label="Winst / verlies"
+            label="Netto inleg"
+            value={formatCurrency(netDeposit.toNumber())}
+            subtext="Aankopen minus verkopen"
+          />
+          <KpiCard
+            label="Rendement (totaal)"
             value={currentValue.gt(0) ? formatCurrency(unrealizedGain.toNumber()) : '—'}
             subtext={currentValue.gt(0) && netDeposit.gt(0)
               ? formatPercent(unrealizedGain.div(netDeposit).toNumber())
@@ -135,7 +140,7 @@ export default async function AandeelDetailPage({
         {quantityHeld && (
           <div className="grid grid-cols-3 gap-4">
             <KpiCard
-              label="Aantal in bezit"
+              label="Hoeveelheid in bezit"
               value={formatQuantity(quantityHeld.toNumber())}
               subtext="Huidige positiegrootte"
             />

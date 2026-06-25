@@ -6,6 +6,7 @@ import { getTransactionsByAssetsDetailed } from '@/lib/db/queries/transactions'
 import { getBrokers } from '@/lib/db/queries/brokers'
 import { buildStockPortfolioSeries } from '@/lib/finance/stock-series'
 import { buildInlegSeries } from '@/lib/finance/portfolio-series'
+import { calculateNetDeposit } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
@@ -36,13 +37,7 @@ export default async function AandelenEtfPage() {
 
   const totaleWaarde = assets.reduce((s, a) => s.plus(a.currentValue), new Decimal(0))
 
-  let totaleKopen   = new Decimal(0)
-  let totaleVerkopen = new Decimal(0)
-  for (const t of detailedTxs) {
-    if (t.transactionType === 'buy')  totaleKopen   = totaleKopen.plus(t.amount)
-    if (t.transactionType === 'sell') totaleVerkopen = totaleVerkopen.plus(t.amount)
-  }
-  const nettoInleg  = totaleKopen.minus(totaleVerkopen)
+  const nettoInleg = calculateNetDeposit(detailedTxs)
   const winstVerlies = totaleWaarde.minus(nettoInleg)
   const rendement    = nettoInleg.gt(0) ? winstVerlies.div(nettoInleg) : null
   const isPositief   = winstVerlies.gte(0)
@@ -134,7 +129,7 @@ export default async function AandelenEtfPage() {
           <KpiCard
             label="Netto inleg"
             value={nettoInleg.gt(0) ? formatCurrency(nettoInleg.toNumber()) : '—'}
-            subtext="Gekocht minus onttrokken"
+            subtext="Aankopen minus verkopen"
           />
           <KpiCard
             label="Winst / verlies"

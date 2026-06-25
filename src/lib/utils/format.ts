@@ -8,6 +8,6 @@ export const formatQuantity = (value: string | number | null | undefined): strin
   if (value === null || value === undefined || value === '') return '—'
   const n = Number(value)
   if (isNaN(n)) return '—'
-  // Strip trailing zeros but keep max 3 decimals
-  return n.toLocaleString('nl-NL', { maximumFractionDigits: 3 })
+  // Strip trailing zeros, max 8 decimals (crypto precision)
+  return n.toLocaleString('nl-NL', { maximumFractionDigits: 8 })
 }
