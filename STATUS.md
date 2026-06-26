@@ -38,7 +38,7 @@ De app heeft drie lagen (zie `docs/project files/fiscal-layer.md`):
 
 ### Spaarrekeningen — `/portfolio/spaarrekeningen/`
 - Pagina bestaat, basis werkt
-- **Nog niet gereviewed** — geen Fase D-achtige multi-expert review gedaan
+- ✅ Gereviewed — typo's, `formatPercent`, Zod positief-getal validatie, `<Legend>` verwijderd
 
 ### Vastgoed — `/portfolio/vastgoed/`
 - Pagina bestaat
@@ -82,8 +82,8 @@ De app heeft drie lagen (zie `docs/project files/fiscal-layer.md`):
 ## Openstaande taken (geordend op prioriteit)
 
 ### Hoog — bugs / correctheid
-- [ ] `transactions.ts` heeft uncommitted wijzigingen — review en commit of revert
-- [ ] `fiscal-layer.md` heeft uncommitted wijzigingen — review en commit
+- [x] `transactions.ts` — `getOrCreateTenant` vervangen door lokale `getTenantId` (geen side-effect in leespad)
+- [x] `fiscal-layer.md` — crypto-backlog voor Fase E gedocumenteerd en gecommit
 
 ### Middel — reviews nog te doen
 - [x] Spaarrekeningen: review gedaan — typo's, formatPercent, Zod validatie, Legend fix
