@@ -4,7 +4,7 @@ import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetWithCalculations } from '@/lib/db/queries/assets'
 import { getTransactions } from '@/lib/db/queries/transactions'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { TransactionList } from '@/components/assets/TransactionList'
@@ -17,7 +17,7 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   deposit:  'Deposito',
 }
 
-export default async function SpaarrekenigDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SpaarrekeningDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -132,12 +132,12 @@ export default async function SpaarrekenigDetailPage({ params }: { params: Promi
           <KpiCard
             label="Verwachte rente dit jaar"
             value={verwachteRenteDitJaar ? formatCurrency(verwachteRenteDitJaar.toNumber()) : '—'}
-            subtext={interestRateNum !== null ? `Op basis van ${interestRateNum}% p.j.` : 'Geen rente ingesteld'}
+            subtext={interestRateNum !== null ? `Op basis van ${formatPercent(interestRateNum / 100)} p.j.` : 'Geen rente ingesteld'}
             trend={verwachteRenteDitJaar ? { value: '', positive: true } : undefined}
           />
           <KpiCard
             label="Rente p.j."
-            value={interestRateNum !== null ? `${interestRateNum}%` : '—'}
+            value={interestRateNum !== null ? formatPercent(interestRateNum / 100) : '—'}
             subtext="Opgegeven rentepercentage"
           />
         </div>
@@ -178,7 +178,7 @@ export default async function SpaarrekenigDetailPage({ params }: { params: Promi
               { label: 'Type', value: asset.savingsDetails?.accountType
                 ? ACCOUNT_TYPE_LABELS[asset.savingsDetails.accountType] ?? asset.savingsDetails.accountType
                 : null },
-              { label: 'Rentepercentage', value: interestRateNum !== null ? `${interestRateNum}%` : null },
+              { label: 'Rentepercentage', value: interestRateNum !== null ? formatPercent(interestRateNum / 100) : null },
             ].filter(r => r.value).map(r => (
               <div key={r.label} className="flex justify-between py-2 border-b border-border last:border-0">
                 <span className="text-sm text-muted-foreground">{r.label}</span>

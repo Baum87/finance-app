@@ -12,7 +12,7 @@ import type { ActionState } from '@/app/assets/actions'
 
 const savingsTxSchema = z.object({
   transactionType: z.enum(['deposit', 'withdrawal', 'interest']),
-  amount:          z.string().min(1, 'Bedrag is verplicht'),
+  amount:          z.string().min(1, 'Bedrag is verplicht').refine(v => parseFloat(v) > 0, 'Bedrag moet groter zijn dan 0'),
   transactionDate: z.string().min(1, 'Datum is verplicht'),
   notes:           z.string().optional(),
   recurring:       z.string().optional(), // 'on' als checkbox aangevinkt

@@ -3,13 +3,13 @@ import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues } from '@/lib/db/queries/assets'
 import { getTransactionsByAssets } from '@/lib/db/queries/transactions'
 import { buildSavingsGrowthSeries } from '@/lib/finance/savings-series'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { SavingsGrowthChart } from '@/components/portfolio/SavingsGrowthChart'
 import { SavingsAccountTile } from '@/components/portfolio/SavingsAccountTile'
 
-export default async function SpaarrekenigenPage() {
+export default async function SpaarrekeningenPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   const userId = user!.id
@@ -81,7 +81,7 @@ export default async function SpaarrekenigenPage() {
           />
           <KpiCard
             label="Gem. rente"
-            value={gewogenRente ? `${gewogenRente.mul(100).toDecimalPlaces(2).toNumber()}%` : '—'}
+            value={gewogenRente ? formatPercent(gewogenRente.toNumber()) : '—'}
             subtext="Gewogen naar saldo"
           />
         </div>

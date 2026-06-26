@@ -2,7 +2,7 @@
 
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer,
+  Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { CHART_COLORS, CHART_STYLE } from '@/lib/utils/chart-colors'
 import type { SavingsDataPoint } from '@/lib/finance/savings-series'
@@ -51,12 +51,6 @@ export function SavingsGrowthChart({ data }: Props) {
             contentStyle={CHART_STYLE.tooltipContent}
             labelStyle={{ fontSize: 11, color: CHART_STYLE.labelFill }}
           />
-          {hasInterest && (
-            <Legend
-              formatter={name => name === 'balance' ? 'Werkelijk saldo' : 'Eigen inleg'}
-              wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-            />
-          )}
           <Line
             dataKey="balance"
             stroke={CHART_COLORS.sage}
