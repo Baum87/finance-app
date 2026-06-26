@@ -1,11 +1,20 @@
 import { and, eq, desc, asc, inArray, gte } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { transactions, assets } from '@/lib/db/schema'
-import { getOrCreateTenant } from './tenant'
+import { transactions, assets, tenantUsers } from '@/lib/db/schema'
 import type { TransactionType } from '@/types'
 
+async function getTenantId(userId: string): Promise<string> {
+  const rows = await db
+    .select({ tenantId: tenantUsers.tenantId })
+    .from(tenantUsers)
+    .where(and(eq(tenantUsers.userId, userId), eq(tenantUsers.role, 'owner')))
+    .limit(1)
+  if (!rows[0]) throw new Error('Geen toegang')
+  return rows[0].tenantId
+}
+
 async function verifyAssetAccess(userId: string, assetId: string): Promise<void> {
-  const tenantId = await getOrCreateTenant(userId)
+  const tenantId = await getTenantId(userId)
   const rows = await db
     .select({ id: assets.id })
     .from(assets)
@@ -16,7 +25,7 @@ async function verifyAssetAccess(userId: string, assetId: string): Promise<void>
 }
 
 async function verifyTransactionAccess(userId: string, transactionId: string): Promise<void> {
-  const tenantId = await getOrCreateTenant(userId)
+  const tenantId = await getTenantId(userId)
   const rows = await db
     .select({ id: transactions.id })
     .from(transactions)

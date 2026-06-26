@@ -399,27 +399,77 @@ peildatumkoers(jaar, ticker):
 Dit raakt de box 3-waardering van zowel aandelen/ETF als crypto, omdat beide
 transactie-gedreven zijn en geen `asset_valuations` hebben.
 
+### Uit de Crypto-review
+
+| # | Item | Eis voor Fase E |
+|---|---|---|
+| **F1-crypto** | `box3_category = 'investments'` | Bij `createAsset` voor crypto direct zetten in `asset_tax_metadata`. Identiek aan F1 voor stock_etf — gezamenlijk implementeren in E2. |
+| **F2-crypto** | Peildatum 1 januari | Crypto handelt 24/7 — er IS een koers op 1 januari. De helper uit F3 (laatste handelsdag van december voor aandelen) moet beide gevallen aankunnen: voor crypto pakt hij de 1-januari-koers zelf. Eén helper, asset-type-gevoelig. |
+| **F3-crypto** | Disclaimer urgenter bij crypto | F4 (algemene disclaimer) geldt voor alle box 3-toerekening, maar bij crypto is volatiliteit zo hoog dat de toerekening tussen 1 januari en gebruiksmoment significant kan afwijken. UI-tekst bij crypto explicieter dan bij aandelen. |
+
+### F2-detail-crypto — peildatum-helper voor crypto én aandelen
+
+De helper uit F3 (stocks) wordt zo opgezet dat hij beide asset-types afhandelt:
+
+```
+peildatumkoers(jaar, ticker, assetType):
+  if assetType === 'crypto':
+    // 24/7 markt, 1 januari koers beschikbaar
+    haal koers op voor [jaar-1-1 .. jaar-1-1] of kleine fallback-window
+    retourneer slotkoers in EUR
+  else:  // stock_etf
+    // beursfeestdag-guard: pak laatste handelsdag van december
+    haal slotkoersen op voor [jaar-1-12-28 .. jaar-1-12-31]
+    retourneer de laatste beschikbare slotkoers in EUR
+```
+
+Dit voorkomt twee aparte helpers met overlappende logica.
+
+### F3-detail-crypto — getrapte disclaimer
+
+In de UI verschijnt de fiscale disclaimer in twee gradaties:
+
+- **Standaard** (aandelen, ETF, savings, vastgoed, pensioen):
+  *"Indicatieve schatting — geen belastingadvies. Werkelijke aanslag via Belastingdienst."*
+- **Verhoogd** (crypto specifiek):
+  *"Indicatieve schatting. Door koersvolatiliteit kan dit cijfer aanzienlijk
+  verschillen van de werkelijke box 3-aanslag — geen belastingaangifte."*
+
+De keuze tussen beide is gekoppeld aan `box3_category` + asset-type, niet
+hardcoded per pagina.
+
 ---
 
 ## 12. Doorlopende open vraag — toerekening per asset
 
-Status na Aandelen/ETF-review: **verdedigbaar, mits disclaimer (F4)**.
+Status na Aandelen/ETF én Crypto-review: **verdedigbaar, mits disclaimer (F4)**.
+Crypto vereist een getrapte disclaimer vanwege hogere volatiliteit (F3-crypto).
 
 Het fiscaal-expert-oordeel: box 3-heffing naar rato van vermogenswaarde per asset
 toerekenen geeft een bruikbaar indicatief netto-rendement, maar is geen
 auditeerbare aangifte. Acceptabel voor inzicht, niet voor de Belastingdienst.
 
-Dit oordeel wordt herbevestigd of bijgesteld per volgend onderdeel (Crypto,
-Vastgoed, Pensioen). Eindbesluit valt wanneer alle onderdelen gereviewd zijn,
+Dit oordeel wordt herbevestigd of bijgesteld per volgend onderdeel (Vastgoed,
+Pensioen). Eindbesluit valt wanneer alle onderdelen gereviewd zijn,
 vóór de bouw van Fase E3 (de fiscale UI).
+
+### Status backlog na crypto-review
+
+```
+Aandelen/ETF:    F1, F2, F3, F4, F5
+Crypto:          F1-crypto, F2-crypto, F3-crypto
+Spaarrekening:   [nog te reviewen]
+Vastgoed:        [nog te reviewen]
+Pensioen:        [nog te reviewen]
+```
 
 ---
 
 ## Verwerkingsinstructie
 
 Wanneer Fase E start:
-- F1 → Fase E2 (asset_tax_metadata vullen)
-- F2 → Fase E2 (schema-veld) + E3 (optionele invoer)
-- F3 → Fase E1 (box3.ts peildatum-helper)
-- F4 → Fase E3 (UI-disclaimer)
+- F1 + F1-crypto → samen in Fase E2 (asset_tax_metadata vullen, één aanpassing in `createAsset`)
+- F2 → Fase E2 (schema-veld `dividend_tax_withheld`) + E3 (optionele invoer)
+- F3 + F2-crypto → Fase E1 (één peildatum-helper, asset-type-gevoelig)
+- F4 + F3-crypto → Fase E3 (UI-disclaimer, twee gradaties)
 - F5 → blijft latent tot/tenzij Optie B wordt ingevoerd
