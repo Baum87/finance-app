@@ -3,7 +3,7 @@
 > Dit bestand is de brug tussen nadenken (Claude Desktop) en bouwen (Claude Code).
 > Werk dit bij na elke sessie. Datum bovenaan aanpassen bij elke update.
 
-**Laatst bijgewerkt:** 26 juni 2026 — opschoonronde
+**Laatst bijgewerkt:** 26 juni 2026 — opschoonronde + nav-consolidatie
 
 ---
 
@@ -75,7 +75,7 @@ De app heeft drie lagen (zie `docs/project files/fiscal-layer.md`):
 | `docs/fase-d-crypto-fixbatch.md` zweeft in docs-root | Verplaatst naar `docs/sprints/` | ✅ Gedaan |
 | `docs/todo-beleggingen.md` | Gearchiveerd als `docs/sprints/todo-beleggingen-archief.md` | ✅ Gedaan |
 | `src/middleware.ts` deprecated | Hernoemd naar `src/proxy.ts`, export default `proxy` | ✅ Gedaan |
-| Oude routes `/assets/`, `/vastgoed/`, `/vermogen/` naast nieuwe `/portfolio/` | Nog actief gelinkt in Topbar — bewuste keuze nodig | ⚠️ Open vraag |
+| Oude routes naast nieuwe `/portfolio/` | `/vastgoed` verwijderd (content in portfolio detail), `/vermogen` naar dropdown, `Beheer` weg uit nav | ✅ Gedaan |
 
 ---
 
@@ -86,16 +86,16 @@ De app heeft drie lagen (zie `docs/project files/fiscal-layer.md`):
 - [ ] `fiscal-layer.md` heeft uncommitted wijzigingen — review en commit
 
 ### Middel — reviews nog te doen
-- [ ] Spaarrekeningen: multi-expert review (financieel + frontend + data)
-- [ ] Vastgoed: multi-expert review
-- [ ] Cashflow: multi-expert review
+- [x] Spaarrekeningen: review gedaan — typo's, formatPercent, Zod validatie, Legend fix
+- [ ] Vastgoed: review (huurrendement-logica in nieuw detail-page)
+- [ ] Cashflow: review
 - [ ] Homepage: review op correctheid KPI's
 
 ### Middel — opruimen
 - [x] Dubbele sprint-bestanden verwijderd (sprint-3_1 t/m 3_4)
 - [x] Losse doc-bestanden opgeruimd (fase-d-crypto naar sprints/, todo-beleggingen gearchiveerd)
 - [x] `middleware.ts` → `proxy.ts` hernoemd
-- [ ] **Beslissing nodig:** `/vermogen`, `/vastgoed`, `/assets` nog actief in Topbar naast `/portfolio/*` — samenvoegen of apart houden?
+- [x] Nav geconsolideerd: `/vastgoed` samengevoegd, `/vermogen` naar portfolio-dropdown, `Beheer` weg
 
 ### Laag — nieuwe features
 - [ ] TransactionForm verbeteren (dividend, kosten, splits — valuta UX)
