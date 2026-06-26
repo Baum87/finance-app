@@ -4,9 +4,19 @@ import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetWithCalculations } from '@/lib/db/queries/assets'
 import { getTransactions } from '@/lib/db/queries/transactions'
+import {
+  calculateNetRentalYield,
+  calculateGrossRentalYield,
+  calculateCashOnCash,
+  calculateLtv,
+  calculateEquity,
+  calculateXirr,
+  calculatePassiveIncome,
+} from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
+import { ProgressBar } from '@/components/ui/ProgressBar'
 import { ValuationForm } from '@/components/assets/ValuationForm'
 import { MortgageBalanceForm } from '@/components/assets/MortgageBalanceForm'
 import { TransactionList } from '@/components/assets/TransactionList'
@@ -17,6 +27,28 @@ const PROPERTY_TYPE_LABELS: Record<string, string> = {
   primary_residence: 'Eigen woning',
   rental:            'Verhuurpand',
   vacation:          'Vakantiewoning',
+}
+
+function groupByYear(
+  txs: { transactionType: string; amount: string; transactionDate: string }[],
+): { year: number; income: Decimal; costs: Decimal; net: Decimal }[] {
+  const years = new Map<number, { income: Decimal; costs: Decimal }>()
+  for (const tx of txs) {
+    const year = new Date(tx.transactionDate).getFullYear()
+    const entry = years.get(year) ?? { income: new Decimal(0), costs: new Decimal(0) }
+    if (tx.transactionType === 'rental_income') entry.income = entry.income.plus(new Decimal(tx.amount))
+    else if (tx.transactionType === 'cost')    entry.costs = entry.costs.plus(new Decimal(tx.amount))
+    years.set(year, entry)
+  }
+  return [...years.entries()]
+    .sort(([a], [b]) => b - a)
+    .slice(0, 3)
+    .map(([year, { income, costs }]) => ({
+      year,
+      income: income.toDecimalPlaces(2),
+      costs: costs.toDecimalPlaces(2),
+      net: income.minus(costs).toDecimalPlaces(2),
+    }))
 }
 
 function BalanceHistory({ balances }: {
@@ -56,10 +88,73 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
     const bal = m.balances?.[0]?.outstandingBalance
     return bal ? s.plus(new Decimal(bal)) : s
   }, new Decimal(0))
-  const eigenVermogen = currentValue.minus(totaleHypotheek)
-  const ltv = currentValue.gt(0) ? totaleHypotheek.div(currentValue) : null
+  const eigenVermogen = calculateEquity(currentValue, totaleHypotheek)
+  const ltv = currentValue.gt(0) && totaleHypotheek.gt(0)
+    ? calculateLtv(totaleHypotheek, currentValue)
+    : null
 
   const propertyType = asset.realEstateDetails?.propertyType ?? ''
+  const isRental = propertyType === 'rental'
+
+  const txs = txList.map(t => ({
+    transactionType: t.transactionType,
+    amount: t.amount,
+    transactionDate: t.transactionDate,
+  }))
+
+  // Rental-specifieke berekeningen
+  const currentYearStart = `${new Date().getFullYear()}-01-01`
+  const annualIncome = isRental
+    ? calculatePassiveIncome(txs, currentYearStart)
+    : new Decimal(0)
+  const annualCosts = isRental
+    ? txs
+        .filter(t => t.transactionType === 'cost' && t.transactionDate >= currentYearStart)
+        .reduce((sum, t) => sum.plus(new Decimal(t.amount)), new Decimal(0))
+    : new Decimal(0)
+
+  const grossRentalYield = isRental && currentValue.gt(0) && annualIncome.gt(0)
+    ? calculateGrossRentalYield(annualIncome, currentValue)
+    : null
+  const netRentalYield = isRental && currentValue.gt(0)
+    ? calculateNetRentalYield(annualIncome, annualCosts, currentValue)
+    : null
+
+  const purchasePrice = asset.realEstateDetails?.purchasePrice
+    ? new Decimal(asset.realEstateDetails.purchasePrice)
+    : null
+  const purchaseCosts = asset.realEstateDetails?.purchaseCosts
+    ? new Decimal(asset.realEstateDetails.purchaseCosts)
+    : new Decimal(0)
+  const mortgageOriginal = mortgages[0]?.originalAmount
+    ? new Decimal(mortgages[0].originalAmount)
+    : new Decimal(0)
+  const initialInvestment = purchasePrice
+    ? purchasePrice.plus(purchaseCosts).minus(mortgageOriginal)
+    : null
+
+  const annualNetCashflow = annualIncome.minus(annualCosts)
+  const cashOnCash = isRental && initialInvestment?.gt(0)
+    ? calculateCashOnCash(annualNetCashflow, initialInvestment)
+    : null
+
+  let rentalXirr: Decimal | null = null
+  if (isRental && eigenVermogen.gt(0)) {
+    const OUTFLOWS = new Set(['buy', 'cost', 'deposit'])
+    const INFLOWS  = new Set(['sell', 'rental_income', 'withdrawal', 'dividend', 'interest'])
+    const cashflows = txList
+      .map(t => {
+        const sign = OUTFLOWS.has(t.transactionType) ? -1 : INFLOWS.has(t.transactionType) ? 1 : 0
+        return { amount: new Decimal(t.amount).mul(sign), date: new Date(t.transactionDate) }
+      })
+      .filter(c => !c.amount.isZero())
+    if (cashflows.length >= 1) {
+      cashflows.push({ amount: eigenVermogen, date: new Date() })
+      try { rentalXirr = calculateXirr(cashflows) } catch { /* onvoldoende data */ }
+    }
+  }
+
+  const cashflowByYear = isRental ? groupByYear(txs) : []
 
   return (
     <>
@@ -90,30 +185,129 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <KpiCard
-            label="Marktwaarde"
-            value={currentValue.gt(0) ? formatCurrency(currentValue.toNumber()) : '—'}
-            subtext="Meest recente waardering"
-          />
-          <KpiCard
-            label="Hypotheekschuld"
-            value={totaleHypotheek.gt(0) ? formatCurrency(totaleHypotheek.toNumber()) : '—'}
-            subtext="Openstaand saldo"
-          />
-          <KpiCard
-            label="Eigen vermogen"
-            value={currentValue.gt(0) ? formatCurrency(eigenVermogen.toNumber()) : '—'}
-            subtext="Waarde min hypotheek"
-            trend={currentValue.gt(0) ? { value: '', positive: eigenVermogen.gte(0) } : undefined}
-          />
-          <KpiCard
-            label="LTV"
-            value={ltv ? formatPercent(ltv.toNumber()) : '—'}
-            subtext="Loan-to-value"
-            trend={ltv ? { value: '', positive: ltv.lte(0.8) } : undefined}
-          />
-        </div>
+        {/* KPI cards — eigen woning */}
+        {!isRental && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <KpiCard
+              label="Marktwaarde"
+              value={currentValue.gt(0) ? formatCurrency(currentValue.toNumber()) : '—'}
+              subtext="Meest recente waardering"
+            />
+            <KpiCard
+              label="Hypotheekschuld"
+              value={totaleHypotheek.gt(0) ? formatCurrency(totaleHypotheek.toNumber()) : '—'}
+              subtext="Openstaand saldo"
+            />
+            <KpiCard
+              label="Eigen vermogen"
+              value={currentValue.gt(0) ? formatCurrency(eigenVermogen.toNumber()) : '—'}
+              subtext="Waarde min hypotheek"
+              trend={currentValue.gt(0) ? { value: '', positive: eigenVermogen.gte(0) } : undefined}
+            />
+            <KpiCard
+              label="LTV"
+              value={ltv ? formatPercent(ltv.toNumber()) : '—'}
+              subtext="Loan-to-value"
+              trend={ltv ? { value: '', positive: ltv.lte(0.8) } : undefined}
+            />
+          </div>
+        )}
+
+        {/* KPI cards — verhuurpand */}
+        {isRental && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KpiCard
+                label="Bruto huurrendement"
+                value={grossRentalYield ? formatPercent(grossRentalYield.toNumber()) : '—'}
+                subtext="Jaarinkomen / pandwaarde"
+              />
+              <KpiCard
+                label="Netto huurrendement"
+                value={netRentalYield ? formatPercent(netRentalYield.toNumber()) : '—'}
+                subtext="Na exploitatiekosten"
+              />
+              <KpiCard
+                label="Cash-on-cash"
+                value={cashOnCash ? formatPercent(cashOnCash.toNumber()) : '—'}
+                subtext="Op eigen inleg excl. hypotheek"
+              />
+              <KpiCard
+                label="Totaalrendement"
+                value={rentalXirr ? formatPercent(rentalXirr.toNumber()) : '—'}
+                subtext="Incl. waardeontwikkeling — XIRR"
+                trend={rentalXirr ? { value: formatPercent(rentalXirr.toNumber()), positive: rentalXirr.gt(0) } : undefined}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KpiCard
+                label="Marktwaarde"
+                value={currentValue.gt(0) ? formatCurrency(currentValue.toNumber()) : '—'}
+                subtext="Meest recente waardering"
+              />
+              <KpiCard
+                label="Hypotheekschuld"
+                value={totaleHypotheek.gt(0) ? formatCurrency(totaleHypotheek.toNumber()) : '—'}
+                subtext="Openstaand saldo"
+              />
+              <KpiCard
+                label="Eigen vermogen"
+                value={currentValue.gt(0) ? formatCurrency(eigenVermogen.toNumber()) : '—'}
+                subtext="Waarde min hypotheek"
+                trend={currentValue.gt(0) ? { value: '', positive: eigenVermogen.gte(0) } : undefined}
+              />
+              <KpiCard
+                label="LTV"
+                value={ltv ? formatPercent(ltv.toNumber()) : '—'}
+                subtext="Loan-to-value"
+                trend={ltv ? { value: '', positive: ltv.lte(0.8) } : undefined}
+              />
+            </div>
+          </>
+        )}
+
+        {/* LTV balk */}
+        {ltv && (
+          <div className="bg-card border border-border rounded-3xl p-6">
+            <ProgressBar
+              value={ltv.toNumber()}
+              label="LTV — Loan-to-Value"
+              subtext="Daalt naarmate je aflost of de waarde stijgt."
+            />
+          </div>
+        )}
+
+        {/* Cashflow per jaar — alleen verhuur */}
+        {isRental && cashflowByYear.length > 0 && (
+          <div className="bg-card border border-border rounded-3xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-border">
+              <p className="text-sm font-medium text-foreground">Cashflow per jaar</p>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Jaar</th>
+                  <th className="text-right px-6 py-3 text-muted-foreground font-medium">Huurinkomsten</th>
+                  <th className="text-right px-6 py-3 text-muted-foreground font-medium">Kosten</th>
+                  <th className="text-right px-6 py-3 text-muted-foreground font-medium">Netto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cashflowByYear.map(row => (
+                  <tr key={row.year} className="border-b border-border last:border-0">
+                    <td className="px-6 py-3 font-medium text-foreground">{row.year}</td>
+                    <td className="px-6 py-3 text-right text-foreground">{formatCurrency(row.income.toNumber())}</td>
+                    <td className="px-6 py-3 text-right text-muted-foreground">{formatCurrency(row.costs.toNumber())}</td>
+                    <td className={`px-6 py-3 text-right font-medium ${row.net.gte(0) ? 'text-sage' : 'text-terracotta'}`}>
+                      {row.net.gte(0) ? '+' : ''}{formatCurrency(row.net.toNumber())}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Marktwaarde bijwerken */}
         <div className="rounded-2xl border border-border bg-card p-6 space-y-4">

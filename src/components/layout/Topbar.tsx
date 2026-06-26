@@ -7,6 +7,7 @@ import { Bell, LogOut, Menu, X, ChevronDown } from 'lucide-react'
 import { signOut } from '@/app/(auth)/login/actions'
 
 const portfolioItems = [
+  { href: '/vermogen',                  label: 'Vermogen' },
   { href: '/portfolio/aandelen-etf',    label: 'Aandelen & ETFs' },
   { href: '/portfolio/crypto',          label: 'Crypto' },
   { href: '/portfolio/spaarrekeningen', label: 'Spaarrekeningen' },
@@ -17,11 +18,8 @@ const portfolioItems = [
 
 const navItems = [
   { href: '/',          label: 'Overzicht' },
-  { href: '/vermogen',  label: 'Vermogen' },
-  { href: '/vastgoed',  label: 'Vastgoed' },
   { href: '/cashflow',  label: 'Cashflow' },
   { href: '/schulden',  label: 'Schulden' },
-  { href: '/assets',    label: 'Beheer' },
 ]
 
 function BeleggingenDropdown() {
