@@ -1,6 +1,11 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Routes die zonder ingelogde user bereikbaar moeten zijn — o.a. de
+// wachtwoord-vergeten-flow, die zelf nog geen sessie heeft totdat
+// /auth/confirm het recovery-token heeft omgewisseld.
+const PUBLIC_PATHS = ['/login', '/wachtwoord-vergeten', '/wachtwoord-resetten', '/auth/confirm']
+
 export default async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -26,7 +31,9 @@ export default async function proxy(request: NextRequest) {
   // Sessie vernieuwen — verplicht vóór elke route-check
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user && !request.nextUrl.pathname.startsWith('/login')) {
+  const isPublicPath = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path))
+
+  if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
