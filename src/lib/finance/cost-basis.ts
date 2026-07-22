@@ -48,3 +48,37 @@ export function calculateQuantityHeld(transactions: TxInput[]): Decimal {
   }
   return qty
 }
+
+/**
+ * Realized gain/loss (AVCO): for every 'sell', proceeds minus the AVCO cost
+ * basis of the units sold at that moment. Transactions must be in
+ * chronological order — same requirement as calculateCostBasis.
+ * Unlike calculateCostBasis (which only reflects units still held), this
+ * accumulates the P&L of units that have already been sold — the figure a
+ * fully closed-out position should show instead of an unrealized gain of 0.
+ */
+export function calculateRealizedGain(transactions: TxInput[]): Decimal {
+  let totalQty = new Decimal(0)
+  let totalCost = new Decimal(0)
+  let realizedGain = new Decimal(0)
+
+  for (const tx of transactions) {
+    if (!tx.quantity) continue
+    const qty = new Decimal(tx.quantity)
+
+    if (tx.transactionType === 'buy') {
+      totalQty = totalQty.plus(qty)
+      totalCost = totalCost.plus(new Decimal(tx.amount)).plus(new Decimal(tx.fees ?? '0'))
+    } else if (tx.transactionType === 'sell') {
+      if (totalQty.gt(0)) {
+        const avgCost = totalCost.div(totalQty)
+        const costOfSold = avgCost.mul(qty)
+        realizedGain = realizedGain.plus(new Decimal(tx.amount).minus(costOfSold))
+        totalCost = totalCost.minus(costOfSold)
+        totalQty = totalQty.minus(qty)
+      }
+    }
+  }
+
+  return realizedGain.toDecimalPlaces(2)
+}

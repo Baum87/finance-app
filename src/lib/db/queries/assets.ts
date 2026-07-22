@@ -15,8 +15,10 @@ import {
   calculateSavingsBalance,
   calculateUnrealizedGain,
   calculateQuantityHeld,
+  calculateRealizedGain,
+  buildXirrCashflows,
+  hasMinimumXirrPeriod,
 } from '@/lib/finance'
-import type { Cashflow } from '@/lib/finance'
 import { getOrCreateTenant } from './tenant'
 
 export async function getAssets(userId: string) {
@@ -333,6 +335,8 @@ export type AssetCalculations = {
   unrealizedGain: Decimal
   xirr: Decimal | null
   quantityHeld: Decimal | null
+  /** Gerealiseerd resultaat (AVCO) uit sells tot nu toe. Alleen relevant voor stock_etf/crypto, anders null. */
+  realizedGain: Decimal | null
   fetchedPrice: Decimal | null
   priceCurrency: string | null
   priceEur: Decimal | null
@@ -373,11 +377,18 @@ export async function getAssetWithCalculations(
   let priceCurrency: string | null = null
   let priceEurCalc: Decimal | null = null
   let quantityHeld: Decimal | null = null
+  let realizedGain: Decimal | null = null
   let priceStatus: 'live' | 'fallback' | 'unavailable' | undefined = undefined
 
   const assetType = asset.assetType
 
   if (assetType === 'stock_etf' || assetType === 'crypto') {
+    // Onafhankelijk van live-koersophaling: quantityHeld/realizedGain zijn puur
+    // afgeleid van transacties, dus ook beschikbaar (bijv. voor een gesloten
+    // positie) als de koers niet op te halen is.
+    quantityHeld = calculateQuantityHeld(txs)
+    realizedGain = calculateRealizedGain(txRows)
+
     const ticker =
       assetType === 'stock_etf'
         ? asset.stockEtfDetails?.ticker
@@ -400,7 +411,6 @@ export async function getAssetWithCalculations(
 
         priceEurCalc = priceEur
         currentValue = calculateMarketValue(txs, priceEur)
-        quantityHeld = calculateQuantityHeld(txs)
         priceStatus = 'live'
       } catch {
         // Live koers niet beschikbaar — priceStatus geeft de UI een expliciet signaal
@@ -425,46 +435,32 @@ export async function getAssetWithCalculations(
 
   const unrealizedGain = calculateUnrealizedGain(currentValue, netDeposit)
 
-  // XIRR: all cashflow types conform finance-logic.md §6
-  // amount is altijd in EUR (UI forceert currency=EUR, fxRate=1).
-  // Als Optie B (vreemde valuta) ooit wordt ingevoerd: pas hier t.amount × t.fxRate toe.
-  const XIRR_OUTFLOWS = new Set(['buy', 'deposit', 'cost'])
-  const XIRR_INFLOWS  = new Set(['sell', 'withdrawal', 'dividend', 'interest', 'rental_income'])
+  // XIRR: bron van waarheid conform finance-logic.md §6 — zie lib/finance/xirr-cashflows.ts
   let xirr: Decimal | null = null
-  const cashflows: Cashflow[] = txRows
-    .filter(t => XIRR_OUTFLOWS.has(t.transactionType) || XIRR_INFLOWS.has(t.transactionType))
-    .map(t => {
-      const sign = XIRR_OUTFLOWS.has(t.transactionType) ? -1 : 1
-      return { amount: new Decimal(t.amount).mul(sign), date: new Date(t.transactionDate) }
-    })
+  const cashflows = buildXirrCashflows(txRows)
 
-  const MS_PER_DAY = 1000 * 60 * 60 * 24
-  const XIRR_MIN_DAYS = 30
-
-  if (cashflows.length >= 1 && currentValue.gt(0)) {
-    const firstDate = cashflows.reduce((min, cf) =>
-      cf.date.getTime() < min.getTime() ? cf.date : min, cashflows[0].date)
-    const daysSinceFirst = (Date.now() - firstDate.getTime()) / MS_PER_DAY
-
-    if (daysSinceFirst >= XIRR_MIN_DAYS) {
-      cashflows.push({ amount: currentValue, date: new Date() })
-      try {
-        xirr = calculateXirr(cashflows)
-      } catch {
-        xirr = null
-      }
+  if (cashflows.length >= 1 && currentValue.gt(0) && hasMinimumXirrPeriod(cashflows)) {
+    cashflows.push({ amount: currentValue, date: new Date() })
+    try {
+      xirr = calculateXirr(cashflows)
+    } catch {
+      xirr = null
     }
   }
 
   return {
     asset,
-    calculations: { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, fetchedPrice, priceCurrency, priceEur: priceEurCalc, priceStatus },
+    calculations: { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, realizedGain, fetchedPrice, priceCurrency, priceEur: priceEurCalc, priceStatus },
   }
 }
 
 export type AssetWithValue = AssetWithDetails & {
   currentValue: Decimal
   priceStatus?: 'live' | 'fallback' | 'unavailable'
+  /** Alleen gezet voor stock_etf/crypto — anders null (geen quantity-gebaseerde positie). */
+  quantityHeld: Decimal | null
+  /** Gerealiseerd resultaat (AVCO) uit sells tot nu toe. Alleen relevant voor stock_etf/crypto, anders null. */
+  realizedGain: Decimal | null
 }
 
 /**
@@ -477,11 +473,19 @@ export async function getAssetsWithValues(userId: string): Promise<AssetWithValu
   const results = await Promise.all(
     allAssets.map(async (asset) => {
       let currentValue = new Decimal(0)
+      let quantityHeld: Decimal | null = null
+      let realizedGain: Decimal | null = null
 
       const txRows = await db
-        .select({ transactionType: transactions.transactionType, amount: transactions.amount, quantity: transactions.quantity })
+        .select({
+          transactionType: transactions.transactionType,
+          amount: transactions.amount,
+          quantity: transactions.quantity,
+          fees: transactions.fees,
+        })
         .from(transactions)
         .where(eq(transactions.assetId, asset.id))
+        .orderBy(asc(transactions.transactionDate))
 
       const txs = txRows.map(t => ({
         transactionType: t.transactionType,
@@ -492,6 +496,11 @@ export async function getAssetsWithValues(userId: string): Promise<AssetWithValu
       let priceStatus: 'live' | 'fallback' | 'unavailable' | undefined = undefined
 
       if (asset.assetType === 'stock_etf' || asset.assetType === 'crypto') {
+        // Onafhankelijk van live-koersophaling: puur afgeleid van transacties,
+        // dus ook beschikbaar voor een gesloten (volledig verkochte) positie.
+        quantityHeld = calculateQuantityHeld(txs)
+        realizedGain = calculateRealizedGain(txRows)
+
         const ticker =
           asset.assetType === 'stock_etf'
             ? asset.stockEtfDetails?.ticker
@@ -527,7 +536,7 @@ export async function getAssetsWithValues(userId: string): Promise<AssetWithValu
         if (latestVal) currentValue = new Decimal(latestVal.value)
       }
 
-      return { ...asset, currentValue, priceStatus }
+      return { ...asset, currentValue, priceStatus, quantityHeld, realizedGain }
     }),
   )
 
@@ -575,31 +584,12 @@ export async function getLiquidAssetsWithCalculations(userId: string): Promise<P
       const netDeposit = calculateNetDeposit(txs)
       const unrealizedGain = calculateUnrealizedGain(asset.currentValue, netDeposit)
 
-      // Build XIRR cashflows — zelfde logica als getAssetWithCalculations
-      const XIRR_OUT = new Set(['buy', 'deposit', 'cost'])
-      const XIRR_IN  = new Set(['sell', 'withdrawal', 'dividend', 'interest', 'rental_income'])
-      const MS_PER_DAY_XIRR = 1000 * 60 * 60 * 24
-      const XIRR_MIN_DAYS_XIRR = 30
-
+      // XIRR: bron van waarheid conform finance-logic.md §6 — zie lib/finance/xirr-cashflows.ts
       let xirr: Decimal | null = null
-      if (asset.currentValue.gt(0)) {
-        // amount is altijd in EUR (UI forceert currency=EUR, fxRate=1).
-        // Als Optie B (vreemde valuta) ooit wordt ingevoerd: pas hier t.amount × t.fxRate toe.
-        const cashflows: Cashflow[] = txRows
-          .filter(t => XIRR_OUT.has(t.transactionType) || XIRR_IN.has(t.transactionType))
-          .map(t => {
-            const sign = XIRR_OUT.has(t.transactionType) ? -1 : 1
-            return { amount: new Decimal(t.amount).mul(sign), date: new Date(t.transactionDate) }
-          })
-        if (cashflows.length >= 1) {
-          const firstDate = cashflows.reduce((min, cf) =>
-            cf.date.getTime() < min.getTime() ? cf.date : min, cashflows[0].date)
-          const daysSinceFirst = (Date.now() - firstDate.getTime()) / MS_PER_DAY_XIRR
-          if (daysSinceFirst >= XIRR_MIN_DAYS_XIRR) {
-            cashflows.push({ amount: asset.currentValue, date: new Date() })
-            try { xirr = calculateXirr(cashflows) } catch { /* niet genoeg data */ }
-          }
-        }
+      const cashflows = buildXirrCashflows(txRows)
+      if (cashflows.length >= 1 && asset.currentValue.gt(0) && hasMinimumXirrPeriod(cashflows)) {
+        cashflows.push({ amount: asset.currentValue, date: new Date() })
+        try { xirr = calculateXirr(cashflows) } catch { /* niet genoeg data */ }
       }
 
       return { id: asset.id, name: asset.name, assetType: asset.assetType, currentValue: asset.currentValue, netDeposit, unrealizedGain, xirr }

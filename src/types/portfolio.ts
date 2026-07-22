@@ -9,6 +9,11 @@ export type PortfolioConfig = {
   sectionTitle: string
   newAssetHref: string
   newAssetLabel: string
+  /** Secundaire actie naast newAssetHref, bijv. "+ Broker toevoegen" (optioneel). */
+  secondaryActionHref?: string
+  secondaryActionLabel?: string
+  /** Basispad voor groep-detailpagina's (bijv. broker-detail). Alleen zetten als die pagina bestaat. */
+  groupDetailBasePath?: string
   emptyMessage: string
 }
 
@@ -21,9 +26,12 @@ export const STOCK_ETF_CONFIG: PortfolioConfig = {
   detailBasePath: '/portfolio/aandelen-etf',
   pageTitle: 'Aandelen & ETF\'s',
   sectionTitle: 'Brokers',
-  newAssetHref: '/portfolio/aandelen-etf/broker/new',
-  newAssetLabel: '+ Broker toevoegen',
-  emptyMessage: 'Nog geen brokers toegevoegd.',
+  newAssetHref: '/assets/new?type=stock_etf&from=/portfolio/aandelen-etf',
+  newAssetLabel: '+ Nieuwe positie',
+  secondaryActionHref: '/portfolio/aandelen-etf/broker/new',
+  secondaryActionLabel: '+ Broker toevoegen',
+  groupDetailBasePath: '/portfolio/aandelen-etf/broker',
+  emptyMessage: 'Nog geen posities toegevoegd.',
 }
 
 export const CRYPTO_CONFIG: PortfolioConfig = {

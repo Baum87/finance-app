@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues } from '@/lib/db/queries/assets'
 import { getTransactionsByAssetsDetailed } from '@/lib/db/queries/transactions'
 import { getBrokers } from '@/lib/db/queries/brokers'
+import { calculateNetDeposit } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
@@ -31,15 +32,15 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
   const assetIds = assets.map(a => a.id)
   const detailedTxs = assetIds.length > 0 ? await getTransactionsByAssetsDetailed(assetIds) : []
 
-  // ─── KPI's — netto inleg (buys − sell-opbrengsten) ───────────────────────────
+  // ─── KPI's — netto inleg (buys + deposits − sells − withdrawals, incl. fees) ──
+  // Bron van waarheid: calculateNetDeposit uit lib/finance — zelfde functie als
+  // op de portfolio-overzichtspagina, zodat de cijfers overal consistent zijn.
 
   const totaleWaarde = assets.reduce((s, a) => s.plus(a.currentValue), new Decimal(0))
 
   const nettoInlegByAsset = new Map<string, Decimal>()
-  for (const tx of detailedTxs) {
-    const prev = nettoInlegByAsset.get(tx.assetId) ?? new Decimal(0)
-    if (tx.transactionType === 'buy')  nettoInlegByAsset.set(tx.assetId, prev.plus(tx.amount))
-    if (tx.transactionType === 'sell') nettoInlegByAsset.set(tx.assetId, prev.minus(tx.amount))
+  for (const a of assets) {
+    nettoInlegByAsset.set(a.id, calculateNetDeposit(detailedTxs.filter(t => t.assetId === a.id)))
   }
 
   const nettoInleg   = assets.reduce((s, a) => s.plus(nettoInlegByAsset.get(a.id) ?? 0), new Decimal(0))
@@ -127,6 +128,8 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
                 inleg:          assetInleg.toNumber(),
                 winstVerlies:   assetWv.toNumber(),
                 winstPct:       assetWvPct,
+                isClosed:       a.quantityHeld !== null && a.quantityHeld.lte(0),
+                realizedGain:   (a.realizedGain ?? new Decimal(0)).toNumber(),
               }
             })}
             backTo={backTo}
@@ -134,7 +137,7 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
         )}
 
         <div className="flex justify-end pt-4">
-          <DeleteBrokerButton brokerId={broker.id} brokerName={broker.name} />
+          <DeleteBrokerButton brokerId={broker.id} brokerName={broker.name} positionCount={assets.length} />
         </div>
 
       </main>

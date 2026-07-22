@@ -1,3 +1,4 @@
+import Decimal from 'decimal.js'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
@@ -32,7 +33,8 @@ export default async function AandeelDetailPage({
   if (!result || result.asset.assetType !== 'stock_etf') notFound()
 
   const { asset, calculations } = result
-  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, priceEur, priceStatus } = calculations
+  const { currentValue, netDeposit, unrealizedGain, xirr, quantityHeld, realizedGain, priceEur, priceStatus } = calculations
+  const isClosed = quantityHeld !== null && quantityHeld.lte(0)
 
   // WAC via AVCO (correct bij deelverkopen)
   const wacPerUnit = calculateCostBasis(txList.map(t => ({
@@ -109,12 +111,16 @@ export default async function AandeelDetailPage({
             subtext="Aankopen minus verkopen"
           />
           <KpiCard
-            label="Rendement (totaal)"
-            value={currentValue.gt(0) ? formatCurrency(unrealizedGain.toNumber()) : '—'}
-            subtext={currentValue.gt(0) && netDeposit.gt(0)
-              ? formatPercent(unrealizedGain.div(netDeposit).toNumber())
-              : undefined}
-            trend={gainAccent ? { value: '', positive: gainAccent === 'positive' } : undefined}
+            label={isClosed ? 'Gerealiseerd resultaat' : 'Rendement (totaal)'}
+            value={isClosed
+              ? formatCurrency((realizedGain ?? new Decimal(0)).toNumber())
+              : (currentValue.gt(0) ? formatCurrency(unrealizedGain.toNumber()) : '—')}
+            subtext={isClosed
+              ? 'Positie volledig verkocht'
+              : (currentValue.gt(0) && netDeposit.gt(0) ? formatPercent(unrealizedGain.div(netDeposit).toNumber()) : undefined)}
+            trend={isClosed
+              ? { value: '', positive: (realizedGain ?? new Decimal(0)).gte(0) }
+              : (gainAccent ? { value: '', positive: gainAccent === 'positive' } : undefined)}
           />
           <KpiCard
             label="Rendement"

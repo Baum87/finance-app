@@ -10,7 +10,7 @@ export function KpiCard({ label, value, subtext, trend }: KpiCardProps) {
     <div className="bg-card border border-border rounded-3xl p-6">
       <p className="text-sm text-muted-foreground font-medium">{label}</p>
       <p className="text-3xl font-semibold text-foreground mt-1">{value}</p>
-      {trend && (
+      {trend?.value && (
         <p className={`mt-1 text-sm font-medium ${trend.positive ? 'text-sage' : 'text-terracotta'}`}>
           {trend.value}
         </p>

@@ -19,6 +19,7 @@ ALTER TABLE public.mortgage_balances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.liabilities       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.asset_tax_metadata ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vordering_details  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.brokers           ENABLE ROW LEVEL SECURITY;
 -- fx_rates: GEEN RLS — gedeelde tabel, niet user-gebonden
 
 -- ─── users ──────────────────────────────────────────────────────────────────
@@ -441,6 +442,25 @@ CREATE POLICY "liabilities_update" ON public.liabilities
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );
 CREATE POLICY "liabilities_delete" ON public.liabilities
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+
+-- ─── brokers ─────────────────────────────────────────────────────────────────
+
+CREATE POLICY "brokers_select" ON public.brokers
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "brokers_insert" ON public.brokers
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "brokers_update" ON public.brokers
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "brokers_delete" ON public.brokers
   FOR DELETE USING (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );

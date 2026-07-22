@@ -5,8 +5,7 @@ import { getTransactionsByAssetsDetailed } from '@/lib/db/queries/transactions'
 import { getBrokers } from '@/lib/db/queries/brokers'
 import { buildStockPortfolioSeries } from '@/lib/finance/stock-series'
 import { buildInlegSeries } from '@/lib/finance/portfolio-series'
-import { calculateNetDeposit, calculateXirr } from '@/lib/finance'
-import type { Cashflow } from '@/lib/finance'
+import { calculateNetDeposit, calculateXirr, buildXirrCashflows, hasMinimumXirrPeriod } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
@@ -39,21 +38,16 @@ export async function PortfolioOverview({ config, userId }: {
   const winst        = totaleWaarde.minus(netDeposit)
 
   // ─── Portfolio XIRR ───────────────────────────────────────────────────────────
+  // Bron van waarheid conform finance-logic.md §6 — zie lib/finance/xirr-cashflows.ts
   let portfolioXirr: Decimal | null = null
-  const xirrFlows: Cashflow[] = allTxs.flatMap(tx => {
-    if (tx.transactionType === 'buy' || tx.transactionType === 'deposit') {
-      return [{ amount: new Decimal(tx.amount).plus(new Decimal(tx.fees ?? '0')).negated(), date: new Date(tx.transactionDate) }]
+  const xirrFlows = buildXirrCashflows(allTxs)
+  if (xirrFlows.length >= 1 && totaleWaarde.gt(0) && hasMinimumXirrPeriod(xirrFlows)) {
+    xirrFlows.push({ amount: totaleWaarde, date: new Date() })
+    try {
+      portfolioXirr = calculateXirr(xirrFlows)
+    } catch {
+      portfolioXirr = null
     }
-    if (tx.transactionType === 'sell' || tx.transactionType === 'withdrawal') {
-      return [{ amount: new Decimal(tx.amount), date: new Date(tx.transactionDate) }]
-    }
-    return []
-  })
-  if (totaleWaarde.gt(0)) xirrFlows.push({ amount: totaleWaarde, date: new Date() })
-  try {
-    if (xirrFlows.length >= 2) portfolioXirr = calculateXirr(xirrFlows)
-  } catch {
-    portfolioXirr = null
   }
 
   // ─── Brokers (stock_etf only) ─────────────────────────────────────────────────
@@ -123,8 +117,13 @@ export async function PortfolioOverview({ config, userId }: {
     groupKey:     config.assetType === 'stock_etf'
       ? (brokerById.get(a.stockEtfDetails?.brokerId ?? '') ?? config.emptyGroupLabel)
       : (a.cryptoDetails?.walletOrExchange || config.emptyGroupLabel),
+    groupId:      config.assetType === 'stock_etf' ? (a.stockEtfDetails?.brokerId ?? null) : null,
     currentValue: a.currentValue,
     netDeposit:   netDepositByAsset.get(a.id) ?? new Decimal(0),
+    // Volledig verkocht (quantityHeld = 0): toon apart met gerealiseerd resultaat
+    // i.p.v. te verdwijnen tussen de actieve posities met een lege W/V-kolom.
+    isClosed:     a.quantityHeld !== null && a.quantityHeld.lte(0),
+    realizedGain: a.realizedGain ?? new Decimal(0),
     detailHref:   `${config.detailBasePath}/${a.id}`,
   }))
 
@@ -151,20 +150,31 @@ export async function PortfolioOverview({ config, userId }: {
             subtext="Aankopen minus verkopen"
           />
           <KpiCard
-            label="Rendement (totaal)"
+            label="Totaalrendement"
             value={netDeposit.gt(0) ? formatCurrency(winst.toNumber()) : '—'}
             subtext={netDeposit.gt(0)
-              ? formatPercent(winst.div(netDeposit).toNumber())
+              ? `${formatPercent(winst.div(netDeposit).toNumber())} sinds start`
               : undefined}
             trend={netDeposit.gt(0) ? { value: '', positive: winst.gte(0) } : undefined}
           />
           <KpiCard
-            label="Rendement"
+            label="Rendement (XIRR)"
             value={portfolioXirr ? formatPercent(portfolioXirr.toNumber()) : '—'}
-            subtext={portfolioXirr ? 'Jaarlijks, berekend via XIRR' : 'Te weinig data'}
+            subtext={portfolioXirr ? 'Jaarlijks, incl. timing van inleg' : 'Te weinig data'}
             trend={portfolioXirr ? { value: '', positive: portfolioXirr.gt(0) } : undefined}
           />
         </div>
+
+        {config.assetType === 'stock_etf' && (
+          <div className="flex justify-end -mt-4">
+            <Link
+              href="/portfolio/aandelen-etf/rendement"
+              className="text-sm text-primary hover:underline"
+            >
+              Rendement per jaar bekijken →
+            </Link>
+          </div>
+        )}
 
         {/* Grafiek (aandelen only) */}
         {config.showChart && <PortfolioInlegChart data={chartData} title="Portefeuille ontwikkeling" />}
@@ -182,24 +192,48 @@ export async function PortfolioOverview({ config, userId }: {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-foreground">{config.sectionTitle}</h2>
-              <Link
-                href={config.newAssetHref}
-                className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                {config.newAssetLabel}
-              </Link>
+              <div className="flex items-center gap-4">
+                {config.secondaryActionHref && (
+                  <Link
+                    href={config.secondaryActionHref}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {config.secondaryActionLabel}
+                  </Link>
+                )}
+                <Link
+                  href={config.newAssetHref}
+                  className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  {config.newAssetLabel}
+                </Link>
+              </div>
             </div>
-            <PortfolioGroupTable rows={groupRows} emptyGroupLabel={config.emptyGroupLabel} />
+            <PortfolioGroupTable
+              rows={groupRows}
+              emptyGroupLabel={config.emptyGroupLabel}
+              groupDetailBasePath={config.groupDetailBasePath}
+            />
           </div>
         ) : (
           <div className="rounded-2xl border border-border bg-card p-12 text-center">
             <p className="text-sm text-muted-foreground mb-4">{config.emptyMessage}</p>
-            <Link
-              href={config.newAssetHref}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              {config.newAssetLabel}
-            </Link>
+            <div className="flex items-center justify-center gap-4">
+              <Link
+                href={config.newAssetHref}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                {config.newAssetLabel}
+              </Link>
+              {config.secondaryActionHref && (
+                <Link
+                  href={config.secondaryActionHref}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {config.secondaryActionLabel}
+                </Link>
+              )}
+            </div>
           </div>
         )}
 

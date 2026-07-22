@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getLiquidAssetsWithCalculations, getAssetsWithValues } from '@/lib/db/queries/assets'
 import { getTransactionsByAssets } from '@/lib/db/queries/transactions'
 import { getValuationTimeSeries, getMortgageBalanceTimeSeries } from '@/lib/db/queries/cashflow'
-import { calculateXirr, calculateAllocation } from '@/lib/finance'
+import { calculateXirr, calculateAllocation, buildXirrCashflows } from '@/lib/finance'
 import { buildNetWorthSeries } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import Link from 'next/link'
@@ -15,8 +15,6 @@ import { AllocationChart } from '@/components/vermogen/AllocationChart'
 import { getBenchmarkTwr } from '@/lib/services/benchmark'
 
 const LIQUID_TYPES = ['stock_etf', 'crypto', 'savings']
-const XIRR_OUTFLOWS = new Set(['buy', 'deposit', 'cost'])
-const XIRR_INFLOWS  = new Set(['sell', 'withdrawal', 'dividend', 'interest', 'rental_income'])
 
 export default async function VermogenPage() {
   const supabase = await createServerSupabaseClient()
@@ -46,12 +44,12 @@ export default async function VermogenPage() {
   if (liquidAssetIds.length > 0 && totalLiquid.gt(0)) {
     const ytdTxs = await getTransactionsByAssets(liquidAssetIds, ytdStart)
 
-    const cashflows = ytdTxs
-      .filter(r => XIRR_OUTFLOWS.has(r.transactionType) || XIRR_INFLOWS.has(r.transactionType))
-      .map(r => {
-        const sign = XIRR_OUTFLOWS.has(r.transactionType) ? -1 : 1
-        return { amount: new Decimal(r.amount).mul(sign), date: new Date(r.transactionDate) }
-      })
+    // Classificatie (welk transactietype telt mee, met welk teken) via dezelfde
+    // bron van waarheid als asset- en portfolio-XIRR elders in de app — zie
+    // lib/finance/xirr-cashflows.ts. De YTD-vensterlogica hieronder (openingswaarde
+    // per 1 jan als pseudo-cashflow) is een bewust aparte, nog te herzien
+    // methodologie (zie STATUS.md R3) en blijft ongewijzigd in deze refactor.
+    const cashflows = buildXirrCashflows(ytdTxs)
 
     // Opening cashflow: portfolio value at start of year (negative = beginning investment)
     const liquidAssetIdSet = new Set(liquidAssetIds)

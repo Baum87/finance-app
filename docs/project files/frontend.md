@@ -178,7 +178,11 @@ Recharts is de bibliotheek (vastgesteld in architecture.md).
 - Maximaal 2 kleuren per grafiek — `--color-chart-primary` en `--color-chart-secondary`
 - Dunne lijnen: `strokeWidth: 1.5` voor lijngrafieken
 - Geen achtergrondvulling onder lijnen (geen `area fill`) — te druk
-- Uitzondering: allocatiedonut mag vlakke segmenten hebben
+- Uitzondering: allocatiedonut/-balk mag vlakke segmenten hebben. Bij >2
+  categorieën: tinten (opacity-varianten) van `--color-chart-primary` en
+  `--color-chart-secondary`, nooit een derde/vierde hue — en nooit
+  `--color-terracotta`, dat betekent overal elders "verlies" (zie
+  `AllocationBreakdown.tsx`)
 - Grid: alleen horizontale lijnen, lichtgrijs (`#ECEAE5`), geen verticale
 - Assen: `--color-text-secondary`, klein (`--text-xs`)
 - Geen legenda-box — label de lijnen direct of gebruik een tooltip

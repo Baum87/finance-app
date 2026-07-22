@@ -35,6 +35,13 @@ export async function getLatestPrice(symbol: string): Promise<PriceResult> {
   }
 }
 
+// Yahoo Finance kan voor de laatste handelsdag(en) een nog niet afgewikkelde rij
+// teruggeven (close/adjclose = null, overige velden wel gevuld). yahoo-finance2
+// gooit dan een fout voor de HELE reeks — niet alleen voor die ene dag — waardoor
+// jarenlange, verder prima data verloren gaat. Vraag daarom nooit de laatste
+// paar dagen op; de live koers loopt toch via getLatestPrice.
+const SETTLE_BUFFER_DAYS = 5
+
 /**
  * Fetches historical daily close prices for a symbol between two dates.
  * Returns prices in ascending date order.
@@ -44,9 +51,12 @@ export async function getHistoricalPrices(
   from: Date,
   to: Date,
 ): Promise<HistoricalPrice[]> {
+  const safeToMs = Math.min(to.getTime(), Date.now() - SETTLE_BUFFER_DAYS * 24 * 60 * 60 * 1000)
+  const period2 = safeToMs < from.getTime() ? from : new Date(safeToMs)
+
   const results = await yf.historical(symbol, {
     period1: from,
-    period2: to,
+    period2,
     interval: '1d',
   })
 

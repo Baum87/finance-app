@@ -6,12 +6,15 @@ export type AllocationItem = {
   pct: number
 }
 
+// Tinten van sage/steel i.p.v. losse hues — houdt de grafiek binnen het
+// 2-kleurensysteem (CLAUDE.md) en voorkomt dat terracotta (elders altijd
+// "verlies") hier als toevallige categorie-kleur oogt als "slecht presterend".
 const BAR_COLORS = [
-  'bg-[var(--color-steel)]',
   'bg-[var(--color-sage)]',
-  'bg-[var(--color-terracotta)]',
-  'bg-[var(--color-gold)]',
-  'bg-muted-foreground/40',
+  'bg-[var(--color-steel)]',
+  'bg-[var(--color-sage)]/55',
+  'bg-[var(--color-steel)]/55',
+  'bg-[var(--color-sage)]/30',
 ]
 
 type Props = {

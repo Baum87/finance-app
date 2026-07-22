@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import Decimal from 'decimal.js'
 import { calculateXirr } from './xirr'
-import { calculateCostBasis, calculateQuantityHeld } from './cost-basis'
+import { buildXirrCashflows, hasMinimumXirrPeriod } from './xirr-cashflows'
+import { calculateCostBasis, calculateQuantityHeld, calculateRealizedGain } from './cost-basis'
 import { calculateNetDeposit } from './net-deposit'
 import { calculateMarketValue, calculateSavingsBalance, calculateUnrealizedGain } from './current-value'
 import { calculatePassiveIncome } from './passive-income'
@@ -15,6 +16,7 @@ import {
 } from './real-estate'
 import { calculateNetWorth } from './net-worth'
 import { calculateTwr } from './twr'
+import { calculateAnnualReturn } from './annual-return'
 import { calculateExcessReturn } from './benchmark'
 import { buildNetWorthSeries } from './net-worth-series'
 
@@ -59,6 +61,57 @@ describe('calculateXirr', () => {
     ]
     const result = calculateXirr(cashflows)
     expect(result.toNumber()).toBeLessThan(0)
+  })
+})
+
+// ─── XIRR cashflow-classificatie (gedeeld door asset-, portfolio- en broker-niveau) ──
+
+describe('buildXirrCashflows', () => {
+  it('behandelt buy/deposit/cost als uitstroom (negatief)', () => {
+    const flows = buildXirrCashflows([
+      { transactionType: 'buy',     amount: '1000', transactionDate: '2023-01-01' },
+      { transactionType: 'deposit', amount: '500',  transactionDate: '2023-02-01' },
+      { transactionType: 'cost',    amount: '10',   transactionDate: '2023-03-01' },
+    ])
+    expect(flows.every(f => f.amount.lt(0))).toBe(true)
+    expect(flows.map(f => f.amount.toNumber())).toEqual([-1000, -500, -10])
+  })
+
+  it('behandelt sell/withdrawal/dividend/interest/rental_income als instroom (positief)', () => {
+    const flows = buildXirrCashflows([
+      { transactionType: 'sell',          amount: '100', transactionDate: '2023-01-01' },
+      { transactionType: 'withdrawal',    amount: '50',  transactionDate: '2023-02-01' },
+      { transactionType: 'dividend',      amount: '20',  transactionDate: '2023-03-01' },
+      { transactionType: 'interest',      amount: '5',   transactionDate: '2023-04-01' },
+      { transactionType: 'rental_income', amount: '900', transactionDate: '2023-05-01' },
+    ])
+    expect(flows.every(f => f.amount.gt(0))).toBe(true)
+    expect(flows).toHaveLength(5)
+  })
+
+  it('negeert onbekende/niet-XIRR transactietypes', () => {
+    const flows = buildXirrCashflows([
+      { transactionType: 'valuation_only', amount: '100', transactionDate: '2023-01-01' },
+    ])
+    expect(flows).toHaveLength(0)
+  })
+})
+
+describe('hasMinimumXirrPeriod', () => {
+  it('is false zonder cashflows', () => {
+    expect(hasMinimumXirrPeriod([])).toBe(false)
+  })
+
+  it('is false binnen 30 dagen sinds de eerste cashflow', () => {
+    const asOf = new Date('2023-01-15')
+    const flows = [{ amount: d('-100'), date: new Date('2023-01-01') }]
+    expect(hasMinimumXirrPeriod(flows, asOf)).toBe(false)
+  })
+
+  it('is true na 30 dagen sinds de eerste cashflow', () => {
+    const asOf = new Date('2023-02-01')
+    const flows = [{ amount: d('-100'), date: new Date('2023-01-01') }]
+    expect(hasMinimumXirrPeriod(flows, asOf)).toBe(true)
   })
 })
 
@@ -113,6 +166,63 @@ describe('calculateQuantityHeld', () => {
 
   it('returns 0 for empty transactions', () => {
     expect(calculateQuantityHeld([]).toNumber()).toBe(0)
+  })
+})
+
+describe('calculateRealizedGain', () => {
+  it('is 0 without any sells', () => {
+    const txs = [{ transactionType: 'buy', amount: '1000', quantity: '10' }]
+    expect(calculateRealizedGain(txs).toNumber()).toBe(0)
+  })
+
+  it('is 0 for an empty position', () => {
+    expect(calculateRealizedGain([]).toNumber()).toBe(0)
+  })
+
+  it('reflects profit on a fully closed position', () => {
+    const txs = [
+      { transactionType: 'buy',  amount: '1000', quantity: '10' }, // 100/unit
+      { transactionType: 'sell', amount: '1500', quantity: '10' }, // proceeds 1500, cost 1000
+    ]
+    expect(calculateRealizedGain(txs).toNumber()).toBe(500)
+  })
+
+  it('reflects loss on a fully closed position', () => {
+    const txs = [
+      { transactionType: 'buy',  amount: '1000', quantity: '10' },
+      { transactionType: 'sell', amount: '700',  quantity: '10' },
+    ]
+    expect(calculateRealizedGain(txs).toNumber()).toBe(-300)
+  })
+
+  it('uses the AVCO cost at the moment of each sell (partial sells)', () => {
+    const txs = [
+      { transactionType: 'buy',  amount: '1000', quantity: '10' }, // 100/unit
+      { transactionType: 'sell', amount: '600',  quantity: '5' },  // cost 500 → +100 realized
+      { transactionType: 'buy',  amount: '900',  quantity: '10' }, // avg now (500+900)/15 = 93.33/unit
+      { transactionType: 'sell', amount: '700',  quantity: '5' },  // cost 466.67 → +233.33 realized
+    ]
+    // total realized ≈ 100 + 233.33 = 333.33
+    expect(calculateRealizedGain(txs).toNumber()).toBeCloseTo(333.33, 1)
+  })
+
+  it('telt aankoopkosten (fees) mee in de kostprijs', () => {
+    const txs = [
+      { transactionType: 'buy',  amount: '1000', quantity: '10', fees: '20' }, // kostprijs 1020
+      { transactionType: 'sell', amount: '1100', quantity: '10' },
+    ]
+    expect(calculateRealizedGain(txs).toNumber()).toBe(80)
+  })
+
+  it('resteert op 0 zodra de hele positie na meerdere sells is gesloten', () => {
+    const txs = [
+      { transactionType: 'buy',  amount: '1000', quantity: '10' },
+      { transactionType: 'sell', amount: '600',  quantity: '5' },
+      { transactionType: 'sell', amount: '700',  quantity: '5' },
+    ]
+    // AVCO blijft consistent: costBasis van de resterende (0) positie is 0
+    calculateRealizedGain(txs) // geen throw, altijd een getal
+    expect(calculateCostBasis(txs).toNumber()).toBe(0)
   })
 })
 
@@ -352,6 +462,70 @@ describe('calculateTwr', () => {
   it('throws for zero start value', () => {
     const periods = [{ startValue: d('0'), endValue: d('100'), cashflow: d('0') }]
     expect(() => calculateTwr(periods)).toThrow()
+  })
+})
+
+describe('calculateAnnualReturn', () => {
+  // Periode van 100 dagen, zodat cashflow-gewichten (dagen-over/totaal) op
+  // schone breuken uitkomen i.p.v. afhankelijk te zijn van kalendermaanden.
+  const periodStart = new Date(2023, 0, 1)
+  const periodEnd   = new Date(periodStart.getTime() + 100 * 24 * 60 * 60 * 1000)
+  const daysAfterStart = (n: number) => new Date(periodStart.getTime() + n * 24 * 60 * 60 * 1000)
+
+  it('berekent een positief rendement zonder tussentijdse cashflow', () => {
+    // start=1000, eind=1100, geen cashflow → +100 EUR, +10%
+    const { returnAmount, returnPct } = calculateAnnualReturn(d('1000'), d('1100'), periodStart, periodEnd, [])
+    expect(returnAmount.toNumber()).toBe(100)
+    expect(returnPct?.toNumber()).toBeCloseTo(0.1, 5)
+  })
+
+  it('weegt een cashflow naar rato van het resterende deel van de periode (Modified Dietz)', () => {
+    // start=1000, cashflow van +500 precies op de helft van de periode (dag 50 van 100,
+    // gewicht 0.5), eind=1600 → returnAmount = 1600-1000-500 = 100.
+    // Kapitaalbasis = 1000 + 500*0.5 = 1250 → returnPct = 100/1250 = 8%.
+    // (Een naïeve (eind-cashflow)/start-formule zou hier 10% geven — te hoog,
+    // omdat die de cashflow behandelt alsof die pas op het ÉÍND plaatsvond.)
+    const cashflows = [{ amount: d('500'), date: daysAfterStart(50) }]
+    const { returnAmount, returnPct } = calculateAnnualReturn(d('1000'), d('1600'), periodStart, periodEnd, cashflows)
+    expect(returnAmount.toNumber()).toBe(100)
+    expect(returnPct?.toNumber()).toBeCloseTo(0.08, 5)
+  })
+
+  it('weegt eenzelfde cashflow zwaarder naarmate die vroeger in de periode valt', () => {
+    // Zelfde bedragen, alleen het moment van de cashflow verschilt.
+    const early = calculateAnnualReturn(d('1000'), d('1600'), periodStart, periodEnd, [{ amount: d('500'), date: daysAfterStart(10) }])
+    const late  = calculateAnnualReturn(d('1000'), d('1600'), periodStart, periodEnd, [{ amount: d('500'), date: daysAfterStart(90) }])
+    // returnAmount is timing-onafhankelijk: in beide gevallen exact gelijk
+    expect(early.returnAmount.toNumber()).toBe(late.returnAmount.toNumber())
+    // maar een vroege cashflow drukt het procentuele rendement sterker (grotere kapitaalbasis)
+    expect(early.returnPct!.toNumber()).toBeLessThan(late.returnPct!.toNumber())
+  })
+
+  it('kan een returnPct berekenen ook als de portefeuille bij aanvang €0 waard was (eerste jaar)', () => {
+    // Startjaar: portefeuille begint op 0, eerste aankoop van 1000 op dag 0, eind 1050
+    const cashflows = [{ amount: d('1000'), date: periodStart }]
+    const { returnAmount, returnPct } = calculateAnnualReturn(d('0'), d('1050'), periodStart, periodEnd, cashflows)
+    expect(returnAmount.toNumber()).toBe(50)
+    // kapitaalbasis = 0 + 1000*1.0 (cashflow op dag 0 → volledig gewicht) = 1000
+    expect(returnPct?.toNumber()).toBeCloseTo(0.05, 5)
+  })
+
+  it('is null voor returnPct als de tijdgewogen kapitaalbasis €0 is', () => {
+    const { returnAmount, returnPct } = calculateAnnualReturn(d('0'), d('0'), periodStart, periodEnd, [])
+    expect(returnAmount.toNumber()).toBe(0)
+    expect(returnPct).toBeNull()
+  })
+
+  it('geeft een negatief rendement bij waardedaling', () => {
+    const { returnAmount, returnPct } = calculateAnnualReturn(d('1000'), d('900'), periodStart, periodEnd, [])
+    expect(returnAmount.toNumber()).toBe(-100)
+    expect(returnPct?.toNumber()).toBeCloseTo(-0.1, 5)
+  })
+
+  it('annualiseert niet — een korte periode met +5% blijft +5%, niet omgerekend naar een jaartarief', () => {
+    // In tegenstelling tot XIRR: dit is een holding-period-rendement, geen jaarlijks tarief
+    const { returnPct } = calculateAnnualReturn(d('1000'), d('1050'), periodStart, periodEnd, [])
+    expect(returnPct?.toNumber()).toBeCloseTo(0.05, 5)
   })
 })
 
