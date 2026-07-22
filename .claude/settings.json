@@ -6,7 +6,14 @@
       "Bash(find src -type f)",
       "Bash(grep -r * src)",
       "Bash(mv * *)",
-      "Bash(mkdir -p *)"
+      "Bash(mkdir -p *)",
+      "Bash(npx tsc --noEmit*)",
+      "Bash(npx eslint *)",
+      "Bash(nslookup *)",
+      "PowerShell(cd *)",
+      "PowerShell(npx tsc --noEmit*)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(git status*)"
     ]
   }
 }

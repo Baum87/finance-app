@@ -127,6 +127,14 @@ export async function PortfolioOverview({ config, userId }: {
     detailHref:   `${config.detailBasePath}/${a.id}`,
   }))
 
+  // Brokers zonder posities zijn geen groep in PortfolioGroupTable (die groepeert
+  // op basis van assets) en dus nergens klikbaar — apart tonen zodat je ze kunt
+  // bereiken voor "+ Nieuwe positie" of "+ Transacties importeren".
+  const brokerIdsWithPositions = new Set(groupRows.map(r => r.groupId).filter((id): id is string => !!id))
+  const emptyBrokers = config.assetType === 'stock_etf'
+    ? brokerList.filter(b => !brokerIdsWithPositions.has(b.id))
+    : []
+
   return (
     <>
       <Topbar />
@@ -233,6 +241,26 @@ export async function PortfolioOverview({ config, userId }: {
                   {config.secondaryActionLabel}
                 </Link>
               )}
+            </div>
+          </div>
+        )}
+
+        {emptyBrokers.length > 0 && (
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="px-6 py-4 border-b border-border">
+              <p className="text-sm font-semibold text-foreground">Brokers zonder posities</p>
+            </div>
+            <div className="divide-y divide-border">
+              {emptyBrokers.map(b => (
+                <Link
+                  key={b.id}
+                  href={`/portfolio/aandelen-etf/broker/${b.id}`}
+                  className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-muted/50 transition-colors"
+                >
+                  <span className="text-sm font-medium text-foreground">{b.name}</span>
+                  <span className="text-muted-foreground text-xs">›</span>
+                </Link>
+              ))}
             </div>
           </div>
         )}

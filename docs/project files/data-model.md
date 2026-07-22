@@ -132,6 +132,18 @@ CREATE TABLE transactions (
 - `sell`, `withdrawal`, `dividend`, `interest`, `rental_income` → positieve cashflow
 - `cost` → negatieve cashflow (reduceert rendement vastgoed)
 
+> **Let op — dit codeblok is het oorspronkelijke ontwerp uit Sprint 1.3, niet 1-op-1
+> de huidige implementatie.** De werkelijke kolomnamen staan in `lib/db/schema.ts`
+> (o.a. `transaction_date`, `transaction_type`, `quantity`, `fx_rate` i.p.v.
+> `date`/`type`/`units`; `tax_year`/`is_tax_relevant` bestaan niet, box-3-koppeling
+> loopt via `asset_tax_metadata`). Schema.ts is bron van waarheid, niet dit bestand.
+>
+> **Migratie 0007** voegt `external_ref` (nullable text) toe, met een unieke
+> combinatie `(asset_id, external_ref)`. Slaat de broker-eigen transactie-ID op
+> (bv. Degiro's "Order ID") bij xlsx-import, zodat een herupload van hetzelfde
+> bestand nooit tot dubbele transacties leidt (`ON CONFLICT DO NOTHING`). Blijft
+> `NULL` bij handmatig ingevoerde transacties. Zie `lib/services/import/`.
+
 ---
 
 ### Universele waarderingen

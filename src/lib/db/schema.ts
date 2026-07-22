@@ -68,11 +68,17 @@ export const transactions = pgTable('transactions', {
   currency:        text('currency').notNull().default('EUR'),
   fxRate:          numeric('fx_rate', { precision: 15, scale: 6 }).notNull().default('1'),
   notes:           text('notes'),
+  // Broker-specifieke unieke referentie (bv. Degiro "Order ID"), gezet bij xlsx-import.
+  // Voorkomt dubbele import van dezelfde transactie bij een herupload — zie
+  // lib/services/import. Null bij handmatig ingevoerde transacties (Postgres
+  // behandelt NULL nooit als gelijk aan NULL, dus die botsen niet met de unique-constraint).
+  externalRef:     text('external_ref'),
   createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('transactions_asset_id_idx').on(t.assetId),
   index('transactions_date_idx').on(t.transactionDate),
   check('transactions_type_check', sql`${t.transactionType} IN ('buy', 'sell', 'deposit', 'withdrawal', 'dividend', 'interest', 'rental_income', 'cost')`),
+  unique('transactions_asset_external_ref_unique').on(t.assetId, t.externalRef),
 ])
 
 // ─── asset_valuations ────────────────────────────────────────────────────────

@@ -71,12 +71,20 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
                 {assets.length} positie{assets.length !== 1 ? 's' : ''}
               </p>
             </div>
-            <Link
-              href={`/assets/new?type=stock_etf&from=/portfolio/aandelen-etf&cancel=${backTo}&brokerId=${broker.id}`}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              + Nieuwe positie
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`${backTo}/import`}
+                className="px-4 py-2 rounded-lg border border-input text-sm font-medium hover:bg-muted/50 transition-colors"
+              >
+                + Transacties importeren
+              </Link>
+              <Link
+                href={`/assets/new?type=stock_etf&from=/portfolio/aandelen-etf&cancel=${backTo}&brokerId=${broker.id}`}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                + Nieuwe positie
+              </Link>
+            </div>
           </div>
         </div>
 

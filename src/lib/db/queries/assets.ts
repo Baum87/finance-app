@@ -327,6 +327,31 @@ export async function deleteAsset(userId: string, assetId: string) {
     .where(and(eq(assets.id, assetId), eq(assets.tenantId, tenantId)))
 }
 
+// ─── Import matching ──────────────────────────────────────────────────────────
+
+export type IsinMatch = { assetId: string; isin: string; ticker: string; name: string }
+
+/**
+ * Matcht ISIN's uit een xlsx-import tegen bestaande actieve stock_etf-posities
+ * van de tenant. Gebruikt door lib/services/import — bepaalt welke rijen naar
+ * een bestaande positie gaan vs. een nieuwe positie nodig hebben.
+ */
+export async function findStockEtfAssetsByIsins(userId: string, isins: string[]): Promise<IsinMatch[]> {
+  if (isins.length === 0) return []
+  const tenantId = await getOrCreateTenant(userId)
+  const rows = await db
+    .select({ assetId: assets.id, isin: stockEtfDetails.isin, ticker: stockEtfDetails.ticker, name: assets.name })
+    .from(assets)
+    .innerJoin(stockEtfDetails, eq(stockEtfDetails.assetId, assets.id))
+    .where(and(
+      eq(assets.tenantId, tenantId),
+      eq(assets.assetType, 'stock_etf'),
+      eq(assets.isActive, true),
+      inArray(stockEtfDetails.isin, isins),
+    ))
+  return rows.filter((r): r is IsinMatch => r.isin !== null)
+}
+
 // ─── Calculated values ────────────────────────────────────────────────────────
 
 export type AssetCalculations = {

@@ -68,3 +68,31 @@ export async function getHistoricalPrices(
       close: new Decimal(r.close!).toDecimalPlaces(4),
     }))
 }
+
+export type TickerSuggestion = { symbol: string; name: string; sector: string | null }
+
+/**
+ * Best-effort tickersuggestie voor xlsx-import: bronbestanden (bv. Degiro) leveren
+ * een ISIN + productnaam maar geen ticker. Probeert eerst op ISIN te zoeken, dan op
+ * productnaam. Geeft null bij geen match — de gebruiker bevestigt/corrigeert altijd
+ * handmatig in het review-scherm, dit is puur voorinvulling, geen garantie.
+ */
+export async function suggestTicker(isin: string, productName: string): Promise<TickerSuggestion | null> {
+  for (const query of [isin, productName]) {
+    if (!query) continue
+    try {
+      const result = await yf.search(query, { quotesCount: 3 })
+      const match = result.quotes.find(q => q.isYahooFinance && typeof q.symbol === 'string')
+      if (match && match.isYahooFinance) {
+        return {
+          symbol: match.symbol,
+          name: match.longname ?? match.shortname ?? productName,
+          sector: match.sector ?? null,
+        }
+      }
+    } catch {
+      // Best-effort — probeer volgende query
+    }
+  }
+  return null
+}

@@ -52,38 +52,36 @@ export function PortfolioGroupTable({ rows, emptyGroupLabel, groupDetailBasePath
             const groupInleg    = groupRows.reduce((s, r) => s.plus(r.netDeposit), new Decimal(0))
             const groupWv       = groupWaarde.minus(groupInleg)
             const groupPct      = groupInleg.gt(0) ? groupWv.div(groupInleg) : null
-            const groupHeaderClass = 'grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto_auto_auto] gap-6 items-center px-6 py-2.5 bg-muted/20 border-t border-border'
-            const groupHeaderContent = (
-              <>
-                <span className={`text-xs font-medium truncate ${groupHref ? 'text-foreground' : 'text-muted-foreground'}`}>
-                  {group}{groupHref && ' ›'}
-                </span>
-                <span className="text-xs font-medium text-muted-foreground text-right w-28">
-                  {formatCurrency(groupWaarde.toNumber())}
-                </span>
-                <span className="text-xs font-medium text-muted-foreground text-right w-28 hidden md:block">
-                  {groupInleg.gt(0) ? formatCurrency(groupInleg.toNumber()) : '—'}
-                </span>
-                <span className={`text-xs font-medium text-right w-28 hidden md:block ${groupInleg.gt(0) ? (groupWv.gte(0) ? 'text-sage' : 'text-terracotta') : 'text-muted-foreground'}`}>
-                  {groupInleg.gt(0) ? formatCurrency(groupWv.toNumber()) : '—'}
-                </span>
-                <span className={`text-xs font-medium text-right w-20 hidden md:block ${groupPct ? (groupPct.gte(0) ? 'text-sage' : 'text-terracotta') : 'text-muted-foreground'}`}>
-                  {groupPct ? formatPercent(groupPct.toNumber()) : '—'}
-                </span>
-              </>
-            )
+            const groupHeaderClass = 'relative grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto_auto_auto] gap-6 items-center px-6 py-2.5 bg-muted/20 border-t border-border'
 
             return (
             <div key={group}>
-              {groupHref ? (
-                <Link href={groupHref} className={`${groupHeaderClass} hover:bg-muted/40 transition-colors`}>
-                  {groupHeaderContent}
-                </Link>
-              ) : (
-                <div className={groupHeaderClass}>
-                  {groupHeaderContent}
-                </div>
-              )}
+              <div className={`${groupHeaderClass} ${groupHref ? 'hover:bg-muted/40 transition-colors' : ''}`}>
+                {/* Stretched link: maakt de hele rij klikbaar zonder de "Transacties
+                    importeren"-link (die zelf ook een <a> is) erin te nesten. */}
+                {groupHref && <Link href={groupHref} className="absolute inset-0" />}
+
+                <span className={`relative z-10 text-xs font-medium truncate flex items-center gap-3 ${groupHref ? 'text-foreground' : 'text-muted-foreground'}`}>
+                  <span className="truncate">{group}{groupHref && ' ›'}</span>
+                  {groupHref && (
+                    <Link href={`${groupHref}/import`} className="shrink-0 font-normal text-primary hover:underline">
+                      Transacties importeren
+                    </Link>
+                  )}
+                </span>
+                <span className="relative z-10 text-xs font-medium text-muted-foreground text-right w-28">
+                  {formatCurrency(groupWaarde.toNumber())}
+                </span>
+                <span className="relative z-10 text-xs font-medium text-muted-foreground text-right w-28 hidden md:block">
+                  {groupInleg.gt(0) ? formatCurrency(groupInleg.toNumber()) : '—'}
+                </span>
+                <span className={`relative z-10 text-xs font-medium text-right w-28 hidden md:block ${groupInleg.gt(0) ? (groupWv.gte(0) ? 'text-sage' : 'text-terracotta') : 'text-muted-foreground'}`}>
+                  {groupInleg.gt(0) ? formatCurrency(groupWv.toNumber()) : '—'}
+                </span>
+                <span className={`relative z-10 text-xs font-medium text-right w-20 hidden md:block ${groupPct ? (groupPct.gte(0) ? 'text-sage' : 'text-terracotta') : 'text-muted-foreground'}`}>
+                  {groupPct ? formatPercent(groupPct.toNumber()) : '—'}
+                </span>
+              </div>
               <div className="divide-y divide-border">
                 {groupRows.map(r => {
                   const wv = r.currentValue.minus(r.netDeposit)

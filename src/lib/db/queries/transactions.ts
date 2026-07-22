@@ -158,6 +158,54 @@ export async function getTransactionsByAssetsDetailed(assetIds: string[]): Promi
     .orderBy(asc(transactions.transactionDate))
 }
 
+// ─── Bulk import (xlsx) ────────────────────────────────────────────────────────
+
+export type ImportTransactionInput = {
+  assetId: string
+  transactionType: TransactionType
+  amount: string
+  quantity: string
+  pricePerUnit: string
+  fees: string
+  transactionDate: string
+  externalRef: string | null
+}
+
+/**
+ * Bulk-insert voor xlsx-import. Dedup via ON CONFLICT (asset_id, external_ref)
+ * DO NOTHING — een herupload van (een deel van) hetzelfde bestand voegt nooit
+ * dubbele transacties toe. Rijen zonder externalRef conflicteren nooit
+ * (Postgres beschouwt NULL nooit als gelijk aan NULL).
+ */
+export async function importTransactions(
+  userId: string,
+  rows: ImportTransactionInput[],
+): Promise<{ inserted: number; duplicates: number }> {
+  if (rows.length === 0) return { inserted: 0, duplicates: 0 }
+
+  const distinctAssetIds = [...new Set(rows.map(r => r.assetId))]
+  for (const assetId of distinctAssetIds) await verifyAssetAccess(userId, assetId)
+
+  const inserted = await db
+    .insert(transactions)
+    .values(rows.map(r => ({
+      assetId:         r.assetId,
+      transactionType: r.transactionType,
+      amount:          r.amount,
+      quantity:        r.quantity,
+      pricePerUnit:    r.pricePerUnit,
+      fees:            r.fees,
+      currency:        'EUR',
+      fxRate:          '1',
+      transactionDate: r.transactionDate,
+      externalRef:     r.externalRef,
+    })))
+    .onConflictDoNothing({ target: [transactions.assetId, transactions.externalRef] })
+    .returning({ id: transactions.id })
+
+  return { inserted: inserted.length, duplicates: rows.length - inserted.length }
+}
+
 export async function getTransactionsByAssets(
   assetIds: string[],
   fromDate?: string,
