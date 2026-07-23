@@ -30,7 +30,7 @@ const INSTRUMENT_GROUPS: { key: string; title: string }[] = [
 ]
 
 function InstrumentTable({ title, rows, backTo }: { title: string; rows: PositionRow[]; backTo: string }) {
-  const { sort, toggle, sorted } = useSortable<SortKey>('currentValue')
+  const { sort, toggle, sorted } = useSortable<SortKey>('name', 'asc')
 
   const data = sorted(rows, (key, r) => {
     if (key === 'name') return r.name
@@ -125,7 +125,7 @@ type Props = {
 
 export function BrokerPositionsTable({ rows, backTo }: Props) {
   const openRows = rows.filter(r => !r.isClosed)
-  const closedRows = rows.filter(r => r.isClosed)
+  const closedRows = [...rows.filter(r => r.isClosed)].sort((a, b) => a.name.localeCompare(b.name, 'nl'))
 
   return (
     <div className="space-y-3">

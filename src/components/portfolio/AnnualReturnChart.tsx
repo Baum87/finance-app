@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import {
-  BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
+  ComposedChart, Bar, Line, Cell, XAxis, YAxis, CartesianGrid,
   ResponsiveContainer, LabelList, Legend, Tooltip,
 } from 'recharts'
 import { CHART_COLORS, CHART_STYLE } from '@/lib/utils/chart-colors'
@@ -56,7 +56,7 @@ export function AnnualReturnChart({ data }: { data: AnnualReturnPoint[] }) {
       </div>
 
       <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={chartData} margin={{ top: 16, right: 8, bottom: 0, left: 8 }}>
+        <ComposedChart data={chartData} margin={{ top: 16, right: 8, bottom: 0, left: 8 }}>
           <CartesianGrid vertical={false} stroke={CHART_STYLE.gridStroke} />
           <XAxis
             dataKey="year"
@@ -104,23 +104,30 @@ export function AnnualReturnChart({ data }: { data: AnnualReturnPoint[] }) {
             )}
           </Bar>
           {mode === 'pct' && hasBenchmark && (
-            <Bar dataKey="benchmark" radius={[4, 4, 4, 4]} maxBarSize={56} fill={CHART_COLORS.steel} />
+            <Line
+              dataKey="benchmark"
+              stroke={CHART_COLORS.steel}
+              strokeWidth={2}
+              dot={{ r: 3, fill: CHART_COLORS.steel }}
+              activeDot={{ r: 5 }}
+              connectNulls
+            />
           )}
-        </BarChart>
+        </ComposedChart>
       </ResponsiveContainer>
 
-      {data.some(d => d.returnPct === null) && (
+      {mode === 'pct' && (
         <p className="mt-2 text-xs text-muted-foreground">
-          Voor sommige jaren is geen percentage te tonen — de inleg viel toen te dicht op het einde
-          van de periode voor een betekenisvol percentage. Het €-bedrag klopt wel altijd.
+          Percentage = Time-Weighted Return (maandelijks gekoppeld), net als de benchmark — dus
+          ongevoelig voor wannéér je hebt ingelegd. Voor je échte, geld-gewogen rendement (inclusief
+          timing) kijk je naar de XIRR elders in de app. Het €-bedrag hierboven is altijd
+          timing-onafhankelijk correct.
         </p>
       )}
-      {mode === 'pct' && hasBenchmark && (
+      {data.some(d => d.returnPct === null) && (
         <p className="mt-2 text-xs text-muted-foreground">
-          Benchmark: koersrendement IWDA (iShares MSCI World, EUR) in hetzelfde jaar — voor het eerste
-          jaar vanaf de startdatum van je portefeuille. De benchmark is tijdgewogen; je
-          portefeuillerendement weegt mee wanneer je hebt ingelegd. Grote verschillen kunnen dus
-          deels timing zijn.
+          Voor het allereerste jaar is nog geen percentage te tonen (er is dan nog geen vorige
+          maandwaarde om het rendement tegen af te zetten). Het €-bedrag klopt wel altijd.
         </p>
       )}
     </div>

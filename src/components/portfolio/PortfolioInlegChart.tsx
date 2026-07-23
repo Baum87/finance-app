@@ -187,7 +187,8 @@ export function PortfolioInlegChart({ data, title = 'Cumulatieve inleg' }: Props
       )}
       {hasPartial && (
         <p className="text-xs text-muted-foreground mt-3">
-          Voor sommige maanden ontbreekt koersdata van 1 of meer posities — de marktwaarde is dan een ondergrens.
+          Voor sommige maanden ontbreekt live koersdata van 1 of meer posities (bijv. een
+          niet-beursgenoteerd instrument) — daarvoor is de kostprijs gebruikt als benadering.
         </p>
       )}
     </div>

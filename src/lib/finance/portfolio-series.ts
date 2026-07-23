@@ -10,7 +10,7 @@ export type PortfolioDataPoint = {
   month: string
   inleg: number
   waarde?: number
-  /** True als voor 1 of meer posities in deze maand geen koersdata beschikbaar was — waarde is dan een ondergrens. */
+  /** True als voor 1 of meer posities in deze maand geen marktkoers beschikbaar was — daarvoor is de kostprijs gebruikt als benadering. */
   partial?: boolean
 }
 

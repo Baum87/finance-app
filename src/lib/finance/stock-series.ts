@@ -4,6 +4,7 @@ import type { PortfolioDataPoint } from './portfolio-series'
 import type { DetailedTransaction } from '@/lib/db/queries/transactions'
 import { calculateAnnualReturn, type AnnualReturnFigures } from './annual-return'
 import { buildXirrCashflows } from './xirr-cashflows'
+import { calculateTwr } from './twr'
 
 // ─── Maand-aritmetiek zonder Date-object-mutatie ──────────────────────────────
 // Date.setMonth()/getMonth() werken in lokale tijd, terwijl toISOString() UTC
@@ -46,11 +47,6 @@ function lastDayOfMonth(key: string): string {
 
 function todayKeyLocal(today: Date): string {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
-}
-
-/** "Vandaag" als "YYYY-MM-DD" in lokale tijd — nooit via toISOString(), dat geeft UTC. */
-function todayDateKeyLocal(today: Date): string {
-  return `${todayKeyLocal(today)}-${String(today.getDate()).padStart(2, '0')}`
 }
 
 // ─── Gedeelde infrastructuur: historische EUR-koersen per ticker, maandgranulariteit ──
@@ -129,10 +125,22 @@ async function buildPriceLookup(
   return { priceEurAt }
 }
 
-export async function buildStockPortfolioSeries(
+// ─── Maandelijkse waarde-reeks: bron van waarheid voor zowel de portefeuille-
+// grafiek als het jaarrendement, zodat ze nooit uit elkaar kunnen lopen ──────
+
+type MonthlySnapshot = {
+  month: string
+  /** Cumulatieve netto inleg t/m einde van deze maand. */
+  inleg: Decimal
+  /** Portefeuillewaarde einde van deze maand (kostprijs als koers ontbreekt). */
+  waarde: Decimal
+  partial: boolean
+}
+
+async function buildMonthlySnapshots(
   txs: DetailedTransaction[],
   tickerByAssetId: Map<string, string>,
-): Promise<PortfolioDataPoint[]> {
+): Promise<MonthlySnapshot[]> {
   if (txs.length === 0) return []
 
   const sorted = [...txs].sort((a, b) =>
@@ -156,7 +164,7 @@ export async function buildStockPortfolioSeries(
   })
 
   let txIdx = 0
-  const result: PortfolioDataPoint[] = []
+  const result: MonthlySnapshot[] = []
 
   for (const month of months) {
     const monthEnd = lastDayOfMonth(month)
@@ -187,35 +195,48 @@ export async function buildStockPortfolioSeries(
 
     if (cumInleg.lte(0)) continue
 
-    // Som van alle posities waarvoor koersdata beschikbaar is. Een ontbrekende
-    // koers voor 1 positie (bijv. een niet-herkende ticker) mag niet de hele
-    // portefeuillewaarde laten verdwijnen — dan is de waarde een ondergrens
-    // i.p.v. onbekend, consistent met de aanpak in buildAnnualReturns hieronder.
-    let waarde = 0
-    let heldCount = 0
+    // Som van alle posities. Ontbreekt de marktkoers (bv. een niet-beursgenoteerd
+    // certificaat), val dan terug op de kostprijs (AVCO) i.p.v. de positie als €0
+    // te tellen — anders telt de inleg wél mee maar de waarde niet, wat een vals
+    // koersverlies suggereert zodra zo'n positie een groot deel van de portefeuille
+    // uitmaakt (bijv. vroeg in de reeks, met weinig andere posities).
+    let waarde = new Decimal(0)
     let missingCount = 0
     for (const [assetId, qty] of qtyHeld.entries()) {
       if (qty.lte(0)) continue
-      heldCount++
       const ticker = tickerByAssetId.get(assetId)
-      if (!ticker) { missingCount++; continue }
-      const priceEur = priceEurAt(ticker, month)
-      if (priceEur === null) { missingCount++; continue }
-      waarde += qty.toNumber() * priceEur
+      const priceEur = ticker ? priceEurAt(ticker, month) : null
+      if (priceEur !== null) {
+        waarde = waarde.plus(qty.mul(priceEur))
+        continue
+      }
+      missingCount++
+      const cost = costHeld.get(assetId)
+      if (cost) waarde = waarde.plus(cost)
     }
-    const waardeAvailable = heldCount === 0 || missingCount < heldCount
 
-    const [y, mo] = month.split('-').map(Number)
-    const label = new Date(y, mo - 1).toLocaleDateString('nl-NL', { month: 'short', year: '2-digit' })
-    result.push({
-      month: label,
-      inleg: cumInleg.toNumber(),
-      waarde: waardeAvailable ? waarde : undefined,
-      partial: waardeAvailable && missingCount > 0,
-    })
+    result.push({ month, inleg: cumInleg, waarde, partial: missingCount > 0 })
   }
 
   return result
+}
+
+export async function buildStockPortfolioSeries(
+  txs: DetailedTransaction[],
+  tickerByAssetId: Map<string, string>,
+): Promise<PortfolioDataPoint[]> {
+  const snapshots = await buildMonthlySnapshots(txs, tickerByAssetId)
+
+  return snapshots.map(s => {
+    const [y, mo] = s.month.split('-').map(Number)
+    const label = new Date(y, mo - 1).toLocaleDateString('nl-NL', { month: 'short', year: '2-digit' })
+    return {
+      month: label,
+      inleg: s.inleg.toNumber(),
+      waarde: s.waarde.toNumber(),
+      partial: s.partial,
+    }
+  })
 }
 
 // ─── Rendement per kalenderjaar ────────────────────────────────────────────────
@@ -238,8 +259,22 @@ export type AnnualReturn = AnnualReturnFigures & {
 
 /**
  * Portefeuillewaarde en rendement per kalenderjaar, van het jaar van de eerste
- * transactie t/m nu. Zie calculateAnnualReturn voor de methodologie (bewust
- * niet-geannualiseerd, geen XIRR — zie STATUS.md R3).
+ * transactie t/m nu.
+ *
+ * returnAmount (€) blijft eenvoudig endValue − startValue − netCashflow —
+ * timing-onafhankelijk, altijd betrouwbaar.
+ *
+ * returnPct wordt berekend via maandelijkse Time-Weighted Return-koppeling
+ * (calculateTwr), NIET via Modified Dietz. Reden: Modified Dietz deelt door
+ * een tijdgewogen kapitaalbasis die in een jong jaar (kleine basis) of bij
+ * pieken-in-de-inleg (bv. veel aankopen vlak vóór jaareinde) extreem dun kan
+ * worden — een normale koersbeweging in de teller geeft dan een percentage
+ * van honderden procenten dat niets over het werkelijke rendement zegt.
+ * TWR koppelt elke maand z'n éígen groeifactor t.o.v. zíjn éígen beginwaarde,
+ * dus is ongevoelig voor wannéér de inleg binnenkwam. Dat maakt dit cijfer
+ * bovendien vergelijkbaar met de benchmark (die ook TWR is, zie benchmark.ts)
+ * — dit is dus bewust GEEN XIRR (dat blijft elders het primaire, geld-gewogen
+ * rendementsgetal, CLAUDE.md regel 4) en ook geen Modified Dietz meer.
  */
 export async function buildAnnualReturns(
   txs: DetailedTransaction[],
@@ -247,55 +282,45 @@ export async function buildAnnualReturns(
 ): Promise<AnnualReturn[]> {
   if (txs.length === 0) return []
 
+  const snapshots = await buildMonthlySnapshots(txs, tickerByAssetId)
+  if (snapshots.length === 0) return []
+
   const sorted = [...txs].sort((a, b) =>
     a.transactionDate.slice(0, 10).localeCompare(b.transactionDate.slice(0, 10)),
   )
 
-  const firstDate = new Date(sorted[0].transactionDate.slice(0, 10))
-  firstDate.setDate(1)
+  const fromYear = Number(snapshots[0].month.slice(0, 4))
   const today = new Date()
-
-  const { priceEurAt } = await buildPriceLookup(tickerByAssetId, firstDate, today)
-
-  const fromYear = firstDate.getFullYear()
   const toYear = today.getFullYear()
 
-  const qtyHeld = new Map<string, Decimal>()
-  tickerByAssetId.forEach((_, id) => qtyHeld.set(id, new Decimal(0)))
-
-  let txIdx = 0
-  // Waarde per ultimo jaar Y (of "nu" voor het lopende jaar). fromYear-1 = 0:
-  // vóór de eerste transactie was er nog geen portefeuille.
+  // Waarde per ultimo jaar Y (of "nu" voor het lopende jaar) = waarde van de
+  // laatste snapshot in dat jaar. fromYear-1 = 0: vóór de eerste transactie
+  // was er nog geen portefeuille.
   const yearEndValues = new Map<number, Decimal>()
   yearEndValues.set(fromYear - 1, new Decimal(0))
-
   for (let year = fromYear; year <= toYear; year++) {
-    const isCurrentYear = year === toYear
-    const boundaryDate = isCurrentYear ? todayDateKeyLocal(today) : `${year}-12-31`
-    const monthKey     = isCurrentYear ? todayKeyLocal(today) : `${year}-12`
+    const monthsInYear = snapshots.filter(s => s.month.startsWith(`${year}-`))
+    const last = monthsInYear[monthsInYear.length - 1]
+    yearEndValues.set(year, last ? last.waarde : (yearEndValues.get(year - 1) ?? new Decimal(0)))
+  }
 
-    while (txIdx < sorted.length && sorted[txIdx].transactionDate.slice(0, 10) <= boundaryDate) {
-      const tx = sorted[txIdx]
-      if (tx.quantity) {
-        if (tx.transactionType === 'buy') {
-          qtyHeld.set(tx.assetId, (qtyHeld.get(tx.assetId) ?? new Decimal(0)).plus(new Decimal(tx.quantity)))
-        } else if (tx.transactionType === 'sell') {
-          qtyHeld.set(tx.assetId, (qtyHeld.get(tx.assetId) ?? new Decimal(0)).minus(new Decimal(tx.quantity)))
-        }
-      }
-      txIdx++
+  // TWR-subperiodes per jaar, in 1 doorgang over de volledige, chronologisch
+  // gesorteerde maandreeks. Elke maand met een positieve beginwaarde levert 1
+  // subperiode op; de allereerste maand ooit (beginwaarde €0) kan er geen
+  // leveren — TWR is dan pas vanaf de tweede actieve maand te berekenen, net
+  // als bij elke performance-tool.
+  const periodsByYear = new Map<number, { startValue: Decimal; endValue: Decimal; cashflow: Decimal }[]>()
+  let prevWaarde = new Decimal(0)
+  let prevInleg = new Decimal(0)
+  for (const snap of snapshots) {
+    const year = Number(snap.month.slice(0, 4))
+    if (prevWaarde.gt(0)) {
+      const list = periodsByYear.get(year) ?? []
+      list.push({ startValue: prevWaarde, endValue: snap.waarde, cashflow: snap.inleg.minus(prevInleg) })
+      periodsByYear.set(year, list)
     }
-
-    let waarde = new Decimal(0)
-    for (const [assetId, qty] of qtyHeld.entries()) {
-      if (qty.lte(0)) continue
-      const ticker = tickerByAssetId.get(assetId)
-      if (!ticker) continue
-      const priceEur = priceEurAt(ticker, monthKey)
-      if (priceEur === null) continue
-      waarde = waarde.plus(qty.mul(priceEur))
-    }
-    yearEndValues.set(year, waarde)
+    prevWaarde = snap.waarde
+    prevInleg = snap.inleg
   }
 
   const results: AnnualReturn[] = []
@@ -303,18 +328,18 @@ export async function buildAnnualReturns(
     const startValue = yearEndValues.get(year - 1) ?? new Decimal(0)
     const endValue = yearEndValues.get(year)!
     const yearTxs = sorted.filter(t => t.transactionDate.slice(0, 4) === String(year))
-    // Gedateerde cashflows i.p.v. één jaartotaal — Modified Dietz (zie
-    // calculateAnnualReturn) heeft de datum per cashflow nodig om vroeg-in-het-
-    // jaar-ingelegd geld zwaarder te wegen dan geld van vlak voor het einde.
-    // Negatie van de XIRR-cashflows: XIRR ziet buy/deposit/cost als uitstroom (-)
-    // en sell/withdrawal/dividend/interest/rental_income als instroom (+); hier
-    // willen we het omgekeerde teken (inleg is positief).
     const cashflows = buildXirrCashflows(yearTxs).map(cf => ({ amount: cf.amount.negated(), date: cf.date }))
     const netCashflow = cashflows.reduce((s, cf) => s.plus(cf.amount), new Decimal(0))
 
     const periodStart = new Date(year, 0, 1)
     const periodEnd = year === toYear ? today : new Date(year, 11, 31)
-    const { returnAmount, returnPct } = calculateAnnualReturn(startValue, endValue, periodStart, periodEnd, cashflows)
+    // returnAmount uit calculateAnnualReturn hergebruiken (simpele, timing-
+    // onafhankelijke formule) — returnPct van die functie (Modified Dietz)
+    // wordt bewust genegeerd, zie TWR-toelichting hierboven.
+    const { returnAmount } = calculateAnnualReturn(startValue, endValue, periodStart, periodEnd, cashflows)
+
+    const periods = periodsByYear.get(year) ?? []
+    const returnPct = periods.length > 0 ? calculateTwr(periods) : null
 
     results.push({ year, startValue, endValue, netCashflow, returnAmount, returnPct })
   }
