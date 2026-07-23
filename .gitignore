@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# persoonlijke financiële exports (bv. Degiro-transactiebestanden) — nooit committen
+docs/*.xlsx
