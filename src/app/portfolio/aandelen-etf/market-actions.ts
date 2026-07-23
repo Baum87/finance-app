@@ -1,11 +1,13 @@
 'use server'
 
 import YahooFinance from 'yahoo-finance2'
+import Decimal from 'decimal.js'
 import { eq, and, ilike } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { assets, stockEtfDetails, brokers } from '@/lib/db/schema'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getOrCreateTenant } from '@/lib/db/queries/tenant'
+import { normalizePence } from '@/lib/services/prices'
 
 const yf = new YahooFinance({ suppressNotices: ['yahooSurvey'] })
 
@@ -77,24 +79,21 @@ export async function getHistoricalPriceEurAction(symbol: string, date: string):
     const to = new Date(date)
     to.setDate(to.getDate() + 1)
 
-    const [history, liveQuote] = await Promise.all([
-      yf.historical(symbol, { period1: from, period2: to, interval: '1d' }),
-      yf.quote(symbol),
-    ])
-
-    const sorted = history.filter(r => r.close != null).sort((a, b) => b.date.getTime() - a.date.getTime())
+    // chart() i.p.v. historical(): geeft meta.currency mee, nodig om
+    // pence-noteringen (GBp/GBX) te herkennen en te normaliseren naar GBP.
+    const chart = await yf.chart(symbol, { period1: from, period2: to, interval: '1d' })
+    const sorted = chart.quotes.filter(r => r.close != null).sort((a, b) => b.date.getTime() - a.date.getTime())
     if (!sorted.length) return null
 
-    const nativePrice = sorted[0].close!
-    const currency = liveQuote.currency ?? 'EUR'
+    const { price, currency } = normalizePence(new Decimal(sorted[0].close!), chart.meta.currency)
 
-    if (currency === 'EUR') return nativePrice
+    if (currency === 'EUR') return price.toNumber()
 
-    const fxHistory = await yf.historical(`${currency}EUR=X`, { period1: from, period2: to, interval: '1d' })
-    const fxSorted = fxHistory.filter(r => r.close != null).sort((a, b) => b.date.getTime() - a.date.getTime())
+    const fxChart = await yf.chart(`${currency}EUR=X`, { period1: from, period2: to, interval: '1d' })
+    const fxSorted = fxChart.quotes.filter(r => r.close != null).sort((a, b) => b.date.getTime() - a.date.getTime())
     const fxRate = fxSorted.length ? fxSorted[0].close! : 1
 
-    return nativePrice * fxRate
+    return price.times(fxRate).toNumber()
   } catch {
     return null
   }
@@ -103,8 +102,11 @@ export async function getHistoricalPriceEurAction(symbol: string, date: string):
 export async function getStockQuoteAction(symbol: string): Promise<StockQuote | null> {
   try {
     const quote = await yf.quote(symbol)
-    const nativeCurrency = quote.currency ?? 'EUR'
-    const nativePrice = quote.regularMarketPrice ?? 0
+    // Pence-noteringen (GBp/GBX) normaliseren naar GBP vóór de FX-stap,
+    // anders is de EUR-koers 100× te hoog (zie normalizePence in prices.ts).
+    const normalized = normalizePence(new Decimal(quote.regularMarketPrice ?? 0), quote.currency ?? 'EUR')
+    const nativeCurrency = normalized.currency
+    const nativePrice = normalized.price.toNumber()
 
     let priceEur = nativePrice
 

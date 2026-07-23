@@ -38,8 +38,9 @@ export function PortfolioGroupTable({ rows, emptyGroupLabel, groupDetailBasePath
     <div className="space-y-3">
       {openRows.length > 0 && (
         <div className="rounded-2xl border border-border bg-card overflow-hidden">
-          <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto] gap-6 px-6 py-2.5 border-b border-border bg-muted/30">
+          <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-6 px-6 py-2.5 border-b border-border bg-muted/30">
             <span className="text-xs text-muted-foreground">Asset</span>
+            <span className="text-xs text-muted-foreground w-20">Ticker</span>
             <span className="text-xs text-muted-foreground text-right w-28">Waarde</span>
             <span className="text-xs text-muted-foreground text-right w-28">Netto inleg</span>
             <span className="text-xs text-muted-foreground text-right w-28">W/V</span>
@@ -52,36 +53,39 @@ export function PortfolioGroupTable({ rows, emptyGroupLabel, groupDetailBasePath
             const groupInleg    = groupRows.reduce((s, r) => s.plus(r.netDeposit), new Decimal(0))
             const groupWv       = groupWaarde.minus(groupInleg)
             const groupPct      = groupInleg.gt(0) ? groupWv.div(groupInleg) : null
-            const groupHeaderClass = 'relative grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto_auto_auto] gap-6 items-center px-6 py-2.5 bg-muted/20 border-t border-border'
+            const groupHeaderClass = 'grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto_auto_auto_auto] gap-6 items-center px-6 py-2.5 bg-muted/20 border-t border-border'
+            const groupRowContent = (
+              <>
+                <span className={`text-xs font-medium truncate flex items-center gap-3 ${groupHref ? 'text-foreground' : 'text-muted-foreground'}`}>
+                  <span className="truncate">{group}{groupHref && ' ›'}</span>
+                </span>
+                <span className="w-20 hidden md:block" />
+                <span className="text-xs font-medium text-muted-foreground text-right w-28">
+                  {formatCurrency(groupWaarde.toNumber())}
+                </span>
+                <span className="text-xs font-medium text-muted-foreground text-right w-28 hidden md:block">
+                  {groupInleg.gt(0) ? formatCurrency(groupInleg.toNumber()) : '—'}
+                </span>
+                <span className={`text-xs font-medium text-right w-28 hidden md:block ${groupInleg.gt(0) ? (groupWv.gte(0) ? 'text-sage' : 'text-terracotta') : 'text-muted-foreground'}`}>
+                  {groupInleg.gt(0) ? formatCurrency(groupWv.toNumber()) : '—'}
+                </span>
+                <span className={`text-xs font-medium text-right w-20 hidden md:block ${groupPct ? (groupPct.gte(0) ? 'text-sage' : 'text-terracotta') : 'text-muted-foreground'}`}>
+                  {groupPct ? formatPercent(groupPct.toNumber()) : '—'}
+                </span>
+              </>
+            )
 
             return (
             <div key={group}>
-              <div className={`${groupHeaderClass} ${groupHref ? 'hover:bg-muted/40 transition-colors' : ''}`}>
-                {/* Stretched link: maakt de hele rij klikbaar zonder de "Transacties
-                    importeren"-link (die zelf ook een <a> is) erin te nesten. */}
-                {groupHref && <Link href={groupHref} className="absolute inset-0" />}
-
-                <span className={`relative z-10 text-xs font-medium truncate flex items-center gap-3 ${groupHref ? 'text-foreground' : 'text-muted-foreground'}`}>
-                  <span className="truncate">{group}{groupHref && ' ›'}</span>
-                  {groupHref && (
-                    <Link href={`${groupHref}/import`} className="shrink-0 font-normal text-primary hover:underline">
-                      Transacties importeren
-                    </Link>
-                  )}
-                </span>
-                <span className="relative z-10 text-xs font-medium text-muted-foreground text-right w-28">
-                  {formatCurrency(groupWaarde.toNumber())}
-                </span>
-                <span className="relative z-10 text-xs font-medium text-muted-foreground text-right w-28 hidden md:block">
-                  {groupInleg.gt(0) ? formatCurrency(groupInleg.toNumber()) : '—'}
-                </span>
-                <span className={`relative z-10 text-xs font-medium text-right w-28 hidden md:block ${groupInleg.gt(0) ? (groupWv.gte(0) ? 'text-sage' : 'text-terracotta') : 'text-muted-foreground'}`}>
-                  {groupInleg.gt(0) ? formatCurrency(groupWv.toNumber()) : '—'}
-                </span>
-                <span className={`relative z-10 text-xs font-medium text-right w-20 hidden md:block ${groupPct ? (groupPct.gte(0) ? 'text-sage' : 'text-terracotta') : 'text-muted-foreground'}`}>
-                  {groupPct ? formatPercent(groupPct.toNumber()) : '—'}
-                </span>
-              </div>
+              {groupHref ? (
+                <Link href={groupHref} className={`${groupHeaderClass} hover:bg-muted/40 transition-colors`}>
+                  {groupRowContent}
+                </Link>
+              ) : (
+                <div className={groupHeaderClass}>
+                  {groupRowContent}
+                </div>
+              )}
               <div className="divide-y divide-border">
                 {groupRows.map(r => {
                   const wv = r.currentValue.minus(r.netDeposit)
@@ -90,16 +94,14 @@ export function PortfolioGroupTable({ rows, emptyGroupLabel, groupDetailBasePath
                     <Link
                       key={r.id}
                       href={r.detailHref}
-                      className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto_auto_auto] gap-6 items-center px-6 py-4 hover:bg-muted/50 transition-colors"
+                      className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto_auto_auto_auto] gap-6 items-center px-6 py-4 hover:bg-muted/50 transition-colors"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {r.ticker && (
-                          <span className="text-xs font-mono font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-                            {r.ticker}
-                          </span>
-                        )}
+                      <div className="min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{r.name}</p>
                       </div>
+                      <span className="text-xs font-mono font-semibold text-muted-foreground w-20 hidden md:block">
+                        {r.ticker ?? '—'}
+                      </span>
                       <span className="text-sm font-semibold text-foreground text-right w-28">
                         {formatCurrency(r.currentValue.toNumber())}
                       </span>

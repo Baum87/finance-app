@@ -527,6 +527,16 @@ describe('calculateAnnualReturn', () => {
     const { returnPct } = calculateAnnualReturn(d('1000'), d('1050'), periodStart, periodEnd, [])
     expect(returnPct?.toNumber()).toBeCloseTo(0.05, 5)
   })
+
+  it('geeft geen returnPct als vrijwel alle inleg pas vlak voor periodEnd valt (dunne tijdgewogen kapitaalbasis)', () => {
+    // Startjaar (start=0): 1000 ingelegd op dag 95 van 100 (gewicht 0.05) → tijdgewogen
+    // basis = 50. Een bescheiden koerswinst van 20 in die laatste dagen zou anders
+    // 20/50 = 40% opleveren — een percentage dat niets zegt over het jaar als geheel.
+    const cashflows = [{ amount: d('1000'), date: daysAfterStart(95) }]
+    const { returnAmount, returnPct } = calculateAnnualReturn(d('0'), d('1020'), periodStart, periodEnd, cashflows)
+    expect(returnAmount.toNumber()).toBe(20)
+    expect(returnPct).toBeNull()
+  })
 })
 
 // ─── Benchmark ───────────────────────────────────────────────────────────────

@@ -5,6 +5,54 @@ import type { DetailedTransaction } from '@/lib/db/queries/transactions'
 import { calculateAnnualReturn, type AnnualReturnFigures } from './annual-return'
 import { buildXirrCashflows } from './xirr-cashflows'
 
+// ─── Maand-aritmetiek zonder Date-object-mutatie ──────────────────────────────
+// Date.setMonth()/getMonth() werken in lokale tijd, terwijl toISOString() UTC
+// teruggeeft. Een cursor die je maandelijks ophoogt met setMonth() en labelt
+// via toISOString() struikelt daardoor over de zomertijd-overgang (eind maart /
+// eind oktober): de maand wordt dan een keer overgeslagen of dubbel geteld.
+// Reken daarom uitsluitend met "YYYY-MM"-strings en hele getallen.
+
+function monthKeyOf(dateStr: string): string {
+  return dateStr.slice(0, 7)
+}
+
+function nextMonthKey(key: string): string {
+  const [y, m] = key.split('-').map(Number)
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
+}
+
+function monthKeysBetween(fromKey: string, toKey: string): string[] {
+  const keys: string[] = []
+  let cursor = fromKey
+  while (cursor <= toKey) {
+    keys.push(cursor)
+    cursor = nextMonthKey(cursor)
+  }
+  return keys
+}
+
+const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+function isLeapYear(y: number): boolean {
+  return y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)
+}
+
+/** Laatste kalenderdag van een "YYYY-MM"-maand, als "YYYY-MM-DD"-string. */
+function lastDayOfMonth(key: string): string {
+  const [y, m] = key.split('-').map(Number)
+  const days = m === 2 && !isLeapYear(y) ? 28 : DAYS_IN_MONTH[m - 1]
+  return `${key}-${String(days).padStart(2, '0')}`
+}
+
+function todayKeyLocal(today: Date): string {
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** "Vandaag" als "YYYY-MM-DD" in lokale tijd — nooit via toISOString(), dat geeft UTC. */
+function todayDateKeyLocal(today: Date): string {
+  return `${todayKeyLocal(today)}-${String(today.getDate()).padStart(2, '0')}`
+}
+
 // ─── Gedeelde infrastructuur: historische EUR-koersen per ticker, maandgranulariteit ──
 // Gebruikt door zowel de maandelijkse portefeuillegrafiek als het jaarrendement-overzicht.
 
@@ -17,13 +65,8 @@ async function buildPriceLookup(
   firstDate: Date,
   today: Date,
 ): Promise<PriceLookup> {
-  const months: string[] = []
-  const cursor = new Date(firstDate)
-  cursor.setDate(1)
-  while (cursor <= today) {
-    months.push(cursor.toISOString().slice(0, 7))
-    cursor.setMonth(cursor.getMonth() + 1)
-  }
+  const fromKey = monthKeyOf(firstDate.toISOString().slice(0, 10))
+  const months = monthKeysBetween(fromKey, todayKeyLocal(today))
 
   const uniqueTickers = [...new Set(tickerByAssetId.values())]
 
@@ -100,12 +143,7 @@ export async function buildStockPortfolioSeries(
   firstDate.setDate(1)
   const today = new Date()
 
-  const months: string[] = []
-  const cursor = new Date(firstDate)
-  while (cursor <= today) {
-    months.push(cursor.toISOString().slice(0, 7))
-    cursor.setMonth(cursor.getMonth() + 1)
-  }
+  const months = monthKeysBetween(monthKeyOf(sorted[0].transactionDate.slice(0, 10)), todayKeyLocal(today))
 
   const { priceEurAt } = await buildPriceLookup(tickerByAssetId, firstDate, today)
 
@@ -121,8 +159,7 @@ export async function buildStockPortfolioSeries(
   const result: PortfolioDataPoint[] = []
 
   for (const month of months) {
-    const [my, mm] = month.split('-').map(Number)
-    const monthEnd = new Date(my, mm, 0).toISOString().slice(0, 10)
+    const monthEnd = lastDayOfMonth(month)
     while (txIdx < sorted.length && sorted[txIdx].transactionDate.slice(0, 10) <= monthEnd) {
       const tx = sorted[txIdx]
       if (tx.transactionType === 'buy') {
@@ -150,20 +187,32 @@ export async function buildStockPortfolioSeries(
 
     if (cumInleg.lte(0)) continue
 
+    // Som van alle posities waarvoor koersdata beschikbaar is. Een ontbrekende
+    // koers voor 1 positie (bijv. een niet-herkende ticker) mag niet de hele
+    // portefeuillewaarde laten verdwijnen — dan is de waarde een ondergrens
+    // i.p.v. onbekend, consistent met de aanpak in buildAnnualReturns hieronder.
     let waarde = 0
-    let waardeAvailable = true
+    let heldCount = 0
+    let missingCount = 0
     for (const [assetId, qty] of qtyHeld.entries()) {
       if (qty.lte(0)) continue
+      heldCount++
       const ticker = tickerByAssetId.get(assetId)
-      if (!ticker) continue
+      if (!ticker) { missingCount++; continue }
       const priceEur = priceEurAt(ticker, month)
-      if (priceEur === null) { waardeAvailable = false; continue }
+      if (priceEur === null) { missingCount++; continue }
       waarde += qty.toNumber() * priceEur
     }
+    const waardeAvailable = heldCount === 0 || missingCount < heldCount
 
     const [y, mo] = month.split('-').map(Number)
     const label = new Date(y, mo - 1).toLocaleDateString('nl-NL', { month: 'short', year: '2-digit' })
-    result.push({ month: label, inleg: cumInleg.toNumber(), waarde: waardeAvailable ? waarde : undefined })
+    result.push({
+      month: label,
+      inleg: cumInleg.toNumber(),
+      waarde: waardeAvailable ? waarde : undefined,
+      partial: waardeAvailable && missingCount > 0,
+    })
   }
 
   return result
@@ -222,8 +271,8 @@ export async function buildAnnualReturns(
 
   for (let year = fromYear; year <= toYear; year++) {
     const isCurrentYear = year === toYear
-    const boundaryDate = isCurrentYear ? today.toISOString().slice(0, 10) : `${year}-12-31`
-    const monthKey     = isCurrentYear ? today.toISOString().slice(0, 7) : `${year}-12`
+    const boundaryDate = isCurrentYear ? todayDateKeyLocal(today) : `${year}-12-31`
+    const monthKey     = isCurrentYear ? todayKeyLocal(today) : `${year}-12`
 
     while (txIdx < sorted.length && sorted[txIdx].transactionDate.slice(0, 10) <= boundaryDate) {
       const tx = sorted[txIdx]

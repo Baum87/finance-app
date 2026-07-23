@@ -80,6 +80,16 @@ function StockEtfSection({ data, brokerList, defaultBrokerId }: {
             <option value="isa">ISA / Vrijgesteld</option>
           </select>
         </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="instrumentType">Type instrument</Label>
+          <select name="instrumentType" id="instrumentType" defaultValue={data?.instrumentType ?? 'stock'}
+            className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors">
+            <option value="stock">Aandeel</option>
+            <option value="etf">ETF</option>
+            <option value="fund">Indexfonds</option>
+          </select>
+        </div>
+        <Field label="Sector" name="sector" defaultValue={data?.sector ?? ''} placeholder="bijv. Technology" />
       </div>
     </div>
   )

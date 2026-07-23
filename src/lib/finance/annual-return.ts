@@ -1,4 +1,5 @@
 import Decimal from 'decimal.js'
+import { XIRR_MIN_DAYS } from './xirr-cashflows'
 
 export type DatedCashflow = { amount: Decimal; date: Date }
 
@@ -35,8 +36,16 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24
  * een apart, eigen gelabeld getal: het werkelijke rendement in dat kalenderjaar.
  *
  * returnPct is null als de tijdgewogen kapitaalbasis €0 of negatief is
- * (bijv. geen enkele relevante transactie in de periode).
- * returnAmount (het EUR-bedrag) is altijd beschikbaar en is timing-onafhankelijk.
+ * (bijv. geen enkele relevante transactie in de periode), én als de
+ * gewogen-gemiddelde blootstellingsduur van de ingelegde kapitaalbasis
+ * korter is dan XIRR_MIN_DAYS. Dat laatste voorkomt de bekende zwakte van
+ * Modified Dietz: is (bijna) alle inleg pas laat in de periode gedaan, dan
+ * wordt de kapitaalbasis (de noemer) extreem klein terwijl elke koersbeweging
+ * vlak voor periodEnd wél voor het volle bedrag in de teller (returnAmount)
+ * meetelt — dat geeft percentages van honderden procenten die niets zeggen
+ * over het werkelijke rendement. returnAmount (het EUR-bedrag) is altijd
+ * beschikbaar en is timing-onafhankelijk, dus blijft in dat geval het enige
+ * betrouwbare cijfer.
  */
 export function calculateAnnualReturn(
   startValue: Decimal,
@@ -53,13 +62,26 @@ export function calculateAnnualReturn(
 
   if (totalDays > 0) {
     let weightedCashflow = new Decimal(0)
+    // Alleen positieve cashflows (inleg) tellen mee voor de blootstellingsduur —
+    // een onttrekking laat in de periode heeft geen tijd nodig om "te werken"
+    // en mag de duur-check dus niet kunstmatig verkorten. startValue telt voor
+    // de volle periode mee (was al vanaf periodStart belegd).
+    let weightedContribution = startValue
+    let grossContribution = startValue
     for (const cf of cashflows) {
       const daysRemaining = (periodEnd.getTime() - cf.date.getTime()) / MS_PER_DAY
       const weight = Math.max(0, Math.min(1, daysRemaining / totalDays))
       weightedCashflow = weightedCashflow.plus(cf.amount.mul(weight))
+      if (cf.amount.gt(0)) {
+        weightedContribution = weightedContribution.plus(cf.amount.mul(weight))
+        grossContribution = grossContribution.plus(cf.amount)
+      }
     }
     const denominator = startValue.plus(weightedCashflow)
-    if (denominator.gt(0)) {
+    const avgHoldDays = grossContribution.gt(0)
+      ? totalDays * weightedContribution.div(grossContribution).toNumber()
+      : 0
+    if (denominator.gt(0) && avgHoldDays >= XIRR_MIN_DAYS) {
       returnPct = returnAmount.div(denominator)
     }
   }

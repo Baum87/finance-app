@@ -10,6 +10,8 @@ export type PortfolioDataPoint = {
   month: string
   inleg: number
   waarde?: number
+  /** True als voor 1 of meer posities in deze maand geen koersdata beschikbaar was — waarde is dan een ondergrens. */
+  partial?: boolean
 }
 
 export function buildInlegSeries(txs: TxInput[]): PortfolioDataPoint[] {

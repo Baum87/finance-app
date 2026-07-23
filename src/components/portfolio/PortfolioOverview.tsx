@@ -54,6 +54,11 @@ export async function PortfolioOverview({ config, userId }: {
   const brokerList = config.assetType === 'stock_etf' ? await getBrokers(userId) : []
   const brokerById = new Map(brokerList.map(b => [b.id, b.name]))
 
+  // ─── Transacties importeren (alleen eenduidig bij precies 1 broker) ──────────
+  const importHref = config.assetType === 'stock_etf' && brokerList.length === 1
+    ? `/portfolio/aandelen-etf/broker/${brokerList[0].id}/import`
+    : null
+
   // ─── Pagina-subtitel ─────────────────────────────────────────────────────────
   const pageSubtitle = config.assetType === 'stock_etf'
     ? `${brokerList.length} broker${brokerList.length !== 1 ? 's' : ''} · ${assets.length} positie${assets.length !== 1 ? 's' : ''}`
@@ -201,6 +206,14 @@ export async function PortfolioOverview({ config, userId }: {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-foreground">{config.sectionTitle}</h2>
               <div className="flex items-center gap-4">
+                {importHref && (
+                  <Link
+                    href={importHref}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Transacties importeren
+                  </Link>
+                )}
                 {config.secondaryActionHref && (
                   <Link
                     href={config.secondaryActionHref}

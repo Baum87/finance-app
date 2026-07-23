@@ -1,8 +1,10 @@
 import Link from 'next/link'
+import type Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues } from '@/lib/db/queries/assets'
 import { getTransactionsByAssetsDetailed } from '@/lib/db/queries/transactions'
 import { buildAnnualReturns } from '@/lib/finance/stock-series'
+import { getBenchmarkAnnualReturns } from '@/lib/services/benchmark'
 import { Topbar } from '@/components/layout/Topbar'
 import { AnnualReturnChart } from '@/components/portfolio/AnnualReturnChart'
 
@@ -22,6 +24,15 @@ export default async function AandelenRendementPage() {
   }
 
   const annualReturns = txs.length > 0 ? await buildAnnualReturns(txs, tickerByAssetId) : []
+
+  // Benchmark per kalenderjaar, vanaf de eerste transactie (deeljaar voor het startjaar).
+  let benchmarkByYear = new Map<number, Decimal>()
+  if (txs.length > 0) {
+    const firstTxDate = new Date(
+      [...txs].sort((a, b) => a.transactionDate.localeCompare(b.transactionDate))[0].transactionDate.slice(0, 10),
+    )
+    benchmarkByYear = await getBenchmarkAnnualReturns(firstTxDate, new Date())
+  }
 
   return (
     <>
@@ -45,6 +56,7 @@ export default async function AandelenRendementPage() {
               year: r.year,
               returnAmount: r.returnAmount.toNumber(),
               returnPct: r.returnPct ? r.returnPct.toNumber() : null,
+              benchmarkPct: benchmarkByYear.get(r.year)?.toNumber() ?? null,
             }))}
           />
         ) : (
