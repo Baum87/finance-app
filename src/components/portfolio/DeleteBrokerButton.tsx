@@ -1,6 +1,6 @@
 'use client'
 
-import { deleteBrokerAction } from '@/app/portfolio/aandelen-etf/actions'
+import { deleteBrokerAction } from '@/app/portfolio/_archief-aandelen-etf/actions'
 
 export function DeleteBrokerButton({ brokerId, brokerName, positionCount = 0 }: {
   brokerId: string

@@ -8,7 +8,7 @@ import { formatCurrency } from '@/lib/utils/format'
 import {
   parseImportAction, confirmImportAction,
   type ImportPreviewState, type ConfirmImportInput, type ConfirmImportResult,
-} from '@/app/portfolio/aandelen-etf/broker/[id]/import/actions'
+} from '@/app/portfolio/_archief-aandelen-etf/broker/[id]/import/actions'
 
 type Props = {
   brokerId: string

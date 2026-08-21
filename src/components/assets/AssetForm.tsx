@@ -121,7 +121,7 @@ function CryptoSection({ data, walletList }: {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ticker">Symbol<span className="text-terracotta ml-0.5">*</span></Label>
-          <Input id="ticker" name="ticker" defaultValue={data?.ticker} placeholder="BTC-EUR" />
+          <Input id="ticker" name="ticker" defaultValue={data?.ticker ?? ''} placeholder="BTC-EUR" />
           <p className="text-xs text-muted-foreground">Crypto-ticker. Wordt automatisch in euro's opgehaald. Voorbeelden: BTC-EUR, ETH-EUR, SOL-EUR.</p>
         </div>
       </div>
@@ -215,10 +215,12 @@ function RealEstateSection({ data, propertyType, onPropertyTypeChange }: {
             <option value="vacation">Vakantiewoning</option>
           </select>
         </div>
-        <Field label="Adres" name="address" defaultValue={data?.address ?? ''} placeholder="Keizersgracht 1, Amsterdam" />
-        <Field label="Aankoopprijs (€)" name="purchasePrice" defaultValue={data?.purchasePrice} placeholder="350000" required />
+        <Field label="Straat en huisnummer" name="street" defaultValue={data?.street ?? ''} placeholder="Keizersgracht 1" />
+        <Field label="Postcode" name="postalCode" defaultValue={data?.postalCode ?? ''} placeholder="1015 CJ" />
+        <Field label="Plaats" name="city" defaultValue={data?.city ?? ''} placeholder="Amsterdam" />
+        <Field label="Aankoopprijs (€)" name="purchasePrice" defaultValue={data?.purchasePrice ?? ''} placeholder="350000" required />
         <Field label="Aankoopkosten (€)" name="purchaseCosts" defaultValue={data?.purchaseCosts ?? '0'} placeholder="15000" />
-        <Field label="Aankoopdatum" name="purchaseDate" type="date" defaultValue={data?.purchaseDate} required />
+        <Field label="Aankoopdatum" name="purchaseDate" type="date" defaultValue={data?.purchaseDate ?? ''} required />
         <Field label="WOZ-waarde (€)" name="wozValue" defaultValue={data?.wozValue ?? ''} placeholder="420000" />
       </div>
 

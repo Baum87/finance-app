@@ -90,7 +90,7 @@ export type StockEtfInput = {
 
 export type CryptoInput = {
   kind: 'crypto'
-  ticker: string
+  ticker?: string | null
   walletOrExchange?: string | null
 }
 
@@ -110,11 +110,14 @@ export type PensionInput = {
 
 export type RealEstateInput = {
   kind: 'real_estate'
-  address?: string | null
+  street?: string | null
+  postalCode?: string | null
+  city?: string | null
   propertyType: string
-  purchasePrice: string
+  // Nullable: simpele invoer vult geen aankoopprijs/-datum in.
+  purchasePrice?: string | null
   purchaseCosts: string
-  purchaseDate: string
+  purchaseDate?: string | null
   wozValue?: string | null
   mortgage?: {
     lender: string
@@ -152,97 +155,113 @@ export type CreateAssetInput = {
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+const LIQUID_ASSET_TYPES = new Set(['stock_etf', 'crypto', 'savings'])
+
+/**
+ * Schrijft de asset-rij + bijbehorende detail-tabel + lege tax_metadata weg
+ * binnen een gegeven transactie. Gedeeld door createAsset() (gedetailleerde
+ * flow, via Server Action) en createSimpleAsset() (snel-invoerflow) zodat de
+ * per-type insertlogica niet dubbel onderhouden hoeft te worden.
+ */
+async function insertAssetWithDetails(
+  tx: Tx,
+  tenantId: string,
+  base: { name: string; assetType: AssetType; currency: string },
+  d: AssetDetailsInput,
+) {
+  const [asset] = await tx
+    .insert(assets)
+    .values({
+      tenantId,
+      name: base.name,
+      assetType: base.assetType,
+      currency: base.currency,
+      isLiquid: LIQUID_ASSET_TYPES.has(base.assetType),
+    })
+    .returning()
+
+  switch (d.kind) {
+    case 'stock_etf':
+      await tx.insert(stockEtfDetails).values({
+        assetId: asset.id,
+        ticker: d.ticker,
+        isin: d.isin ?? null,
+        brokerId: d.brokerId ?? null,
+        accountType: d.accountType ?? 'taxable',
+        sector: d.sector ?? null,
+        instrumentType: d.instrumentType ?? 'stock',
+      })
+      break
+    case 'crypto':
+      await tx.insert(cryptoDetails).values({
+        assetId: asset.id,
+        ticker: d.ticker ?? null,
+        walletOrExchange: d.walletOrExchange ?? null,
+      })
+      break
+    case 'savings':
+      await tx.insert(savingsDetails).values({
+        assetId: asset.id,
+        bankName: d.bankName,
+        accountType: d.accountType ?? 'savings',
+        interestRate: d.interestRate ?? null,
+      })
+      break
+    case 'pension':
+      await tx.insert(pensionDetails).values({
+        assetId: asset.id,
+        provider: d.provider,
+        pensionType: d.pensionType,
+        projectedAnnualBenefit: d.projectedAnnualBenefit ?? null,
+      })
+      break
+    case 'real_estate':
+      await tx.insert(realEstateDetails).values({
+        assetId: asset.id,
+        street: d.street ?? null,
+        postalCode: d.postalCode ?? null,
+        city: d.city ?? null,
+        propertyType: d.propertyType,
+        purchasePrice: d.purchasePrice ?? null,
+        purchaseCosts: d.purchaseCosts,
+        purchaseDate: d.purchaseDate ?? null,
+        wozValue: d.wozValue ?? null,
+      })
+      if (d.mortgage) {
+        await tx.insert(mortgages).values({
+          assetId: asset.id,
+          lender: d.mortgage.lender,
+          originalAmount: d.mortgage.originalAmount,
+          interestRate: d.mortgage.interestRate,
+          startDate: d.mortgage.startDate,
+          mortgageType: d.mortgage.mortgageType,
+        })
+      }
+      break
+    case 'vordering':
+      await tx.insert(vorderingDetails).values({
+        assetId: asset.id,
+        counterparty: d.counterparty,
+        principalAmount: d.principalAmount,
+        interestRate: d.interestRate ?? null,
+        startDate: d.startDate ?? null,
+        endDate: d.endDate ?? null,
+        loanType: d.loanType ?? 'family',
+      })
+      break
+  }
+
+  // Altijd een leeg tax_metadata record aanmaken (conform data-model.md)
+  await tx.insert(assetTaxMetadata).values({ assetId: asset.id, box: 3 })
+
+  return asset
+}
+
 export async function createAsset(userId: string, data: CreateAssetInput) {
   const tenantId = await getOrCreateTenant(userId)
-
-  return db.transaction(async (tx) => {
-    const LIQUID_ASSET_TYPES = new Set(['stock_etf', 'crypto', 'savings'])
-    const [asset] = await tx
-      .insert(assets)
-      .values({
-        tenantId,
-        name: data.name,
-        assetType: data.assetType,
-        currency: data.currency,
-        isLiquid: LIQUID_ASSET_TYPES.has(data.assetType),
-      })
-      .returning()
-
-    const d = data.details
-    switch (d.kind) {
-      case 'stock_etf':
-        await tx.insert(stockEtfDetails).values({
-          assetId: asset.id,
-          ticker: d.ticker,
-          isin: d.isin ?? null,
-          brokerId: d.brokerId ?? null,
-          accountType: d.accountType ?? 'taxable',
-          sector: d.sector ?? null,
-          instrumentType: d.instrumentType ?? 'stock',
-        })
-        break
-      case 'crypto':
-        await tx.insert(cryptoDetails).values({
-          assetId: asset.id,
-          ticker: d.ticker,
-          walletOrExchange: d.walletOrExchange ?? null,
-        })
-        break
-      case 'savings':
-        await tx.insert(savingsDetails).values({
-          assetId: asset.id,
-          bankName: d.bankName,
-          accountType: d.accountType ?? 'savings',
-          interestRate: d.interestRate ?? null,
-        })
-        break
-      case 'pension':
-        await tx.insert(pensionDetails).values({
-          assetId: asset.id,
-          provider: d.provider,
-          pensionType: d.pensionType,
-          projectedAnnualBenefit: d.projectedAnnualBenefit ?? null,
-        })
-        break
-      case 'real_estate':
-        await tx.insert(realEstateDetails).values({
-          assetId: asset.id,
-          address: d.address ?? null,
-          propertyType: d.propertyType,
-          purchasePrice: d.purchasePrice,
-          purchaseCosts: d.purchaseCosts,
-          purchaseDate: d.purchaseDate,
-          wozValue: d.wozValue ?? null,
-        })
-        if (d.mortgage) {
-          await tx.insert(mortgages).values({
-            assetId: asset.id,
-            lender: d.mortgage.lender,
-            originalAmount: d.mortgage.originalAmount,
-            interestRate: d.mortgage.interestRate,
-            startDate: d.mortgage.startDate,
-            mortgageType: d.mortgage.mortgageType,
-          })
-        }
-        break
-      case 'vordering':
-        await tx.insert(vorderingDetails).values({
-          assetId: asset.id,
-          counterparty: d.counterparty,
-          principalAmount: d.principalAmount,
-          interestRate: d.interestRate ?? null,
-          startDate: d.startDate ?? null,
-          endDate: d.endDate ?? null,
-          loanType: d.loanType ?? 'family',
-        })
-        break
-    }
-
-    // Altijd een leeg tax_metadata record aanmaken (conform data-model.md)
-    await tx.insert(assetTaxMetadata).values({ assetId: asset.id, box: 3 })
-
-    return asset
-  })
+  return db.transaction(async (tx) => insertAssetWithDetails(tx, tenantId, data, data.details))
 }
 
 export async function updateAsset(
@@ -272,7 +291,7 @@ export async function updateAsset(
       case 'crypto':
         await tx
           .update(cryptoDetails)
-          .set({ ticker: d.ticker, walletOrExchange: d.walletOrExchange ?? null })
+          .set({ ticker: d.ticker ?? null, walletOrExchange: d.walletOrExchange ?? null })
           .where(eq(cryptoDetails.assetId, assetId))
         break
       case 'savings':
@@ -291,11 +310,13 @@ export async function updateAsset(
         await tx
           .update(realEstateDetails)
           .set({
-            address: d.address ?? null,
+            street: d.street ?? null,
+            postalCode: d.postalCode ?? null,
+            city: d.city ?? null,
             propertyType: d.propertyType,
-            purchasePrice: d.purchasePrice,
+            purchasePrice: d.purchasePrice ?? null,
             purchaseCosts: d.purchaseCosts,
-            purchaseDate: d.purchaseDate,
+            purchaseDate: d.purchaseDate ?? null,
             wozValue: d.wozValue ?? null,
           })
           .where(eq(realEstateDetails.assetId, assetId))
@@ -449,6 +470,16 @@ export async function getAssetWithCalculations(
           priceStatus = 'unavailable'
         }
       }
+    } else {
+      // Geen ticker (simpele invoer, bv. crypto zonder live koers) — huidige
+      // waarde komt direct uit de laatst ingevoerde waardering.
+      const latestVal = asset.valuations?.[0]
+      if (latestVal) {
+        currentValue = new Decimal(latestVal.value)
+        priceStatus = 'fallback'
+      } else {
+        priceStatus = 'unavailable'
+      }
     }
   } else if (assetType === 'savings') {
     currentValue = calculateSavingsBalance(txs)
@@ -552,6 +583,14 @@ export async function getAssetsWithValues(userId: string): Promise<AssetWithValu
             } else {
               priceStatus = 'unavailable'
             }
+          }
+        } else {
+          const latestVal = asset.valuations?.[0]
+          if (latestVal) {
+            currentValue = new Decimal(latestVal.value)
+            priceStatus = 'fallback'
+          } else {
+            priceStatus = 'unavailable'
           }
         }
       } else if (asset.assetType === 'savings') {

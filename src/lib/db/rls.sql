@@ -20,6 +20,11 @@ ALTER TABLE public.liabilities       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.asset_tax_metadata ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vordering_details  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.brokers           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stock_etf_entries   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.crypto_entries      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pension_entries     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.savings_entries     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.real_estate_entries ENABLE ROW LEVEL SECURITY;
 -- fx_rates: GEEN RLS — gedeelde tabel, niet user-gebonden
 
 -- ─── users ──────────────────────────────────────────────────────────────────
@@ -442,6 +447,73 @@ CREATE POLICY "liabilities_update" ON public.liabilities
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );
 CREATE POLICY "liabilities_delete" ON public.liabilities
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+
+-- ─── simple_entries (aandelen-etf/crypto/pensioen/spaarrekening/vastgoed) ────
+
+CREATE POLICY "stock_etf_entries_select" ON public.stock_etf_entries
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "stock_etf_entries_insert" ON public.stock_etf_entries
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "stock_etf_entries_delete" ON public.stock_etf_entries
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+
+CREATE POLICY "crypto_entries_select" ON public.crypto_entries
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "crypto_entries_insert" ON public.crypto_entries
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "crypto_entries_delete" ON public.crypto_entries
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+
+CREATE POLICY "pension_entries_select" ON public.pension_entries
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "pension_entries_insert" ON public.pension_entries
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "pension_entries_delete" ON public.pension_entries
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+
+CREATE POLICY "savings_entries_select" ON public.savings_entries
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "savings_entries_insert" ON public.savings_entries
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "savings_entries_delete" ON public.savings_entries
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+
+CREATE POLICY "real_estate_entries_select" ON public.real_estate_entries
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "real_estate_entries_insert" ON public.real_estate_entries
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "real_estate_entries_delete" ON public.real_estate_entries
   FOR DELETE USING (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );

@@ -3,6 +3,9 @@ import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
 import { getNetWorthAtDate } from '@/lib/db/queries/cashflow'
+import {
+  getStockEtfEntries, getCryptoEntries, getPensionEntries, getSavingsEntries, getRealEstateEntries, latestPerGroup,
+} from '@/lib/db/queries/simple-entries'
 import { calculateNetWorth, calculateAllocation } from '@/lib/finance'
 import { formatCurrency } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
@@ -30,22 +33,47 @@ export default async function OverzichtPage() {
   monthAgoDate.setDate(monthAgoDate.getDate() - 30)
   const monthAgoStr = monthAgoDate.toISOString().slice(0, 10)
 
-  const [assets, mortgageMap, netWorthMonthAgo] = await Promise.all([
+  const [assets, mortgageMap, netWorthMonthAgo, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, realEstateEntries] = await Promise.all([
     getAssetsWithValues(user!.id),
     getMortgageBalancesMap(user!.id),
     getNetWorthAtDate(user!.id, monthAgoStr),
+    getStockEtfEntries(user!.id),
+    getCryptoEntries(user!.id),
+    getPensionEntries(user!.id),
+    getSavingsEntries(user!.id),
+    getRealEstateEntries(user!.id),
   ])
+
+  // Eenvoudige invoerlijsten (crypto/pensioen/spaarrekening/vastgoed): som van
+  // de meest recente rij per broker/bank/adres — zie simple-entries.ts.
+  const sumLatestPerGroup = <T,>(rows: T[], keyFn: (r: T) => string, valueFn: (r: T) => string) =>
+    latestPerGroup(rows, keyFn).reduce((s, r) => s.plus(new Decimal(valueFn(r))), new Decimal(0))
+
+  const stockEtfValue    = sumLatestPerGroup(stockEtfEntries, e => e.broker, e => e.currentValue)
+  const cryptoValue      = sumLatestPerGroup(cryptoEntries, e => e.broker, e => e.currentValue)
+  const pensionValue     = sumLatestPerGroup(pensionEntries, e => e.broker, e => e.currentValue)
+  const savingsValue     = sumLatestPerGroup(savingsEntries, e => e.bank, e => e.balance)
+  const realEstateValue  = sumLatestPerGroup(realEstateEntries, e => `${e.street}|${e.postalCode}|${e.city}`, e => e.wozValue)
+
+  const simpleCategories = [
+    { assetType: 'stock_etf',   value: stockEtfValue,   liquid: true },
+    { assetType: 'crypto',      value: cryptoValue,     liquid: true },
+    { assetType: 'pension',     value: pensionValue,    liquid: false },
+    { assetType: 'savings',     value: savingsValue,    liquid: true },
+    { assetType: 'real_estate', value: realEstateValue, liquid: false },
+  ].filter(c => c.value.gt(0))
 
   const netWorth = calculateNetWorth(
     assets.map(a => ({
       value: a.currentValue,
       liability: mortgageMap.get(a.id) ?? new Decimal(0),
     })),
-  )
+  ).plus(simpleCategories.reduce((sum, c) => sum.plus(c.value), new Decimal(0)))
 
   const illiquidNetValue = assets
     .filter(a => !a.isLiquid)
     .reduce((sum, a) => sum.plus(a.currentValue).minus(mortgageMap.get(a.id) ?? new Decimal(0)), new Decimal(0))
+    .plus(simpleCategories.filter(c => !c.liquid).reduce((sum, c) => sum.plus(c.value), new Decimal(0)))
 
   const delta = netWorthMonthAgo != null ? netWorth.minus(netWorthMonthAgo) : null
   const deltaPositive = delta?.gte(0) ?? true
@@ -53,9 +81,10 @@ export default async function OverzichtPage() {
     ? `${deltaPositive ? '+' : ''}${formatCurrency(delta.toNumber())}`
     : null
 
-  const allocationSlices = calculateAllocation(
-    assets.map(a => ({ assetType: a.assetType, value: a.currentValue })),
-  )
+  const allocationSlices = calculateAllocation([
+    ...assets.map(a => ({ assetType: a.assetType, value: a.currentValue })),
+    ...simpleCategories.map(c => ({ assetType: c.assetType, value: c.value })),
+  ])
   const biggest = allocationSlices.sort((x, y) => y.value.minus(x.value).toNumber())[0]
   const biggestLabel  = biggest ? (ASSET_TYPE_LABELS[biggest.assetType] ?? biggest.assetType) : null
   const biggestPct    = biggest ? biggest.percentage.toNumber().toFixed(0) : null
@@ -99,7 +128,7 @@ export default async function OverzichtPage() {
             )}
           </div>
 
-          {assets.length > 0 && (
+          {(assets.length > 0 || simpleCategories.length > 0) && (
             <ul className="space-y-1 text-sm text-foreground">
               {biggestLabel && biggestPct && (
                 <li className="before:content-['•'] before:mr-2 before:text-muted-foreground">

@@ -11,7 +11,7 @@ import { MortgageBalanceForm } from '@/components/assets/MortgageBalanceForm'
 import { MortgageBalanceHistory } from '@/components/assets/MortgageBalanceHistory'
 import { createValuationAction, createMortgageBalanceAction } from '@/app/assets/actions'
 import { Topbar } from '@/components/layout/Topbar'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency, formatAddress } from '@/lib/utils/format'
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
   stock_etf:   'Aandeel / ETF',
@@ -226,7 +226,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
           )}
           {asset.realEstateDetails && (
             <>
-              <DetailRow label="Adres" value={asset.realEstateDetails.address} />
+              <DetailRow label="Adres" value={formatAddress(asset.realEstateDetails)} />
               <DetailRow label="Type" value={asset.realEstateDetails.propertyType} />
               <DetailRow label="Aankoopprijs" value={asset.realEstateDetails.purchasePrice} />
               <DetailRow label="WOZ-waarde" value={asset.realEstateDetails.wozValue} />

@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues } from '@/lib/db/queries/assets'
 import { getBrokers } from '@/lib/db/queries/brokers'
+import { formatAddress } from '@/lib/utils/format'
 import { AssetSection } from '@/components/assets/AssetSection'
 import { Topbar } from '@/components/layout/Topbar'
 import type { SectionColumn, SectionRow } from '@/components/assets/AssetSection'
@@ -85,7 +86,7 @@ export default async function AssetsPage() {
 
   const realEstateRows = assets.filter(a => a.assetType === 'real_estate').map(a => toRow(a, {
     propertyType: PROPERTY_TYPE_LABELS[a.realEstateDetails?.propertyType ?? ''] ?? null,
-    address:      a.realEstateDetails?.address ?? null,
+    address:      formatAddress(a.realEstateDetails),
   }))
 
   const pensionRows = assets.filter(a => a.assetType === 'pension').map(a => toRow(a, {

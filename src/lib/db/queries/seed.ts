@@ -161,7 +161,8 @@ async function seed() {
 
   await db.insert(schema.realEstateDetails).values({
     assetId:       verhuur.id,
-    address:       'Voorbeeldstraat 1, Amsterdam',
+    street:        'Voorbeeldstraat 1',
+    city:          'Amsterdam',
     propertyType:  'rental',
     purchasePrice: '280000.00',
     purchaseCosts: '8400.00',
@@ -255,7 +256,8 @@ async function seed() {
 
   await db.insert(schema.realEstateDetails).values({
     assetId:       eigenWoning.id,
-    address:       'Hoofdstraat 10, Utrecht',
+    street:        'Hoofdstraat 10',
+    city:          'Utrecht',
     propertyType:  'primary_residence',
     purchasePrice: '380000.00',
     purchaseCosts: '11400.00',

@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 import {
   searchStocksAction, getStockQuoteAction, checkTickerExistsAction,
   type StockSearchResult, type ExistingPosition,
-} from '@/app/portfolio/aandelen-etf/market-actions'
+} from '@/app/portfolio/_archief-aandelen-etf/market-actions'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 

@@ -5,7 +5,7 @@ import { useActionState } from 'react'
 import { Topbar } from '@/components/layout/Topbar'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { createBrokerAction } from '@/app/portfolio/aandelen-etf/actions'
+import { createBrokerAction } from '@/app/portfolio/_archief-aandelen-etf/actions'
 
 export default function NieuweBrokerPage() {
   const [state, formAction, isPending] = useActionState(createBrokerAction, null)

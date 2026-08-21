@@ -73,7 +73,9 @@ const vorderingSchema = z.object({
 })
 
 const realEstateSchema = z.object({
-  address:       z.string().optional(),
+  street:        z.string().optional(),
+  postalCode:    z.string().optional(),
+  city:          z.string().optional(),
   propertyType:  z.enum(['rental', 'primary_residence', 'vacation']),
   purchasePrice: z.string().min(1, 'Aankoopprijs is verplicht'),
   purchaseCosts: z.string().default('0'),
@@ -89,7 +91,7 @@ const realEstateSchema = z.object({
 
 const ALLOWED_TX_TYPES: Record<AssetType, TransactionType[]> = {
   stock_etf:   ['buy', 'sell', 'dividend', 'cost'],
-  crypto:      ['buy', 'sell'],
+  crypto:      ['buy', 'sell', 'deposit'],
   savings:     ['deposit', 'withdrawal', 'interest'],
   real_estate: ['buy', 'sell', 'rental_income', 'cost'],
   pension:     ['deposit'],
@@ -148,7 +150,9 @@ function parseDetails(assetType: string, fd: FormData): AssetDetailsInput {
     }
     case 'real_estate': {
       const d = realEstateSchema.parse({
-        address:       optStr(fd, 'address'),
+        street:        optStr(fd, 'street'),
+        postalCode:    optStr(fd, 'postalCode'),
+        city:          optStr(fd, 'city'),
         propertyType:  str(fd, 'propertyType'),
         purchasePrice: str(fd, 'purchasePrice'),
         purchaseCosts: str(fd, 'purchaseCosts') || '0',
@@ -163,7 +167,9 @@ function parseDetails(assetType: string, fd: FormData): AssetDetailsInput {
       const hasMortgage = d.mortgageLender && d.mortgageOriginalAmount && d.mortgageInterestRate && d.mortgageStartDate && d.mortgageType
       return {
         kind: 'real_estate',
-        address: d.address,
+        street: d.street,
+        postalCode: d.postalCode,
+        city: d.city,
         propertyType: d.propertyType,
         purchasePrice: d.purchasePrice,
         purchaseCosts: d.purchaseCosts,
@@ -202,7 +208,7 @@ export async function createAssetAction(prev: ActionState, fd: FormData): Promis
     const base = baseSchema.parse({ name: str(fd, 'name'), assetType: str(fd, 'assetType'), currency: str(fd, 'currency') || 'EUR' })
     const details = parseDetails(base.assetType, fd)
 
-    if (details.kind === 'crypto') {
+    if (details.kind === 'crypto' && details.ticker) {
       try {
         await getLatestPrice(details.ticker)
       } catch {

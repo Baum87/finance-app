@@ -11,3 +11,22 @@ export const formatQuantity = (value: string | number | null | undefined): strin
   // Strip trailing zeros, max 8 decimals (crypto precision)
   return n.toLocaleString('nl-NL', { maximumFractionDigits: 8 })
 }
+
+export const formatDate = (value: string | null | undefined): string => {
+  if (!value) return '—'
+  const [y, m, d] = value.split('-')
+  if (!y || !m || !d) return value
+  return `${d}-${m}-${y}`
+}
+
+export const formatAddress = (details: {
+  street?: string | null
+  postalCode?: string | null
+  city?: string | null
+} | null | undefined): string | null => {
+  if (!details) return null
+  const line1 = details.street ?? ''
+  const line2 = [details.postalCode, details.city].filter(Boolean).join(' ')
+  const parts = [line1, line2].filter(Boolean)
+  return parts.length > 0 ? parts.join(', ') : null
+}

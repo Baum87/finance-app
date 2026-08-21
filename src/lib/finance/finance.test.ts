@@ -19,6 +19,7 @@ import { calculateTwr } from './twr'
 import { calculateAnnualReturn } from './annual-return'
 import { calculateExcessReturn } from './benchmark'
 import { buildNetWorthSeries } from './net-worth-series'
+import { buildSimpleEntryMonthlySeries } from './simple-entry-series'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -576,5 +577,45 @@ describe('buildNetWorthSeries', () => {
 
   it('returns empty array for empty input', () => {
     expect(buildNetWorthSeries([])).toEqual([])
+  })
+})
+
+// ─── buildSimpleEntryMonthlySeries ─────────────────────────────────────────
+
+describe('buildSimpleEntryMonthlySeries', () => {
+  const asOf = new Date('2026-03-15')
+
+  it('forward-fills each broker into every month up to asOf', () => {
+    const entries = [
+      { broker: 'Bitvavo', invested: '1000', currentValue: '1200', entryDate: '2026-01-10' },
+    ]
+    const series = buildSimpleEntryMonthlySeries(entries, asOf)
+    expect(series.map(p => p.month)).toEqual(['2026-01', '2026-02', '2026-03'])
+    expect(series.every(p => p.invested.toNumber() === 1000 && p.currentValue.toNumber() === 1200)).toBe(true)
+  })
+
+  it('sums the latest entry per broker at each month', () => {
+    const entries = [
+      { broker: 'Bitvavo', invested: '1000', currentValue: '1100', entryDate: '2026-01-10' },
+      { broker: 'Binance', invested: '500', currentValue: '400', entryDate: '2026-02-05' },
+      { broker: 'Bitvavo', invested: '1500', currentValue: '1800', entryDate: '2026-03-01' },
+    ]
+    const series = buildSimpleEntryMonthlySeries(entries, asOf)
+    const jan = series.find(p => p.month === '2026-01')!
+    const feb = series.find(p => p.month === '2026-02')!
+    const mar = series.find(p => p.month === '2026-03')!
+    // Jan: alleen Bitvavo (Binance nog geen invoer)
+    expect(jan.invested.toNumber()).toBe(1000)
+    expect(jan.currentValue.toNumber()).toBe(1100)
+    // Feb: Bitvavo (jan-waarde) + Binance
+    expect(feb.invested.toNumber()).toBe(1500)
+    expect(feb.currentValue.toNumber()).toBe(1500)
+    // Mar: Bitvavo (nieuwe waarde) + Binance
+    expect(mar.invested.toNumber()).toBe(2000)
+    expect(mar.currentValue.toNumber()).toBe(2200)
+  })
+
+  it('returns empty array for empty input', () => {
+    expect(buildSimpleEntryMonthlySeries([], asOf)).toEqual([])
   })
 })

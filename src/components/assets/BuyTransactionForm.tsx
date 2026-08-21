@@ -3,7 +3,7 @@
 import { useActionState, useState, useEffect, useRef } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { getStockQuoteAction, getHistoricalPriceEurAction } from '@/app/portfolio/aandelen-etf/market-actions'
+import { getStockQuoteAction, getHistoricalPriceEurAction } from '@/app/portfolio/_archief-aandelen-etf/market-actions'
 import type { ActionState } from '@/app/assets/actions'
 
 const today = new Date().toISOString().slice(0, 10)

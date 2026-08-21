@@ -13,7 +13,7 @@ import {
   calculateXirr,
   calculatePassiveIncome,
 } from '@/lib/finance'
-import { formatCurrency, formatPercent } from '@/lib/utils/format'
+import { formatCurrency, formatPercent, formatAddress } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { ProgressBar } from '@/components/ui/ProgressBar'
@@ -172,8 +172,8 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
             <div>
               <h1 className="text-2xl font-semibold text-foreground">{asset.name}</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                {asset.realEstateDetails?.address ?? PROPERTY_TYPE_LABELS[propertyType] ?? '—'}
-                {asset.realEstateDetails?.address ? ` · ${PROPERTY_TYPE_LABELS[propertyType] ?? propertyType}` : ''}
+                {formatAddress(asset.realEstateDetails) ?? PROPERTY_TYPE_LABELS[propertyType] ?? '—'}
+                {formatAddress(asset.realEstateDetails) ? ` · ${PROPERTY_TYPE_LABELS[propertyType] ?? propertyType}` : ''}
               </p>
             </div>
             <Link

@@ -95,6 +95,71 @@ export const assetValuations = pgTable('asset_valuations', {
   index('asset_valuations_date_idx').on(t.valuationDate),
 ])
 
+// ─── simple_entries (eenvoudige invoer: crypto/pensioen/spaarrekening/vastgoed) ─
+// Geen "asset"-entiteit — gewoon een append-only logboek per categorie,
+// getoond als lijst op de betreffende portfolio-pagina. De meest recente rij
+// (op entryDate) is de huidige waarde van die categorie.
+
+export const stockEtfEntries = pgTable('stock_etf_entries', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  tenantId:     uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  broker:       text('broker').notNull(),
+  invested:     numeric('invested', { precision: 15, scale: 2 }).notNull(),
+  currentValue: numeric('current_value', { precision: 15, scale: 2 }).notNull(),
+  entryDate:    date('entry_date').notNull(),
+  createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('stock_etf_entries_tenant_id_idx').on(t.tenantId),
+])
+
+export const cryptoEntries = pgTable('crypto_entries', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  tenantId:     uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  broker:       text('broker').notNull(),
+  invested:     numeric('invested', { precision: 15, scale: 2 }).notNull(),
+  currentValue: numeric('current_value', { precision: 15, scale: 2 }).notNull(),
+  entryDate:    date('entry_date').notNull(),
+  createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('crypto_entries_tenant_id_idx').on(t.tenantId),
+])
+
+export const pensionEntries = pgTable('pension_entries', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  tenantId:     uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  broker:       text('broker').notNull(),
+  invested:     numeric('invested', { precision: 15, scale: 2 }).notNull(),
+  currentValue: numeric('current_value', { precision: 15, scale: 2 }).notNull(),
+  entryDate:    date('entry_date').notNull(),
+  createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('pension_entries_tenant_id_idx').on(t.tenantId),
+])
+
+export const savingsEntries = pgTable('savings_entries', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  tenantId:  uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  bank:      text('bank').notNull(),
+  balance:   numeric('balance', { precision: 15, scale: 2 }).notNull(),
+  entryDate: date('entry_date').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('savings_entries_tenant_id_idx').on(t.tenantId),
+])
+
+export const realEstateEntries = pgTable('real_estate_entries', {
+  id:         uuid('id').primaryKey().defaultRandom(),
+  tenantId:   uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  street:     text('street').notNull(),
+  postalCode: text('postal_code').notNull(),
+  city:       text('city').notNull(),
+  wozValue:   numeric('woz_value', { precision: 15, scale: 2 }).notNull(),
+  entryDate:  date('entry_date').notNull(),
+  createdAt:  timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('real_estate_entries_tenant_id_idx').on(t.tenantId),
+])
+
 // ─── brokers ─────────────────────────────────────────────────────────────────
 
 export const brokers = pgTable('brokers', {
@@ -124,7 +189,9 @@ export const stockEtfDetails = pgTable('stock_etf_details', {
 export const cryptoDetails = pgTable('crypto_details', {
   id:                uuid('id').primaryKey().defaultRandom(),
   assetId:           uuid('asset_id').notNull().unique().references(() => assets.id, { onDelete: 'cascade' }),
-  ticker:            text('ticker').notNull(),
+  // Nullable: simpele invoer (broker + ingelegd + huidige waarde) heeft geen
+  // ticker — geen live koers, currentValue komt dan uit asset_valuations.
+  ticker:            text('ticker'),
   walletOrExchange:  text('wallet_or_exchange'),
 })
 
@@ -169,11 +236,15 @@ export const vorderingDetails = pgTable('vordering_details', {
 export const realEstateDetails = pgTable('real_estate_details', {
   id:            uuid('id').primaryKey().defaultRandom(),
   assetId:       uuid('asset_id').notNull().unique().references(() => assets.id, { onDelete: 'cascade' }),
-  address:       text('address'),
+  street:        text('street'),
+  postalCode:    text('postal_code'),
+  city:          text('city'),
   propertyType:  text('property_type').notNull(),
-  purchasePrice: numeric('purchase_price', { precision: 15, scale: 2 }).notNull(),
+  // Nullable: simpele invoer (straat/postcode/plaats + WOZ-waarde) vraagt geen
+  // aankoopprijs/-datum — die blijven voorbehouden aan de gedetailleerde flow.
+  purchasePrice: numeric('purchase_price', { precision: 15, scale: 2 }),
   purchaseCosts: numeric('purchase_costs', { precision: 15, scale: 2 }).notNull().default('0'),
-  purchaseDate:  date('purchase_date').notNull(),
+  purchaseDate:  date('purchase_date'),
   wozValue:      numeric('woz_value', { precision: 15, scale: 2 }),
   isRental:      boolean('is_rental').generatedAlwaysAs(sql`property_type = 'rental'`),
 }, (t) => [
