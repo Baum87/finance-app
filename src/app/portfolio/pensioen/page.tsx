@@ -1,11 +1,13 @@
 import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getPensionEntries, latestPerGroup, groupBy } from '@/lib/db/queries/simple-entries'
-import { formatCurrency } from '@/lib/utils/format'
+import { buildSimpleEntryMonthlySeries } from '@/lib/finance'
+import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { EntryLogForm } from '@/components/portfolio/EntryLogForm'
 import { EntryLogList } from '@/components/portfolio/EntryLogList'
+import { InvestedVsValueChart } from '@/components/portfolio/InvestedVsValueChart'
 import { createPensionEntryAction, updatePensionEntryAction, deletePensionEntryAction } from '@/app/portfolio/simple-entry-actions'
 
 const FIELDS = [
@@ -25,6 +27,13 @@ export default async function PensioenPage() {
 
   const totalCurrentValue = latestPerBroker.reduce((s, e) => s.plus(new Decimal(e.currentValue)), new Decimal(0))
   const totalInvested = latestPerBroker.reduce((s, e) => s.plus(new Decimal(e.invested)), new Decimal(0))
+  const totalGainLoss = totalCurrentValue.minus(totalInvested)
+  const gainLossPct = totalInvested.gt(0) ? totalGainLoss.div(totalInvested) : null
+  const monthlySeries = buildSimpleEntryMonthlySeries(entries).map(p => ({
+    month: p.month,
+    invested: p.invested.toNumber(),
+    currentValue: p.currentValue.toNumber(),
+  }))
 
   return (
     <>
@@ -50,9 +59,12 @@ export default async function PensioenPage() {
             subtext="Som van laatste invoer per broker"
           />
           <KpiCard
-            label="Brokers"
-            value={String(latestPerBroker.length)}
-            subtext="Actieve pensioenregelingen"
+            label="Winst / verlies"
+            value={latestPerBroker.length > 0
+              ? `${totalGainLoss.gte(0) ? '+' : ''}${formatCurrency(totalGainLoss.toNumber())}`
+              : '—'}
+            subtext="Huidige waarde min ingelegd"
+            trend={gainLossPct ? { value: formatPercent(gainLossPct.toNumber()), positive: totalGainLoss.gte(0) } : undefined}
           />
         </div>
 
@@ -65,6 +77,8 @@ export default async function PensioenPage() {
             { name: 'entryDate', label: 'Datum', type: 'date' },
           ]}
         />
+
+        <InvestedVsValueChart data={monthlySeries} />
 
         {byBroker.size === 0 ? (
           <div className="rounded-2xl border border-border bg-card p-12 text-center">

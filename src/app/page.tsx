@@ -60,17 +60,24 @@ export default async function OverzichtPage() {
     { assetType: 'crypto',      value: cryptoValue,     liquid: true },
     { assetType: 'pension',     value: pensionValue,    liquid: false },
     { assetType: 'savings',     value: savingsValue,    liquid: true },
-    { assetType: 'real_estate', value: realEstateValue, liquid: false },
   ].filter(c => c.value.gt(0))
 
+  // Vastgoed geeft een vertekend beeld in "Netto vermogen" (grote, illiquide
+  // klap) — apart gehouden en los getoond i.p.v. meegeteld.
+  const nonRealEstateAssets = assets.filter(a => a.assetType !== 'real_estate')
+  const realEstateAssetsValue = assets
+    .filter(a => a.assetType === 'real_estate')
+    .reduce((sum, a) => sum.plus(a.currentValue).minus(mortgageMap.get(a.id) ?? new Decimal(0)), new Decimal(0))
+  const realEstateTotal = realEstateAssetsValue.plus(realEstateValue)
+
   const netWorth = calculateNetWorth(
-    assets.map(a => ({
+    nonRealEstateAssets.map(a => ({
       value: a.currentValue,
       liability: mortgageMap.get(a.id) ?? new Decimal(0),
     })),
   ).plus(simpleCategories.reduce((sum, c) => sum.plus(c.value), new Decimal(0)))
 
-  const illiquidNetValue = assets
+  const illiquidNetValue = nonRealEstateAssets
     .filter(a => !a.isLiquid)
     .reduce((sum, a) => sum.plus(a.currentValue).minus(mortgageMap.get(a.id) ?? new Decimal(0)), new Decimal(0))
     .plus(simpleCategories.filter(c => !c.liquid).reduce((sum, c) => sum.plus(c.value), new Decimal(0)))
@@ -82,7 +89,7 @@ export default async function OverzichtPage() {
     : null
 
   const allocationSlices = calculateAllocation([
-    ...assets.map(a => ({ assetType: a.assetType, value: a.currentValue })),
+    ...nonRealEstateAssets.map(a => ({ assetType: a.assetType, value: a.currentValue })),
     ...simpleCategories.map(c => ({ assetType: c.assetType, value: c.value })),
   ])
   const biggest = allocationSlices.sort((x, y) => y.value.minus(x.value).toNumber())[0]
@@ -123,12 +130,17 @@ export default async function OverzichtPage() {
             )}
             {illiquidNetValue.gt(0) && (
               <p className="mt-0.5 text-sm text-muted-foreground">
-                waarvan {formatCurrency(illiquidNetValue.toNumber())} illiquide (vastgoed + pensioen)
+                waarvan {formatCurrency(illiquidNetValue.toNumber())} illiquide (pensioen)
+              </p>
+            )}
+            {realEstateTotal.gt(0) && (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Vastgoed apart: {formatCurrency(realEstateTotal.toNumber())} (niet meegeteld in netto vermogen)
               </p>
             )}
           </div>
 
-          {(assets.length > 0 || simpleCategories.length > 0) && (
+          {(nonRealEstateAssets.length > 0 || simpleCategories.length > 0) && (
             <ul className="space-y-1 text-sm text-foreground">
               {biggestLabel && biggestPct && (
                 <li className="before:content-['•'] before:mr-2 before:text-muted-foreground">
@@ -140,7 +152,7 @@ export default async function OverzichtPage() {
                   Vermogen {deltaPositive ? 'gegroeid' : 'gedaald'} t.o.v. 30 dagen geleden
                 </li>
               )}
-              {assets.length === 0 && (
+              {nonRealEstateAssets.length === 0 && simpleCategories.length === 0 && (
                 <li className="text-muted-foreground italic">Voeg assets en waarderingen toe om inzichten te zien.</li>
               )}
             </ul>

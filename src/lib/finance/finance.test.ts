@@ -19,7 +19,7 @@ import { calculateTwr } from './twr'
 import { calculateAnnualReturn } from './annual-return'
 import { calculateExcessReturn } from './benchmark'
 import { buildNetWorthSeries } from './net-worth-series'
-import { buildSimpleEntryMonthlySeries } from './simple-entry-series'
+import { buildSimpleEntryMonthlySeries, buildSingleValueMonthlySeries } from './simple-entry-series'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -617,5 +617,28 @@ describe('buildSimpleEntryMonthlySeries', () => {
 
   it('returns empty array for empty input', () => {
     expect(buildSimpleEntryMonthlySeries([], asOf)).toEqual([])
+  })
+})
+
+// ─── buildSingleValueMonthlySeries ─────────────────────────────────────────
+
+describe('buildSingleValueMonthlySeries', () => {
+  const asOf = new Date('2026-03-15')
+
+  it('sums the latest value per group at each month, forward-filled', () => {
+    const entries = [
+      { group: 'ING', value: '10000', entryDate: '2026-01-10' },
+      { group: 'Rabobank', value: '5000', entryDate: '2026-02-05' },
+      { group: 'ING', value: '10500', entryDate: '2026-03-01' },
+    ]
+    const series = buildSingleValueMonthlySeries(entries, asOf)
+    expect(series.map(p => p.month)).toEqual(['2026-01', '2026-02', '2026-03'])
+    expect(series.find(p => p.month === '2026-01')!.value.toNumber()).toBe(10000)
+    expect(series.find(p => p.month === '2026-02')!.value.toNumber()).toBe(15000)
+    expect(series.find(p => p.month === '2026-03')!.value.toNumber()).toBe(15500)
+  })
+
+  it('returns empty array for empty input', () => {
+    expect(buildSingleValueMonthlySeries([], asOf)).toEqual([])
   })
 })

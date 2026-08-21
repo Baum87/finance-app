@@ -67,3 +67,53 @@ export function buildSimpleEntryMonthlySeries(entries: SimpleEntryRow[], asOf: D
     return { month, invested, currentValue }
   })
 }
+
+export type SingleValueRow = {
+  group: string
+  value: string
+  entryDate: string // 'YYYY-MM-DD'
+}
+
+export type SingleValueMonthPoint = {
+  month: string // 'YYYY-MM'
+  value: Decimal
+}
+
+/**
+ * Zelfde forward-fill-principe als buildSimpleEntryMonthlySeries, maar voor
+ * categorieën met één bedrag per invoer (spaarrekening: saldo, vastgoed:
+ * WOZ-waarde) i.p.v. een ingelegd/huidige-waarde-paar.
+ */
+export function buildSingleValueMonthlySeries(entries: SingleValueRow[], asOf: Date = new Date()): SingleValueMonthPoint[] {
+  if (entries.length === 0) return []
+
+  const byGroup = new Map<string, SingleValueRow[]>()
+  for (const e of entries) {
+    const list = byGroup.get(e.group)
+    if (list) list.push(e)
+    else byGroup.set(e.group, [e])
+  }
+  for (const list of byGroup.values()) list.sort((a, b) => a.entryDate.localeCompare(b.entryDate))
+
+  const firstMonth = monthKey(entries.reduce((min, e) => (e.entryDate < min ? e.entryDate : min), entries[0].entryDate))
+  const lastMonth = monthKey(asOf.toISOString().slice(0, 10))
+
+  const months: string[] = []
+  for (let key = firstMonth; key <= lastMonth; key = addMonth(key)) months.push(key)
+
+  return months.map((month) => {
+    const monthEnd = `${month}-31`
+    let value = new Decimal(0)
+
+    for (const list of byGroup.values()) {
+      let latest: SingleValueRow | null = null
+      for (const e of list) {
+        if (e.entryDate <= monthEnd) latest = e
+        else break
+      }
+      if (latest) value = value.plus(new Decimal(latest.value))
+    }
+
+    return { month, value }
+  })
+}

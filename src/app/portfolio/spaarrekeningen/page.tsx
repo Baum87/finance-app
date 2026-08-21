@@ -1,11 +1,13 @@
 import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getSavingsEntries, latestPerGroup, groupBy } from '@/lib/db/queries/simple-entries'
-import { formatCurrency } from '@/lib/utils/format'
+import { buildSingleValueMonthlySeries } from '@/lib/finance'
+import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { EntryLogForm } from '@/components/portfolio/EntryLogForm'
 import { EntryLogList } from '@/components/portfolio/EntryLogList'
+import { SingleLineChart } from '@/components/portfolio/SingleLineChart'
 import { createSavingsEntryAction, updateSavingsEntryAction, deleteSavingsEntryAction } from '@/app/portfolio/simple-entry-actions'
 
 const FIELDS = [
@@ -24,6 +26,15 @@ export default async function SpaarrekeningenPage() {
 
   const totalBalance = latestPerBank.reduce((s, e) => s.plus(new Decimal(e.balance)), new Decimal(0))
 
+  const monthlySeries = buildSingleValueMonthlySeries(
+    entries.map(e => ({ group: e.bank, value: e.balance, entryDate: e.entryDate })),
+  )
+  const lastYear = new Date().getFullYear() - 1
+  const yearEndPoint = monthlySeries.find(p => p.month === `${lastYear}-12`)
+  const yearEndValue = yearEndPoint ? yearEndPoint.value : null
+  const difference = yearEndValue !== null ? totalBalance.minus(yearEndValue) : null
+  const differencePct = difference !== null && yearEndValue!.gt(0) ? difference.div(yearEndValue!) : null
+
   return (
     <>
       <Topbar />
@@ -38,14 +49,22 @@ export default async function SpaarrekeningenPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <KpiCard
-            label="Totaal vermogen"
+            label={`Waarde eind ${lastYear}`}
+            value={yearEndValue !== null ? formatCurrency(yearEndValue.toNumber()) : '—'}
+            subtext="Laatste invoer van dat jaar"
+          />
+          <KpiCard
+            label="Huidige waarde"
             value={latestPerBank.length > 0 ? formatCurrency(totalBalance.toNumber()) : '—'}
             subtext="Som van laatste invoer per bank"
           />
           <KpiCard
-            label="Banken"
-            value={String(latestPerBank.length)}
-            subtext="Actieve rekeningen"
+            label="Verschil"
+            value={difference !== null
+              ? `${difference.gte(0) ? '+' : ''}${formatCurrency(difference.toNumber())}`
+              : '—'}
+            subtext={`T.o.v. eind ${lastYear}`}
+            trend={differencePct ? { value: formatPercent(differencePct.toNumber()), positive: difference!.gte(0) } : undefined}
           />
         </div>
 
@@ -56,6 +75,12 @@ export default async function SpaarrekeningenPage() {
             { name: 'balance', label: 'Vermogen (€)', type: 'number', placeholder: '15000' },
             { name: 'entryDate', label: 'Datum', type: 'date' },
           ]}
+        />
+
+        <SingleLineChart
+          title="Verloop vermogen"
+          valueLabel="Vermogen"
+          data={monthlySeries.map(p => ({ month: p.month, value: p.value.toNumber() }))}
         />
 
         {byBank.size === 0 ? (
