@@ -17,6 +17,7 @@ ALTER TABLE public.real_estate_details ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mortgages         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mortgage_balances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.liabilities       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recurring_items   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.asset_tax_metadata ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vordering_details  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.brokers           ENABLE ROW LEVEL SECURITY;
@@ -447,6 +448,25 @@ CREATE POLICY "liabilities_update" ON public.liabilities
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );
 CREATE POLICY "liabilities_delete" ON public.liabilities
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+
+-- ─── recurring_items (vaste lasten & inkomsten) ─────────────────────────────
+
+CREATE POLICY "recurring_items_select" ON public.recurring_items
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "recurring_items_insert" ON public.recurring_items
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "recurring_items_update" ON public.recurring_items
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "recurring_items_delete" ON public.recurring_items
   FOR DELETE USING (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );

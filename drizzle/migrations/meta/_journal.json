@@ -78,6 +78,13 @@
       "when": 1782300000000,
       "tag": "0010_stock_etf_entries",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782400000000,
+      "tag": "0011_recurring_items",
+      "breakpoints": true
     }
   ]
 }

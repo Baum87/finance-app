@@ -282,6 +282,30 @@ CREATE TABLE liabilities (
 
 ---
 
+### Vaste lasten & inkomsten (recurring_items)
+
+```sql
+-- Eenvoudige registratie van terugkerende posten (salaris, verzekering,
+-- abonnement, hypotheek, gemeentelijke belasting, boodschappen). Geen
+-- historie/versiebeheer — een bedrag wijzigen is een update, stoppen is
+-- is_active = false. Voedt de FIRE-berekening (lib/finance/recurring-cashflow.ts):
+-- annualExpenses/annualContribution komen hieruit i.p.v. een handmatig getal.
+CREATE TABLE recurring_items (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id  UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  item_type  TEXT NOT NULL CHECK (item_type IN ('income', 'expense')),
+  category   TEXT NOT NULL CHECK (category IN ('salary', 'insurance', 'subscription', 'mortgage', 'municipal_tax', 'groceries', 'other')),
+  amount     NUMERIC(15,2) NOT NULL,
+  frequency  TEXT NOT NULL CHECK (frequency IN ('monthly', 'quarterly', 'yearly')),
+  is_active  BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+---
+
 ### Valuta (FX)
 
 ```sql
