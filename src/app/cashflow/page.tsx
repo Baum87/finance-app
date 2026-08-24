@@ -1,4 +1,5 @@
 import Decimal from 'decimal.js'
+import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getPassiveIncomeData, getNetWorthAtDate, getValuationTimeSeries, getMortgageBalanceTimeSeries } from '@/lib/db/queries/cashflow'
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
@@ -10,21 +11,13 @@ import { formatCurrency } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { PassiveIncomeBreakdown } from '@/components/cashflow/PassiveIncomeBreakdown'
-import { RecurringItemForm } from '@/components/cashflow/RecurringItemForm'
-import { RecurringItemRow } from '@/components/cashflow/RecurringItemRow'
-import { OneTimeExpenseForm } from '@/components/cashflow/OneTimeExpenseForm'
-import { OneTimeExpenseRow } from '@/components/cashflow/OneTimeExpenseRow'
 import { NetWorthChart } from '@/components/vermogen/NetWorthChart'
-import {
-  createRecurringItemAction, updateRecurringItemAction, deleteRecurringItemAction,
-  createOneTimeExpenseAction, updateOneTimeExpenseAction, deleteOneTimeExpenseAction,
-} from './actions'
 
 function toDateStr(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
-export default async function CashflowPage() {
+export default async function CashflowOverviewPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   const userId = user!.id
@@ -53,7 +46,7 @@ export default async function CashflowPage() {
     recurringItemRows.map(r => ({
       itemType:  r.itemType as 'income' | 'expense',
       amount:    r.amount,
-      frequency: r.frequency as 'monthly' | 'quarterly' | 'yearly',
+      frequency: r.frequency as 'monthly' | 'four_weekly' | 'quarterly' | 'yearly',
       isActive:  r.isActive,
     })),
   )
@@ -102,7 +95,7 @@ export default async function CashflowPage() {
 
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Cashflow</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Passief inkomen en vermogensontwikkeling</p>
+          <p className="mt-1 text-sm text-muted-foreground">Overzicht van passief inkomen, vaste lasten en vermogensontwikkeling</p>
         </div>
 
         {/* KPI cards */}
@@ -138,9 +131,14 @@ export default async function CashflowPage() {
         <NetWorthChart data={chartData} />
 
         {/* Vaste lasten & inkomsten */}
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Vaste lasten & inkomsten</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Salaris, verzekeringen, abonnementen, hypotheek en overige vaste posten</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Vaste lasten & inkomsten</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Salaris, verzekeringen, abonnementen, hypotheek en overige vaste posten</p>
+          </div>
+          <Link href="/cashflow/vaste-lasten" className="text-sm font-medium text-sage hover:opacity-70 transition-opacity whitespace-nowrap">
+            Beheren →
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -165,43 +163,15 @@ export default async function CashflowPage() {
           />
         </div>
 
-        {recurringItemRows.length === 0 ? (
-          <div className="bg-card border border-border rounded-3xl p-10 text-center">
-            <p className="text-sm text-muted-foreground italic">Nog geen vaste lasten of inkomsten geregistreerd.</p>
-          </div>
-        ) : (
-          <div className="bg-card border border-border rounded-3xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Naam</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Soort</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Categorie</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Frequentie</th>
-                  <th className="text-right px-6 py-3 text-muted-foreground font-medium">Bedrag</th>
-                  <th className="px-6 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {recurringItemRows.map(item => (
-                  <RecurringItemRow
-                    key={item.id}
-                    item={item}
-                    updateAction={updateRecurringItemAction}
-                    deleteAction={deleteRecurringItemAction}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <RecurringItemForm action={createRecurringItemAction} />
-
         {/* Eenmalige uitgaven */}
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Eenmalige uitgaven</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Losstaande grote aankopen, geen doorlopende post</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Eenmalige uitgaven</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Losstaande grote aankopen, geen doorlopende post</p>
+          </div>
+          <Link href="/cashflow/eenmalige-uitgaven" className="text-sm font-medium text-sage hover:opacity-70 transition-opacity whitespace-nowrap">
+            Beheren →
+          </Link>
         </div>
 
         <KpiCard
@@ -209,37 +179,6 @@ export default async function CashflowPage() {
           value={formatCurrency(oneTimeExpensesThisYear.toNumber())}
           subtext={`t/m ${todayStr} — telt niet mee in de maandelijkse cashflow hierboven`}
         />
-
-        {oneTimeExpenseRows.length === 0 ? (
-          <div className="bg-card border border-border rounded-3xl p-10 text-center">
-            <p className="text-sm text-muted-foreground italic">Nog geen eenmalige uitgaven geregistreerd.</p>
-          </div>
-        ) : (
-          <div className="bg-card border border-border rounded-3xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Naam</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Datum</th>
-                  <th className="text-right px-6 py-3 text-muted-foreground font-medium">Bedrag</th>
-                  <th className="px-6 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {oneTimeExpenseRows.map(expense => (
-                  <OneTimeExpenseRow
-                    key={expense.id}
-                    expense={expense}
-                    updateAction={updateOneTimeExpenseAction}
-                    deleteAction={deleteOneTimeExpenseAction}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <OneTimeExpenseForm action={createOneTimeExpenseAction} />
 
       </main>
     </>

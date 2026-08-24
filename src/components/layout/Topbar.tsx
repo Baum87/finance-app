@@ -15,9 +15,14 @@ const portfolioItems = [
   { href: '/portfolio/vorderingen',     label: 'Vorderingen' },
 ]
 
+const cashflowItems = [
+  { href: '/cashflow',                     label: 'Overzicht' },
+  { href: '/cashflow/vaste-lasten',        label: 'Vaste lasten & inkomen' },
+  { href: '/cashflow/eenmalige-uitgaven',  label: 'Eenmalige uitgaven' },
+]
+
 const navItems = [
   { href: '/',          label: 'Overzicht' },
-  { href: '/cashflow',  label: 'Cashflow' },
   { href: '/schulden',  label: 'Schulden' },
 ]
 
@@ -77,6 +82,62 @@ function BeleggingenDropdown() {
   )
 }
 
+function CashflowDropdown() {
+  const pathname = usePathname()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const isActive = pathname.startsWith('/cashflow')
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(prev => !prev)}
+        className={[
+          'flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+          isActive
+            ? 'bg-muted text-foreground'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+        ].join(' ')}
+      >
+        Cashflow
+        <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 w-56 rounded-xl border border-border bg-card shadow-md py-1 z-50">
+          {cashflowItems.map(({ href, label }) => {
+            const itemActive = pathname === href
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setOpen(false)}
+                className={[
+                  'block px-3 py-2 text-sm transition-colors',
+                  itemActive
+                    ? 'text-foreground font-medium bg-muted'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                ].join(' ')}
+              >
+                {label}
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Topbar() {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
@@ -103,6 +164,7 @@ export function Topbar() {
             ))}
 
             <BeleggingenDropdown />
+            <CashflowDropdown />
 
             {navItems.slice(1).map(({ href, label }) => (
               <Link
@@ -167,6 +229,22 @@ export function Topbar() {
           ))}
           <div className="px-3 py-1 text-xs font-medium text-muted-foreground mt-1">Portfolio</div>
           {portfolioItems.map(({ href, label }) => (
+            <Link
+              key={href}
+              href={href}
+              onClick={() => setIsOpen(false)}
+              className={[
+                'block px-5 py-2 rounded-lg text-sm transition-colors',
+                pathname === href
+                  ? 'bg-muted text-foreground font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+              ].join(' ')}
+            >
+              {label}
+            </Link>
+          ))}
+          <div className="px-3 py-1 text-xs font-medium text-muted-foreground mt-1">Cashflow</div>
+          {cashflowItems.map(({ href, label }) => (
             <Link
               key={href}
               href={href}

@@ -38,6 +38,7 @@ export async function createRecurringItemAction(formData: FormData): Promise<Act
 
   await createRecurringItem(user.id, { ...parsed.data, effectiveDate: new Date().toISOString().slice(0, 10) })
   revalidatePath('/cashflow')
+  revalidatePath('/cashflow/vaste-lasten')
   return null
 }
 
@@ -66,6 +67,7 @@ export async function updateRecurringItemAction(formData: FormData) {
 
   await updateRecurringItem(user.id, itemId, { ...parsed.data, effectiveDate })
   revalidatePath('/cashflow')
+  revalidatePath('/cashflow/vaste-lasten')
 }
 
 export async function deleteRecurringItemAction(formData: FormData) {
@@ -78,6 +80,7 @@ export async function deleteRecurringItemAction(formData: FormData) {
 
   await deleteRecurringItem(user.id, itemId)
   revalidatePath('/cashflow')
+  revalidatePath('/cashflow/vaste-lasten')
 }
 
 // ─── Eenmalige uitgaven ──────────────────────────────────────────────────────
@@ -105,6 +108,7 @@ export async function createOneTimeExpenseAction(formData: FormData): Promise<Ac
 
   await createOneTimeExpense(user.id, parsed.data)
   revalidatePath('/cashflow')
+  revalidatePath('/cashflow/eenmalige-uitgaven')
   return null
 }
 
@@ -125,6 +129,7 @@ export async function updateOneTimeExpenseAction(formData: FormData) {
 
   await updateOneTimeExpense(user.id, expenseId, parsed.data)
   revalidatePath('/cashflow')
+  revalidatePath('/cashflow/eenmalige-uitgaven')
 }
 
 export async function deleteOneTimeExpenseAction(formData: FormData) {
@@ -137,4 +142,5 @@ export async function deleteOneTimeExpenseAction(formData: FormData) {
 
   await deleteOneTimeExpense(user.id, expenseId)
   revalidatePath('/cashflow')
+  revalidatePath('/cashflow/eenmalige-uitgaven')
 }
