@@ -33,7 +33,7 @@ export function annualizeAmount(amount: Decimal, frequency: RecurringFrequency):
   if (periods === undefined) {
     throw new Error(`Onbekende frequentie: ${frequency}`)
   }
-  return amount.times(periods).toDecimalPlaces(2)
+  return amount.times(periods)
 }
 
 /**
@@ -61,11 +61,11 @@ export function calculateRecurringTotals(items: RecurringItemInput[]): Recurring
   const netAnnualCashflow = annualIncome.minus(annualExpenses)
 
   return {
-    annualIncome:       annualIncome.toDecimalPlaces(2),
-    annualExpenses:     annualExpenses.toDecimalPlaces(2),
-    netAnnualCashflow:  netAnnualCashflow.toDecimalPlaces(2),
-    monthlyIncome:      annualIncome.dividedBy(12).toDecimalPlaces(2),
-    monthlyExpenses:    annualExpenses.dividedBy(12).toDecimalPlaces(2),
-    netMonthlyCashflow: netAnnualCashflow.dividedBy(12).toDecimalPlaces(2),
+    annualIncome,
+    annualExpenses,
+    netAnnualCashflow,
+    monthlyIncome:      annualIncome.dividedBy(12),
+    monthlyExpenses:    annualExpenses.dividedBy(12),
+    netMonthlyCashflow: netAnnualCashflow.dividedBy(12),
   }
 }

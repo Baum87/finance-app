@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { createRecurringItem, deleteRecurringItem } from '@/lib/db/queries/recurring-items'
+import type { ActionState } from '@/app/assets/actions'
 
 const RecurringItemSchema = z.object({
   name:      z.string().min(1, 'Naam is verplicht'),
@@ -14,7 +15,7 @@ const RecurringItemSchema = z.object({
   frequency: z.enum(['monthly', 'quarterly', 'yearly']),
 })
 
-export async function createRecurringItemAction(formData: FormData) {
+export async function createRecurringItemAction(formData: FormData): Promise<ActionState> {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -28,11 +29,12 @@ export async function createRecurringItemAction(formData: FormData) {
   })
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map(i => i.message).join(', '))
+    return { error: parsed.error.issues.map(i => i.message).join(', ') }
   }
 
   await createRecurringItem(user.id, parsed.data)
   revalidatePath('/cashflow')
+  return null
 }
 
 export async function deleteRecurringItemAction(formData: FormData) {

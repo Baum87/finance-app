@@ -1,43 +1,30 @@
 'use client'
 
 import { useRef, useState } from 'react'
-
-const ITEM_TYPE_LABELS: Record<string, string> = {
-  income:  'Inkomen',
-  expense: 'Uitgave',
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  salary:        'Salaris',
-  insurance:     'Verzekering',
-  subscription:  'Abonnement',
-  mortgage:      'Hypotheek',
-  municipal_tax: 'Gemeentelijke belasting',
-  groceries:     'Boodschappen',
-  other:         'Overig',
-}
+import type { ActionState } from '@/app/assets/actions'
+import { ITEM_TYPE_LABELS, CATEGORY_LABELS, FREQUENCY_LABELS } from './recurring-item-labels'
 
 const CATEGORIES_BY_TYPE: Record<string, string[]> = {
   income:  ['salary', 'other'],
   expense: ['insurance', 'subscription', 'mortgage', 'municipal_tax', 'groceries', 'other'],
 }
 
-const FREQUENCY_LABELS: Record<string, string> = {
-  monthly:   'Maandelijks',
-  quarterly: 'Per kwartaal',
-  yearly:    'Jaarlijks',
-}
-
 interface RecurringItemFormProps {
-  action: (formData: FormData) => Promise<void>
+  action: (formData: FormData) => Promise<ActionState>
 }
 
 export function RecurringItemForm({ action }: RecurringItemFormProps) {
   const formRef = useRef<HTMLFormElement>(null)
   const [itemType, setItemType] = useState<'income' | 'expense'>('expense')
+  const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(formData: FormData) {
-    await action(formData)
+    const result = await action(formData)
+    if (result?.error) {
+      setError(result.error)
+      return
+    }
+    setError(null)
     formRef.current?.reset()
     setItemType('expense')
   }
@@ -45,6 +32,12 @@ export function RecurringItemForm({ action }: RecurringItemFormProps) {
   return (
     <form ref={formRef} action={handleSubmit} className="bg-card border border-border rounded-3xl p-6 space-y-4">
       <p className="text-sm font-medium text-foreground">Vaste last of inkomen toevoegen</p>
+
+      {error && (
+        <div className="rounded-lg border border-terracotta/30 bg-terracotta/10 p-3 text-sm text-terracotta">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-1">

@@ -13,27 +13,7 @@ import { RecurringItemForm } from '@/components/cashflow/RecurringItemForm'
 import { DeleteRecurringItemButton } from '@/components/cashflow/DeleteRecurringItemButton'
 import { NetWorthChart } from '@/components/vermogen/NetWorthChart'
 import { createRecurringItemAction, deleteRecurringItemAction } from './actions'
-
-const ITEM_TYPE_LABELS: Record<string, string> = {
-  income:  'Inkomen',
-  expense: 'Uitgave',
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  salary:        'Salaris',
-  insurance:     'Verzekering',
-  subscription:  'Abonnement',
-  mortgage:      'Hypotheek',
-  municipal_tax: 'Gemeentelijke belasting',
-  groceries:     'Boodschappen',
-  other:         'Overig',
-}
-
-const FREQUENCY_LABELS: Record<string, string> = {
-  monthly:   'Maandelijks',
-  quarterly: 'Per kwartaal',
-  yearly:    'Jaarlijks',
-}
+import { ITEM_TYPE_LABELS, CATEGORY_LABELS, FREQUENCY_LABELS } from '@/components/cashflow/recurring-item-labels'
 
 function toDateStr(date: Date): string {
   return date.toISOString().slice(0, 10)
@@ -168,7 +148,10 @@ export default async function CashflowPage() {
             label="Netto cashflow per maand"
             value={`${recurringTotals.netMonthlyCashflow.gte(0) ? '+' : ''}${formatCurrency(recurringTotals.netMonthlyCashflow.toNumber())}`}
             subtext={`${formatCurrency(recurringTotals.netAnnualCashflow.toNumber())} per jaar`}
-            trend={{ value: '', positive: recurringTotals.netMonthlyCashflow.gte(0) }}
+            trend={{
+              value:    recurringTotals.netMonthlyCashflow.gte(0) ? 'Overschot' : 'Tekort',
+              positive: recurringTotals.netMonthlyCashflow.gte(0),
+            }}
           />
         </div>
 
