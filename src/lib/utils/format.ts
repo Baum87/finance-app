@@ -1,6 +1,11 @@
 export const formatCurrency = (value: number) =>
   new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value)
 
+// Voor bedragen per regel in een tabel — daar willen we de centen zien,
+// i.p.v. afgerond op hele euro's zoals bij samenvattende KPI's.
+export const formatCurrencyPrecise = (value: number) =>
+  new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
+
 export const formatPercent = (value: number) =>
   new Intl.NumberFormat('nl-NL', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
 

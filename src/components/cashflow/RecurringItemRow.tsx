@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Pencil, Trash2, Check, X } from 'lucide-react'
 import Decimal from 'decimal.js'
-import { formatCurrency, formatDate } from '@/lib/utils/format'
+import { formatCurrencyPrecise, formatDate } from '@/lib/utils/format'
 import { ITEM_TYPE_LABELS, CATEGORY_LABELS, FREQUENCY_LABELS, CATEGORIES_BY_TYPE } from './recurring-item-labels'
 import type { RecurringItem } from '@/lib/db/queries/recurring-items'
 
@@ -153,7 +153,7 @@ export function RecurringItemRow({ item, updateAction, deleteAction }: Recurring
       </td>
       <td className="px-6 py-3 text-right">
         <div className={`font-medium ${item.itemType === 'income' ? 'text-sage' : 'text-foreground'}`}>
-          {item.itemType === 'income' ? '+' : '−'}{formatCurrency(new Decimal(item.amount).toNumber())}
+          {item.itemType === 'income' ? '+' : '−'}{formatCurrencyPrecise(new Decimal(item.amount).toNumber())}
         </div>
         <div className="text-xs text-muted-foreground">sinds {formatDate(item.effectiveDate)}</div>
       </td>

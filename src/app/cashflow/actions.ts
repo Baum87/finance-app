@@ -16,7 +16,11 @@ const RecurringItemSchema = z.object({
   frequency:     z.enum(['monthly', 'four_weekly', 'quarterly', 'yearly']),
   // Alleen vereist bij bewerken (nieuw bedrag krijgt een ingangsdatum). Bij
   // aanmaken wordt de datum van vandaag gebruikt, niet uit het formulier.
-  effectiveDate: z.string().min(1, 'Ingangsdatum is verplicht').optional(),
+  // .nullish() i.p.v. .optional(): een ontbrekend formulierveld levert via
+  // formData.get() `null` op, niet `undefined` — .optional() alleen zou dat
+  // afwijzen en zo de hele update laten mislukken zodra het bedrag ongewijzigd
+  // blijft (het datumveld wordt dan niet gerenderd, zie RecurringItemRow.tsx).
+  effectiveDate: z.string().min(1, 'Ingangsdatum is verplicht').nullish(),
 })
 
 export async function createRecurringItemAction(formData: FormData): Promise<ActionState> {

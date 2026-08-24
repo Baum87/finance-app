@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import Decimal from 'decimal.js'
-import { formatCurrency, formatDate } from '@/lib/utils/format'
+import { formatCurrencyPrecise, formatDate } from '@/lib/utils/format'
 import type { OneTimeExpense } from '@/lib/db/queries/one-time-expenses'
 
 interface OneTimeExpenseRowProps {
@@ -69,7 +69,7 @@ export function OneTimeExpenseRow({ expense, updateAction, deleteAction }: OneTi
       <td className="px-6 py-3 font-medium text-foreground">{expense.name}</td>
       <td className="px-6 py-3 text-muted-foreground">{formatDate(expense.expenseDate)}</td>
       <td className="px-6 py-3 text-right font-medium text-foreground">
-        {formatCurrency(new Decimal(expense.amount).toNumber())}
+        {formatCurrencyPrecise(new Decimal(expense.amount).toNumber())}
       </td>
       <td className="px-6 py-3">
         <div className="flex items-center justify-end gap-3">
