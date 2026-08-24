@@ -19,6 +19,7 @@ ALTER TABLE public.mortgage_balances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.liabilities       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recurring_items   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recurring_item_amounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.one_time_expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.asset_tax_metadata ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vordering_details  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.brokers           ENABLE ROW LEVEL SECURITY;
@@ -505,6 +506,25 @@ CREATE POLICY "recurring_item_amounts_delete" ON public.recurring_item_amounts
       JOIN public.tenant_users tu ON tu.tenant_id = ri.tenant_id
       WHERE tu.user_id = auth.uid()
     )
+  );
+
+-- ─── one_time_expenses (eenmalige grote aankopen) ───────────────────────────
+
+CREATE POLICY "one_time_expenses_select" ON public.one_time_expenses
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "one_time_expenses_insert" ON public.one_time_expenses
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "one_time_expenses_update" ON public.one_time_expenses
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "one_time_expenses_delete" ON public.one_time_expenses
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );
 
 -- ─── simple_entries (aandelen-etf/crypto/pensioen/spaarrekening/vastgoed) ────

@@ -99,6 +99,13 @@
       "when": 1782600000000,
       "tag": "0013_recurring_item_amounts",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1782700000000,
+      "tag": "0014_one_time_expenses",
+      "breakpoints": true
     }
   ]
 }

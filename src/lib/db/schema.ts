@@ -345,6 +345,24 @@ export const recurringItemAmounts = pgTable('recurring_item_amounts', {
   index('recurring_item_amounts_effective_date_idx').on(t.effectiveDate),
 ])
 
+// ─── one_time_expenses (eenmalige grote aankopen) ────────────────────────────
+// Losstaande uitgaven op één datum (bijv. nieuwe bank, verbouwing) — geen
+// periodieke herhaling zoals recurring_items, dus geen frequency/annualisatie.
+// Telt apart mee als "dit jaar uitgegeven", niet in de maandelijkse
+// cashflow-KPI's (dat zou het doorlopende karakter daarvan verstoren).
+
+export const oneTimeExpenses = pgTable('one_time_expenses', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  tenantId:    uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  name:        text('name').notNull(),
+  amount:      numeric('amount', { precision: 15, scale: 2 }).notNull(),
+  expenseDate: date('expense_date').notNull(),
+  createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:   timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('one_time_expenses_tenant_id_idx').on(t.tenantId),
+])
+
 // ─── fx_rates (geen RLS — gedeeld, niet user-gebonden) ───────────────────────
 // Gereserveerd voor multi-currency / Optie B (transactievaluta met automatische
 // EUR-omrekening). Nog niet in gebruik in v1: alle transacties worden in EUR
@@ -378,11 +396,12 @@ export const assetTaxMetadata = pgTable('asset_tax_metadata', {
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const tenantsRelations = relations(tenants, ({ many }) => ({
-  tenantUsers:    many(tenantUsers),
-  assets:         many(assets),
-  liabilities:    many(liabilities),
-  brokers:        many(brokers),
-  recurringItems: many(recurringItems),
+  tenantUsers:      many(tenantUsers),
+  assets:           many(assets),
+  liabilities:      many(liabilities),
+  brokers:          many(brokers),
+  recurringItems:   many(recurringItems),
+  oneTimeExpenses:  many(oneTimeExpenses),
 }))
 
 export const brokersRelations = relations(brokers, ({ one, many }) => ({
@@ -470,4 +489,8 @@ export const recurringItemsRelations = relations(recurringItems, ({ one, many })
 
 export const recurringItemAmountsRelations = relations(recurringItemAmounts, ({ one }) => ({
   recurringItem: one(recurringItems, { fields: [recurringItemAmounts.recurringItemId], references: [recurringItems.id] }),
+}))
+
+export const oneTimeExpensesRelations = relations(oneTimeExpenses, ({ one }) => ({
+  tenant: one(tenants, { fields: [oneTimeExpenses.tenantId], references: [tenants.id] }),
 }))

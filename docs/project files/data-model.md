@@ -282,12 +282,11 @@ CREATE TABLE liabilities (
 
 ---
 
-### Vaste lasten & inkomsten (recurring_items)
+### Vaste lasten & inkomsten (recurring_items + recurring_item_amounts)
 
 ```sql
 -- Eenvoudige registratie van terugkerende posten (salaris, verzekering,
--- abonnement, hypotheek, gemeentelijke belasting, boodschappen). Geen
--- historie/versiebeheer — een bedrag wijzigen is een update, stoppen is
+-- abonnement, hypotheek, gemeentelijke belasting, boodschappen). Stoppen is
 -- is_active = false. Voedt de FIRE-berekening (lib/finance/recurring-cashflow.ts):
 -- annualExpenses/annualContribution komen hieruit i.p.v. een handmatig getal.
 CREATE TABLE recurring_items (
@@ -296,11 +295,41 @@ CREATE TABLE recurring_items (
   name       TEXT NOT NULL,
   item_type  TEXT NOT NULL CHECK (item_type IN ('income', 'expense')),
   category   TEXT NOT NULL CHECK (category IN ('salary', 'insurance', 'subscription', 'mortgage', 'municipal_tax', 'groceries', 'other')),
-  amount     NUMERIC(15,2) NOT NULL,
   frequency  TEXT NOT NULL CHECK (frequency IN ('monthly', 'four_weekly', 'quarterly', 'yearly')),
   is_active  BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Bedraghistorie, append-only (zelfde patroon als asset_valuations): een
+-- wijziging voegt een rij toe i.p.v. te overschrijven, zodat een oudere
+-- periode (bijv. zorgverzekering €100 t/m maart) intact blijft. De rij met
+-- de meest recente effective_date is het huidige bedrag.
+CREATE TABLE recurring_item_amounts (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recurring_item_id  UUID NOT NULL REFERENCES recurring_items(id) ON DELETE CASCADE,
+  amount             NUMERIC(15,2) NOT NULL,
+  effective_date     DATE NOT NULL,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+---
+
+### Eenmalige uitgaven (one_time_expenses)
+
+```sql
+-- Losstaande grote aankopen (bijv. nieuwe bank, verbouwing) — geen frequentie/
+-- annualisatie zoals recurring_items. Telt mee als "dit jaar uitgegeven" op de
+-- cashflow-pagina, niet in de maandelijkse cashflow-KPI's.
+CREATE TABLE one_time_expenses (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id    UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name         TEXT NOT NULL,
+  amount       NUMERIC(15,2) NOT NULL,
+  expense_date DATE NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
 

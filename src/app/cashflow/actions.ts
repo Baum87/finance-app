@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { createRecurringItem, updateRecurringItem, deleteRecurringItem } from '@/lib/db/queries/recurring-items'
+import { createOneTimeExpense, updateOneTimeExpense, deleteOneTimeExpense } from '@/lib/db/queries/one-time-expenses'
 import type { ActionState } from '@/app/assets/actions'
 
 const RecurringItemSchema = z.object({
@@ -76,5 +77,64 @@ export async function deleteRecurringItemAction(formData: FormData) {
   if (!itemId) throw new Error('Geen post-ID opgegeven')
 
   await deleteRecurringItem(user.id, itemId)
+  revalidatePath('/cashflow')
+}
+
+// ─── Eenmalige uitgaven ──────────────────────────────────────────────────────
+
+const OneTimeExpenseSchema = z.object({
+  name:        z.string().min(1, 'Naam is verplicht'),
+  amount:      z.string().regex(/^\d+(\.\d{1,2})?$/, 'Ongeldig bedrag'),
+  expenseDate: z.string().min(1, 'Datum is verplicht'),
+})
+
+export async function createOneTimeExpenseAction(formData: FormData): Promise<ActionState> {
+  const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const parsed = OneTimeExpenseSchema.safeParse({
+    name:        formData.get('name'),
+    amount:      formData.get('amount'),
+    expenseDate: formData.get('expenseDate'),
+  })
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues.map(i => i.message).join(', ') }
+  }
+
+  await createOneTimeExpense(user.id, parsed.data)
+  revalidatePath('/cashflow')
+  return null
+}
+
+export async function updateOneTimeExpenseAction(formData: FormData) {
+  const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const expenseId = formData.get('expenseId') as string
+  if (!expenseId) throw new Error('Geen post-ID opgegeven')
+
+  const parsed = OneTimeExpenseSchema.safeParse({
+    name:        formData.get('name'),
+    amount:      formData.get('amount'),
+    expenseDate: formData.get('expenseDate'),
+  })
+  if (!parsed.success) return
+
+  await updateOneTimeExpense(user.id, expenseId, parsed.data)
+  revalidatePath('/cashflow')
+}
+
+export async function deleteOneTimeExpenseAction(formData: FormData) {
+  const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const expenseId = formData.get('expenseId') as string
+  if (!expenseId) throw new Error('Geen post-ID opgegeven')
+
+  await deleteOneTimeExpense(user.id, expenseId)
   revalidatePath('/cashflow')
 }

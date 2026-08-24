@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getPassiveIncomeData, getNetWorthAtDate, getValuationTimeSeries, getMortgageBalanceTimeSeries } from '@/lib/db/queries/cashflow'
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
 import { getRecurringItems } from '@/lib/db/queries/recurring-items'
+import { getOneTimeExpenses } from '@/lib/db/queries/one-time-expenses'
 import { calculateNetWorth, calculateRecurringTotals } from '@/lib/finance'
 import { buildNetWorthSeries } from '@/lib/finance'
 import { formatCurrency } from '@/lib/utils/format'
@@ -11,8 +12,13 @@ import { KpiCard } from '@/components/ui/KpiCard'
 import { PassiveIncomeBreakdown } from '@/components/cashflow/PassiveIncomeBreakdown'
 import { RecurringItemForm } from '@/components/cashflow/RecurringItemForm'
 import { RecurringItemRow } from '@/components/cashflow/RecurringItemRow'
+import { OneTimeExpenseForm } from '@/components/cashflow/OneTimeExpenseForm'
+import { OneTimeExpenseRow } from '@/components/cashflow/OneTimeExpenseRow'
 import { NetWorthChart } from '@/components/vermogen/NetWorthChart'
-import { createRecurringItemAction, updateRecurringItemAction, deleteRecurringItemAction } from './actions'
+import {
+  createRecurringItemAction, updateRecurringItemAction, deleteRecurringItemAction,
+  createOneTimeExpenseAction, updateOneTimeExpenseAction, deleteOneTimeExpenseAction,
+} from './actions'
 
 function toDateStr(date: Date): string {
   return date.toISOString().slice(0, 10)
@@ -28,7 +34,7 @@ export default async function CashflowPage() {
   const ytdFrom = `${currentYear}-01-01`
   const todayStr = toDateStr(today)
 
-  const [txData, assets_, mortgageMap, networthJan1, valuationRows, mortgageBalanceRows, recurringItemRows] = await Promise.all([
+  const [txData, assets_, mortgageMap, networthJan1, valuationRows, mortgageBalanceRows, recurringItemRows, oneTimeExpenseRows] = await Promise.all([
     getPassiveIncomeData(userId, ytdFrom, todayStr),
     getAssetsWithValues(userId),
     getMortgageBalancesMap(userId),
@@ -36,7 +42,12 @@ export default async function CashflowPage() {
     getValuationTimeSeries(userId),
     getMortgageBalanceTimeSeries(userId),
     getRecurringItems(userId),
+    getOneTimeExpenses(userId),
   ])
+
+  const oneTimeExpensesThisYear = oneTimeExpenseRows
+    .filter(e => e.expenseDate.slice(0, 4) === String(currentYear))
+    .reduce((s, e) => s.plus(e.amount), new Decimal(0))
 
   const recurringTotals = calculateRecurringTotals(
     recurringItemRows.map(r => ({
@@ -186,6 +197,49 @@ export default async function CashflowPage() {
         )}
 
         <RecurringItemForm action={createRecurringItemAction} />
+
+        {/* Eenmalige uitgaven */}
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Eenmalige uitgaven</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Losstaande grote aankopen, geen doorlopende post</p>
+        </div>
+
+        <KpiCard
+          label="Eenmalige uitgaven dit jaar"
+          value={formatCurrency(oneTimeExpensesThisYear.toNumber())}
+          subtext={`t/m ${todayStr} — telt niet mee in de maandelijkse cashflow hierboven`}
+        />
+
+        {oneTimeExpenseRows.length === 0 ? (
+          <div className="bg-card border border-border rounded-3xl p-10 text-center">
+            <p className="text-sm text-muted-foreground italic">Nog geen eenmalige uitgaven geregistreerd.</p>
+          </div>
+        ) : (
+          <div className="bg-card border border-border rounded-3xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Naam</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Datum</th>
+                  <th className="text-right px-6 py-3 text-muted-foreground font-medium">Bedrag</th>
+                  <th className="px-6 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {oneTimeExpenseRows.map(expense => (
+                  <OneTimeExpenseRow
+                    key={expense.id}
+                    expense={expense}
+                    updateAction={updateOneTimeExpenseAction}
+                    deleteAction={deleteOneTimeExpenseAction}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <OneTimeExpenseForm action={createOneTimeExpenseAction} />
 
       </main>
     </>
