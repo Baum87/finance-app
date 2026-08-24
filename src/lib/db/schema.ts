@@ -317,6 +317,9 @@ export const recurringItems = pgTable('recurring_items', {
   itemType:  text('item_type').notNull(),
   category:  text('category').notNull(),
   frequency: text('frequency').notNull(),
+  // Gezamenlijk betaald (bijv. vanaf een gedeelde rekening met een partner) —
+  // puur een zichtbaarheidsmarkering, geen splitsing/percentage-logica.
+  isShared:  boolean('is_shared').notNull().default(false),
   isActive:  boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -296,6 +296,7 @@ CREATE TABLE recurring_items (
   item_type  TEXT NOT NULL CHECK (item_type IN ('income', 'expense')),
   category   TEXT NOT NULL CHECK (category IN ('salary', 'insurance', 'subscription', 'mortgage', 'municipal_tax', 'groceries', 'other')),
   frequency  TEXT NOT NULL CHECK (frequency IN ('monthly', 'four_weekly', 'quarterly', 'yearly')),
+  is_shared  BOOLEAN NOT NULL DEFAULT false, -- gezamenlijk betaald (bijv. gedeelde rekening), puur zichtbaarheid
   is_active  BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

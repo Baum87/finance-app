@@ -11,6 +11,7 @@ export type RecurringItemInput = {
   amount: string
   frequency: 'monthly' | 'four_weekly' | 'quarterly' | 'yearly'
   effectiveDate: string
+  isShared: boolean
 }
 
 export async function getRecurringItems(userId: string) {
@@ -57,6 +58,7 @@ export async function createRecurringItem(userId: string, data: RecurringItemInp
       itemType:  data.itemType,
       category:  data.category,
       frequency: data.frequency,
+      isShared:  data.isShared,
     })
     .returning()
 
@@ -82,6 +84,7 @@ export async function updateRecurringItem(userId: string, itemId: string, data: 
       itemType:  data.itemType,
       category:  data.category,
       frequency: data.frequency,
+      isShared:  data.isShared,
       updatedAt: new Date(),
     })
     .where(and(eq(recurringItems.id, itemId), eq(recurringItems.tenantId, tenantId)))

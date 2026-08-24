@@ -101,7 +101,16 @@ export function RecurringItemForm({ action }: RecurringItemFormProps) {
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            name="isShared"
+            className="rounded border-border text-sage focus:ring-1 focus:ring-primary"
+          />
+          Gezamenlijk betaald (bijv. vanaf een gedeelde rekening)
+        </label>
+
         <button
           type="submit"
           className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"

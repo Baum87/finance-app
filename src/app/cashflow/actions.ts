@@ -21,6 +21,8 @@ const RecurringItemSchema = z.object({
   // afwijzen en zo de hele update laten mislukken zodra het bedrag ongewijzigd
   // blijft (het datumveld wordt dan niet gerenderd, zie RecurringItemRow.tsx).
   effectiveDate: z.string().min(1, 'Ingangsdatum is verplicht').nullish(),
+  // Checkbox: alleen aanwezig in formData als aangevinkt ('on').
+  isShared:      z.string().nullish(),
 })
 
 export async function createRecurringItemAction(formData: FormData): Promise<ActionState> {
@@ -34,13 +36,18 @@ export async function createRecurringItemAction(formData: FormData): Promise<Act
     category:  formData.get('category'),
     amount:    formData.get('amount'),
     frequency: formData.get('frequency'),
+    isShared:  formData.get('isShared'),
   })
 
   if (!parsed.success) {
     return { error: parsed.error.issues.map(i => i.message).join(', ') }
   }
 
-  await createRecurringItem(user.id, { ...parsed.data, effectiveDate: new Date().toISOString().slice(0, 10) })
+  await createRecurringItem(user.id, {
+    ...parsed.data,
+    effectiveDate: new Date().toISOString().slice(0, 10),
+    isShared:      parsed.data.isShared === 'on',
+  })
   revalidatePath('/cashflow')
   revalidatePath('/cashflow/vaste-lasten')
   return null
@@ -61,6 +68,7 @@ export async function updateRecurringItemAction(formData: FormData) {
     amount:        formData.get('amount'),
     frequency:     formData.get('frequency'),
     effectiveDate: formData.get('effectiveDate'),
+    isShared:      formData.get('isShared'),
   })
   if (!parsed.success) return
 
@@ -69,7 +77,11 @@ export async function updateRecurringItemAction(formData: FormData) {
   // geval terug op vandaag, puur als placeholder die niet gebruikt wordt.
   const effectiveDate = parsed.data.effectiveDate ?? new Date().toISOString().slice(0, 10)
 
-  await updateRecurringItem(user.id, itemId, { ...parsed.data, effectiveDate })
+  await updateRecurringItem(user.id, itemId, {
+    ...parsed.data,
+    effectiveDate,
+    isShared: parsed.data.isShared === 'on',
+  })
   revalidatePath('/cashflow')
   revalidatePath('/cashflow/vaste-lasten')
 }

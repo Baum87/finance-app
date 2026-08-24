@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, Trash2, Check, X } from 'lucide-react'
+import { Pencil, Trash2, Check, X, Users } from 'lucide-react'
 import Decimal from 'decimal.js'
 import { formatCurrencyPrecise, formatDate } from '@/lib/utils/format'
 import { ITEM_TYPE_LABELS, CATEGORY_LABELS, FREQUENCY_LABELS, CATEGORIES_BY_TYPE } from './recurring-item-labels'
@@ -100,18 +100,30 @@ export function RecurringItemRow({ item, updateAction, deleteAction }: Recurring
             </div>
 
             <div className="flex items-center justify-between">
-              {amount !== item.amount ? (
-                <div className="flex items-center gap-1.5">
-                  <label className="text-xs text-muted-foreground whitespace-nowrap">nieuw bedrag vanaf</label>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <input
-                    name="effectiveDate"
-                    type="date"
-                    required
-                    defaultValue={new Date().toISOString().slice(0, 10)}
-                    className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    type="checkbox"
+                    name="isShared"
+                    defaultChecked={item.isShared}
+                    className="rounded border-border text-sage focus:ring-1 focus:ring-primary"
                   />
-                </div>
-              ) : <div />}
+                  Gezamenlijk betaald
+                </label>
+
+                {amount !== item.amount && (
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs text-muted-foreground whitespace-nowrap">nieuw bedrag vanaf</label>
+                    <input
+                      name="effectiveDate"
+                      type="date"
+                      required
+                      defaultValue={new Date().toISOString().slice(0, 10)}
+                      className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                )}
+              </div>
 
               <div className="flex items-center gap-2">
                 <button
@@ -141,7 +153,16 @@ export function RecurringItemRow({ item, updateAction, deleteAction }: Recurring
 
   return (
     <tr className="border-b border-border last:border-0">
-      <td className="px-6 py-3 font-medium text-foreground">{item.name}</td>
+      <td className="px-6 py-3 font-medium text-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          {item.name}
+          {item.isShared && (
+            <span title="Gezamenlijk betaald" className="shrink-0">
+              <Users size={13} className="text-muted-foreground" aria-label="Gezamenlijk betaald" />
+            </span>
+          )}
+        </span>
+      </td>
       <td className="px-6 py-3 text-muted-foreground">{ITEM_TYPE_LABELS[item.itemType] ?? item.itemType}</td>
       <td className="px-6 py-3 text-muted-foreground">
         <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-muted">
