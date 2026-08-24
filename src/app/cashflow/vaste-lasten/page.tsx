@@ -5,7 +5,7 @@ import { formatCurrency } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { RecurringItemForm } from '@/components/cashflow/RecurringItemForm'
-import { RecurringItemRow } from '@/components/cashflow/RecurringItemRow'
+import { RecurringItemList } from '@/components/cashflow/RecurringItemList'
 import { createRecurringItemAction, updateRecurringItemAction, deleteRecurringItemAction } from '@/app/cashflow/actions'
 
 export default async function VasteLastenPage() {
@@ -56,38 +56,19 @@ export default async function VasteLastenPage() {
           />
         </div>
 
+        <RecurringItemForm action={createRecurringItemAction} />
+
         {recurringItemRows.length === 0 ? (
           <div className="bg-card border border-border rounded-3xl p-10 text-center">
             <p className="text-sm text-muted-foreground italic">Nog geen vaste lasten of inkomsten geregistreerd.</p>
           </div>
         ) : (
-          <div className="bg-card border border-border rounded-3xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Naam</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Soort</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Categorie</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Frequentie</th>
-                  <th className="text-right px-6 py-3 text-muted-foreground font-medium">Bedrag</th>
-                  <th className="px-6 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {recurringItemRows.map(item => (
-                  <RecurringItemRow
-                    key={item.id}
-                    item={item}
-                    updateAction={updateRecurringItemAction}
-                    deleteAction={deleteRecurringItemAction}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <RecurringItemList
+            items={recurringItemRows}
+            updateAction={updateRecurringItemAction}
+            deleteAction={deleteRecurringItemAction}
+          />
         )}
-
-        <RecurringItemForm action={createRecurringItemAction} />
 
       </main>
     </>

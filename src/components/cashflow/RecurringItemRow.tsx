@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, Check, X } from 'lucide-react'
 import Decimal from 'decimal.js'
 import { formatCurrency, formatDate } from '@/lib/utils/format'
 import { ITEM_TYPE_LABELS, CATEGORY_LABELS, FREQUENCY_LABELS, CATEGORIES_BY_TYPE } from './recurring-item-labels'
@@ -25,79 +25,114 @@ export function RecurringItemRow({ item, updateAction, deleteAction }: Recurring
 
   if (editing) {
     return (
-      <tr className="border-b border-border last:border-0">
-        <td className="px-6 py-3" colSpan={6}>
-          <form action={handleSave} className="flex flex-wrap items-center gap-2">
+      <tr className="border-b border-border last:border-0 bg-muted/30">
+        <td className="px-6 py-4" colSpan={6}>
+          <form action={handleSave} className="space-y-3">
             <input type="hidden" name="itemId" value={item.id} />
-            <input
-              name="name"
-              defaultValue={item.name}
-              required
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <select
-              name="itemType"
-              required
-              value={itemType}
-              onChange={(e) => setItemType(e.target.value as 'income' | 'expense')}
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {Object.entries(ITEM_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <select
-              name="category"
-              required
-              defaultValue={item.category}
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {CATEGORIES_BY_TYPE[itemType].map(value => (
-                <option key={value} value={value}>{CATEGORY_LABELS[value]}</option>
-              ))}
-            </select>
-            <select
-              name="frequency"
-              required
-              defaultValue={item.frequency}
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {Object.entries(FREQUENCY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <input
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            {amount !== item.amount && (
-              <div className="flex items-center gap-1.5">
-                <label className="text-xs text-muted-foreground whitespace-nowrap">nieuw bedrag vanaf</label>
+
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Naam</label>
                 <input
-                  name="effectiveDate"
-                  type="date"
+                  name="name"
+                  defaultValue={item.name}
                   required
-                  defaultValue={new Date().toISOString().slice(0, 10)}
-                  className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
-            )}
-            <button type="submit" className="text-xs font-medium text-sage hover:opacity-70 transition-opacity">
-              Opslaan
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Annuleren
-            </button>
+
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Soort</label>
+                <select
+                  name="itemType"
+                  required
+                  value={itemType}
+                  onChange={(e) => setItemType(e.target.value as 'income' | 'expense')}
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {Object.entries(ITEM_TYPE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Categorie</label>
+                <select
+                  name="category"
+                  required
+                  defaultValue={item.category}
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {CATEGORIES_BY_TYPE[itemType].map(value => (
+                    <option key={value} value={value}>{CATEGORY_LABELS[value]}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Frequentie</label>
+                <select
+                  name="frequency"
+                  required
+                  defaultValue={item.frequency}
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {Object.entries(FREQUENCY_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Bedrag (€)</label>
+                <input
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              {amount !== item.amount ? (
+                <div className="flex items-center gap-1.5">
+                  <label className="text-xs text-muted-foreground whitespace-nowrap">nieuw bedrag vanaf</label>
+                  <input
+                    name="effectiveDate"
+                    type="date"
+                    required
+                    defaultValue={new Date().toISOString().slice(0, 10)}
+                    className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              ) : <div />}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  aria-label="Opslaan"
+                  title="Opslaan"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-sage hover:bg-sage/10 transition-colors"
+                >
+                  <Check size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  aria-label="Annuleren"
+                  title="Annuleren"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
           </form>
         </td>
       </tr>
