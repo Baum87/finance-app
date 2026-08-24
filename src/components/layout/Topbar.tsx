@@ -7,6 +7,7 @@ import { Bell, LogOut, Menu, X, ChevronDown } from 'lucide-react'
 import { signOut } from '@/app/(auth)/login/actions'
 
 const portfolioItems = [
+  { href: '/portfolio',                 label: 'Overzicht' },
   { href: '/portfolio/aandelen-etf',    label: 'Aandelen & ETFs' },
   { href: '/portfolio/crypto',          label: 'Crypto' },
   { href: '/portfolio/spaarrekeningen', label: 'Spaarrekeningen' },

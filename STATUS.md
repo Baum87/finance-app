@@ -56,6 +56,19 @@ De app heeft drie lagen (zie `docs/project files/fiscal-layer.md`):
 - Pagina bestaat
 - **Nog niet gereviewed**
 
+### Portfolio overzicht — `/portfolio/`
+- ✅ Nieuw: overzichtspagina voor de hele portfolio-sectie (was er nog niet — elke
+  categorie had alleen zijn eigen pagina). Combineert waarde uit zowel volledige
+  asset-tracking als de simpele invoerlijsten (zie `portfolio-summary.ts`).
+- KPI's: totale portfoliowaarde, liquide vermogen (+ illiquide restant), XIRR dit
+  jaar (bewust alleen aandelen/crypto/spaargeld — vastgoed-XIRR is methodologisch
+  nog niet correct, zie R2 hieronder), marktrendement MSCI World ter referentie
+- Vermogensontwikkeling-tijdlijn + allocatiedonut (alle 6 categorieën) + tegels
+  per categorie met doorklik-link
+- De oude losse `/vermogen`-pagina (alleen liquide assets, al uit de nav gehaald)
+  is opgeheven — logica is hierin opgenomen
+- **Nog niet gereviewed**
+
 ### Cashflow — `/cashflow/`
 - Passief inkomen YTD, netto vermogensgroei YTD
 - PassiveIncomeBreakdown component
