@@ -3,7 +3,14 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { CHART_PALETTE, CHART_STYLE } from '@/lib/utils/chart-colors'
-import type { AllocationSlice } from '@/lib/finance'
+
+// Plain numbers, niet Decimal — dit is een Client Component en Decimal-instanties
+// kunnen niet over de server/client-grens geserialiseerd worden.
+export type AllocationSliceInput = {
+  assetType: string
+  value: number
+  percentage: number
+}
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
   stock_etf:   'Aandelen & ETF',
@@ -15,7 +22,7 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
 }
 
 interface AllocationChartProps {
-  slices: AllocationSlice[]
+  slices: AllocationSliceInput[]
 }
 
 type Segment = {
@@ -24,18 +31,18 @@ type Segment = {
   percentage: number
 }
 
-function buildSegments(slices: AllocationSlice[]): Segment[] {
+function buildSegments(slices: AllocationSliceInput[]): Segment[] {
   const reSegments: Segment[] = []
   const others: Segment[] = []
 
-  const total = slices.reduce((s, sl) => s + sl.value.toNumber(), 0)
+  const total = slices.reduce((s, sl) => s + sl.value, 0)
   if (total === 0) return []
 
   for (const sl of slices) {
-    const pct = sl.percentage.toNumber()
+    const pct = sl.percentage
     const seg: Segment = {
       name: ASSET_TYPE_LABELS[sl.assetType] ?? sl.assetType,
-      value: sl.value.toNumber(),
+      value: sl.value,
       percentage: pct,
     }
     if ((sl.assetType === 'real_estate' || sl.assetType === 'pension') && pct < 5) {

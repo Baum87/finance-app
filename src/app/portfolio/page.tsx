@@ -103,9 +103,11 @@ export default async function PortfolioOverviewPage() {
   )
   const chartData = series.map(p => ({ date: p.date, value: p.netWorth.toNumber() }))
 
+  // AllocationChart is een Client Component — Decimal-instanties kunnen niet
+  // over de server/client-grens, dus hier al naar plain numbers omzetten.
   const allocationSlices = calculateAllocation(
     categoryTotals.filter(c => c.value.gt(0)).map(c => ({ assetType: c.assetType, value: c.value })),
-  )
+  ).map(s => ({ assetType: s.assetType, value: s.value.toNumber(), percentage: s.percentage.toNumber() }))
 
   return (
     <>
