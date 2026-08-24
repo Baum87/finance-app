@@ -97,7 +97,19 @@ export async function updateRecurringItem(userId: string, itemId: string, data: 
     .limit(1)
 
   const amountChanged = !latest || !new Decimal(latest.amount).equals(new Decimal(data.amount))
-  if (amountChanged) {
+  if (!amountChanged) return
+
+  // Een latere ingangsdatum dan de huidige is een nieuwe periode: toevoegen,
+  // de oudere periode blijft intact. Eenzelfde of eerdere datum kan nooit als
+  // "huidig" naar boven komen (getRecurringItems pakt altijd de meest recente
+  // effectiveDate) — dat is dan een correctie op de huidige periode, geen
+  // nieuwe, dus die rij bijwerken i.p.v. een onzichtbare rij toevoegen.
+  if (latest && data.effectiveDate <= latest.effectiveDate) {
+    await db
+      .update(recurringItemAmounts)
+      .set({ amount: data.amount, effectiveDate: data.effectiveDate })
+      .where(eq(recurringItemAmounts.id, latest.id))
+  } else {
     await db.insert(recurringItemAmounts).values({
       recurringItemId: itemId,
       amount:          data.amount,
