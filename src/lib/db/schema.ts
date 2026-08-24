@@ -302,6 +302,31 @@ export const liabilities = pgTable('liabilities', {
   index('liabilities_tenant_id_idx').on(t.tenantId),
 ])
 
+// ─── recurring_items (vaste lasten & inkomsten) ──────────────────────────────
+// Eenvoudige registratie van terugkerende posten (verzekering, abonnement,
+// hypotheek, gemeentelijke belasting, boodschappen, salaris). Geen historie/
+// versiebeheer in v1 — een bedrag wijzigen is een update, stoppen is isActive=false.
+// Voedt de FIRE-berekening: annualExpenses/annualContribution komen hieruit i.p.v.
+// een handmatig ingevoerd getal.
+
+export const recurringItems = pgTable('recurring_items', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  tenantId:  uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  name:      text('name').notNull(),
+  itemType:  text('item_type').notNull(),
+  category:  text('category').notNull(),
+  amount:    numeric('amount', { precision: 15, scale: 2 }).notNull(),
+  frequency: text('frequency').notNull(),
+  isActive:  boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('recurring_items_tenant_id_idx').on(t.tenantId),
+  check('recurring_items_item_type_check', sql`${t.itemType} IN ('income', 'expense')`),
+  check('recurring_items_category_check', sql`${t.category} IN ('salary', 'insurance', 'subscription', 'mortgage', 'municipal_tax', 'groceries', 'other')`),
+  check('recurring_items_frequency_check', sql`${t.frequency} IN ('monthly', 'quarterly', 'yearly')`),
+])
+
 // ─── fx_rates (geen RLS — gedeeld, niet user-gebonden) ───────────────────────
 // Gereserveerd voor multi-currency / Optie B (transactievaluta met automatische
 // EUR-omrekening). Nog niet in gebruik in v1: alle transacties worden in EUR
@@ -335,10 +360,11 @@ export const assetTaxMetadata = pgTable('asset_tax_metadata', {
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const tenantsRelations = relations(tenants, ({ many }) => ({
-  tenantUsers: many(tenantUsers),
-  assets:      many(assets),
-  liabilities: many(liabilities),
-  brokers:     many(brokers),
+  tenantUsers:    many(tenantUsers),
+  assets:         many(assets),
+  liabilities:    many(liabilities),
+  brokers:        many(brokers),
+  recurringItems: many(recurringItems),
 }))
 
 export const brokersRelations = relations(brokers, ({ one, many }) => ({
@@ -417,4 +443,8 @@ export const mortgageBalancesRelations = relations(mortgageBalances, ({ one }) =
 
 export const liabilitiesRelations = relations(liabilities, ({ one }) => ({
   tenant: one(tenants, { fields: [liabilities.tenantId], references: [tenants.id] }),
+}))
+
+export const recurringItemsRelations = relations(recurringItems, ({ one }) => ({
+  tenant: one(tenants, { fields: [recurringItems.tenantId], references: [tenants.id] }),
 }))

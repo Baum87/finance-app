@@ -59,7 +59,11 @@ De app heeft drie lagen (zie `docs/project files/fiscal-layer.md`):
 ### Cashflow — `/cashflow/`
 - Passief inkomen YTD, netto vermogensgroei YTD
 - PassiveIncomeBreakdown component
-- **Nog niet gereviewed**
+- ✅ Nieuw: vaste lasten & inkomsten (`recurring_items`) — salaris, verzekering, abonnement,
+  hypotheek, gemeentelijke belasting, boodschappen, overig. Handmatige CRUD (geen historie/
+  versiebeheer), maand/jaar-KPI's + tabel. Basis voor de nog te bouwen FIRE-pagina
+  (annualExpenses/annualContribution komen hieruit i.p.v. een handmatig getal).
+- **Nog niet gereviewed** (rest van de pagina)
 
 ### Homepage — `/`
 - Netto vermogen + inzichtkaart (grootste allocatiecategorie + groei 30d)
@@ -75,6 +79,7 @@ De app heeft drie lagen (zie `docs/project files/fiscal-layer.md`):
 | `docs/fase-d-crypto-fixbatch.md` zweeft in docs-root | Verplaatst naar `docs/sprints/` | ✅ Gedaan |
 | `docs/todo-beleggingen.md` | Gearchiveerd als `docs/sprints/todo-beleggingen-archief.md` | ✅ Gedaan |
 | `src/middleware.ts` deprecated | Hernoemd naar `src/proxy.ts`, export default `proxy` | ✅ Gedaan |
+| `drizzle/migrations/meta/` mist snapshots 0005–0010 (migraties 0005 t/m 0010 zijn handmatig geschreven, nooit via `db:generate`) | `npm run db:generate` faalt hierdoor met een interactieve rename-prompt zodra het schema wijzigt — ook zonder échte wijzigingen. Migratie 0011 (`recurring_items`) is daarom ook handmatig geschreven, zelfde patroon als 0009/0010. Structureel fixen vraagt om de ontbrekende snapshots lokaal (met een echte TTY) te regenereren — niet gedaan vanuit deze sessie om de migratiehistorie niet te corrumperen | ⚠️ Open |
 | Oude routes naast nieuwe `/portfolio/` | `/vastgoed` verwijderd (content in portfolio detail), `/vermogen` naar dropdown, `Beheer` weg uit nav | ✅ Gedaan |
 
 ---

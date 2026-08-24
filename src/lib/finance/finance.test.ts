@@ -20,6 +20,7 @@ import { calculateAnnualReturn } from './annual-return'
 import { calculateExcessReturn } from './benchmark'
 import { buildNetWorthSeries } from './net-worth-series'
 import { buildSimpleEntryMonthlySeries, buildSingleValueMonthlySeries } from './simple-entry-series'
+import { annualizeAmount, calculateRecurringTotals } from './recurring-cashflow'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -640,5 +641,57 @@ describe('buildSingleValueMonthlySeries', () => {
 
   it('returns empty array for empty input', () => {
     expect(buildSingleValueMonthlySeries([], asOf)).toEqual([])
+  })
+})
+
+// ─── annualizeAmount ────────────────────────────────────────────────────────
+
+describe('annualizeAmount', () => {
+  it('multiplies monthly amounts by 12', () => {
+    expect(annualizeAmount(d('100'), 'monthly').toNumber()).toBe(1200)
+  })
+
+  it('multiplies quarterly amounts by 4', () => {
+    expect(annualizeAmount(d('300'), 'quarterly').toNumber()).toBe(1200)
+  })
+
+  it('leaves yearly amounts unchanged', () => {
+    expect(annualizeAmount(d('1200'), 'yearly').toNumber()).toBe(1200)
+  })
+
+  it('throws on an unknown frequency', () => {
+    // @ts-expect-error - testing invalid input from an untyped boundary (e.g. DB row)
+    expect(() => annualizeAmount(d('100'), 'weekly')).toThrow()
+  })
+})
+
+// ─── calculateRecurringTotals ───────────────────────────────────────────────
+
+describe('calculateRecurringTotals', () => {
+  it('sums income and expenses across mixed frequencies', () => {
+    const items = [
+      { itemType: 'income' as const, amount: '3500', frequency: 'monthly' as const, isActive: true },
+      { itemType: 'expense' as const, amount: '1200', frequency: 'monthly' as const, isActive: true },
+      { itemType: 'expense' as const, amount: '600', frequency: 'quarterly' as const, isActive: true },
+      { itemType: 'expense' as const, amount: '2400', frequency: 'yearly' as const, isActive: true },
+    ]
+    const totals = calculateRecurringTotals(items)
+    expect(totals.annualIncome.toNumber()).toBe(42000)
+    expect(totals.annualExpenses.toNumber()).toBe(1200 * 12 + 600 * 4 + 2400)
+    expect(totals.netAnnualCashflow.toNumber()).toBe(totals.annualIncome.toNumber() - totals.annualExpenses.toNumber())
+    expect(totals.monthlyIncome.toNumber()).toBe(3500)
+  })
+
+  it('ignores inactive items', () => {
+    const items = [
+      { itemType: 'expense' as const, amount: '1000', frequency: 'monthly' as const, isActive: false },
+    ]
+    const totals = calculateRecurringTotals(items)
+    expect(totals.annualExpenses.toNumber()).toBe(0)
+  })
+
+  it('returns zero totals for empty input', () => {
+    const totals = calculateRecurringTotals([])
+    expect(totals.netAnnualCashflow.toNumber()).toBe(0)
   })
 })

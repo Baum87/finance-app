@@ -2,13 +2,18 @@ import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getPassiveIncomeData, getNetWorthAtDate, getValuationTimeSeries, getMortgageBalanceTimeSeries } from '@/lib/db/queries/cashflow'
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
-import { calculateNetWorth } from '@/lib/finance'
+import { getRecurringItems } from '@/lib/db/queries/recurring-items'
+import { calculateNetWorth, calculateRecurringTotals } from '@/lib/finance'
 import { buildNetWorthSeries } from '@/lib/finance'
 import { formatCurrency } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { PassiveIncomeBreakdown } from '@/components/cashflow/PassiveIncomeBreakdown'
+import { RecurringItemForm } from '@/components/cashflow/RecurringItemForm'
+import { DeleteRecurringItemButton } from '@/components/cashflow/DeleteRecurringItemButton'
 import { NetWorthChart } from '@/components/vermogen/NetWorthChart'
+import { createRecurringItemAction, deleteRecurringItemAction } from './actions'
+import { ITEM_TYPE_LABELS, CATEGORY_LABELS, FREQUENCY_LABELS } from '@/components/cashflow/recurring-item-labels'
 
 function toDateStr(date: Date): string {
   return date.toISOString().slice(0, 10)
@@ -24,14 +29,24 @@ export default async function CashflowPage() {
   const ytdFrom = `${currentYear}-01-01`
   const todayStr = toDateStr(today)
 
-  const [txData, assets_, mortgageMap, networthJan1, valuationRows, mortgageBalanceRows] = await Promise.all([
+  const [txData, assets_, mortgageMap, networthJan1, valuationRows, mortgageBalanceRows, recurringItemRows] = await Promise.all([
     getPassiveIncomeData(userId, ytdFrom, todayStr),
     getAssetsWithValues(userId),
     getMortgageBalancesMap(userId),
     getNetWorthAtDate(userId, ytdFrom),
     getValuationTimeSeries(userId),
     getMortgageBalanceTimeSeries(userId),
+    getRecurringItems(userId),
   ])
+
+  const recurringTotals = calculateRecurringTotals(
+    recurringItemRows.map(r => ({
+      itemType:  r.itemType as 'income' | 'expense',
+      amount:    r.amount,
+      frequency: r.frequency as 'monthly' | 'quarterly' | 'yearly',
+      isActive:  r.isActive,
+    })),
+  )
 
   // Passief inkomen YTD
   const dividend  = txData.filter(t => t.transactionType === 'dividend').reduce((s, t) => s.plus(t.amount), new Decimal(0))
@@ -111,6 +126,83 @@ export default async function CashflowPage() {
         {/* Nettovermogen tijdlijn */}
         {/* TODO: tweede lijn toevoegen als doelen-entiteit bestaat (Sprint 4) */}
         <NetWorthChart data={chartData} />
+
+        {/* Vaste lasten & inkomsten */}
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Vaste lasten & inkomsten</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Salaris, verzekeringen, abonnementen, hypotheek en overige vaste posten</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <KpiCard
+            label="Inkomen per maand"
+            value={formatCurrency(recurringTotals.monthlyIncome.toNumber())}
+            subtext={`${formatCurrency(recurringTotals.annualIncome.toNumber())} per jaar`}
+          />
+          <KpiCard
+            label="Vaste lasten per maand"
+            value={formatCurrency(recurringTotals.monthlyExpenses.toNumber())}
+            subtext={`${formatCurrency(recurringTotals.annualExpenses.toNumber())} per jaar`}
+          />
+          <KpiCard
+            label="Netto cashflow per maand"
+            value={`${recurringTotals.netMonthlyCashflow.gte(0) ? '+' : ''}${formatCurrency(recurringTotals.netMonthlyCashflow.toNumber())}`}
+            subtext={`${formatCurrency(recurringTotals.netAnnualCashflow.toNumber())} per jaar`}
+            trend={{
+              value:    recurringTotals.netMonthlyCashflow.gte(0) ? 'Overschot' : 'Tekort',
+              positive: recurringTotals.netMonthlyCashflow.gte(0),
+            }}
+          />
+        </div>
+
+        {recurringItemRows.length === 0 ? (
+          <div className="bg-card border border-border rounded-3xl p-10 text-center">
+            <p className="text-sm text-muted-foreground italic">Nog geen vaste lasten of inkomsten geregistreerd.</p>
+          </div>
+        ) : (
+          <div className="bg-card border border-border rounded-3xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Naam</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Soort</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Categorie</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Frequentie</th>
+                  <th className="text-right px-6 py-3 text-muted-foreground font-medium">Bedrag</th>
+                  <th className="px-6 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {recurringItemRows.map(item => (
+                  <tr key={item.id} className="border-b border-border last:border-0">
+                    <td className="px-6 py-3 font-medium text-foreground">{item.name}</td>
+                    <td className="px-6 py-3 text-muted-foreground">{ITEM_TYPE_LABELS[item.itemType] ?? item.itemType}</td>
+                    <td className="px-6 py-3 text-muted-foreground">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-muted">
+                        {CATEGORY_LABELS[item.category] ?? item.category}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3 text-muted-foreground">
+                      {FREQUENCY_LABELS[item.frequency] ?? item.frequency}
+                    </td>
+                    <td className={`px-6 py-3 text-right font-medium ${item.itemType === 'income' ? 'text-sage' : 'text-foreground'}`}>
+                      {item.itemType === 'income' ? '+' : '−'}{formatCurrency(new Decimal(item.amount).toNumber())}
+                    </td>
+                    <td className="px-6 py-3 text-right">
+                      <DeleteRecurringItemButton
+                        itemId={item.id}
+                        name={item.name}
+                        action={deleteRecurringItemAction}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <RecurringItemForm action={createRecurringItemAction} />
 
       </main>
     </>
