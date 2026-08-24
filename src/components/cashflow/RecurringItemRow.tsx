@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import Decimal from 'decimal.js'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency, formatDate } from '@/lib/utils/format'
 import { ITEM_TYPE_LABELS, CATEGORY_LABELS, FREQUENCY_LABELS, CATEGORIES_BY_TYPE } from './recurring-item-labels'
 import type { RecurringItem } from '@/lib/db/queries/recurring-items'
 
@@ -16,6 +16,7 @@ interface RecurringItemRowProps {
 export function RecurringItemRow({ item, updateAction, deleteAction }: RecurringItemRowProps) {
   const [editing, setEditing] = useState(false)
   const [itemType, setItemType] = useState<'income' | 'expense'>(item.itemType as 'income' | 'expense')
+  const [amount, setAmount] = useState(item.amount)
 
   async function handleSave(formData: FormData) {
     await updateAction(formData)
@@ -71,9 +72,22 @@ export function RecurringItemRow({ item, updateAction, deleteAction }: Recurring
               step="0.01"
               min="0"
               required
-              defaultValue={item.amount}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
               className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-primary"
             />
+            {amount !== item.amount && (
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-muted-foreground whitespace-nowrap">nieuw bedrag vanaf</label>
+                <input
+                  name="effectiveDate"
+                  type="date"
+                  required
+                  defaultValue={new Date().toISOString().slice(0, 10)}
+                  className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            )}
             <button type="submit" className="text-xs font-medium text-sage hover:opacity-70 transition-opacity">
               Opslaan
             </button>
@@ -102,8 +116,11 @@ export function RecurringItemRow({ item, updateAction, deleteAction }: Recurring
       <td className="px-6 py-3 text-muted-foreground">
         {FREQUENCY_LABELS[item.frequency] ?? item.frequency}
       </td>
-      <td className={`px-6 py-3 text-right font-medium ${item.itemType === 'income' ? 'text-sage' : 'text-foreground'}`}>
-        {item.itemType === 'income' ? '+' : '−'}{formatCurrency(new Decimal(item.amount).toNumber())}
+      <td className="px-6 py-3 text-right">
+        <div className={`font-medium ${item.itemType === 'income' ? 'text-sage' : 'text-foreground'}`}>
+          {item.itemType === 'income' ? '+' : '−'}{formatCurrency(new Decimal(item.amount).toNumber())}
+        </div>
+        <div className="text-xs text-muted-foreground">sinds {formatDate(item.effectiveDate)}</div>
       </td>
       <td className="px-6 py-3">
         <div className="flex items-center justify-end gap-3">
@@ -111,6 +128,7 @@ export function RecurringItemRow({ item, updateAction, deleteAction }: Recurring
             type="button"
             onClick={() => {
               setItemType(item.itemType as 'income' | 'expense')
+              setAmount(item.amount)
               setEditing(true)
             }}
             aria-label="Bewerken"

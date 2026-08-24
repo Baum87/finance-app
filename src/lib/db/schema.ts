@@ -304,8 +304,9 @@ export const liabilities = pgTable('liabilities', {
 
 // ─── recurring_items (vaste lasten & inkomsten) ──────────────────────────────
 // Eenvoudige registratie van terugkerende posten (verzekering, abonnement,
-// hypotheek, gemeentelijke belasting, boodschappen, salaris). Geen historie/
-// versiebeheer in v1 — een bedrag wijzigen is een update, stoppen is isActive=false.
+// hypotheek, gemeentelijke belasting, boodschappen, salaris). Het bedrag zelf
+// staat niet hier maar in recurring_item_amounts (append-only historie) —
+// zelfde patroon als assets + asset_valuations. Stoppen is isActive=false.
 // Voedt de FIRE-berekening: annualExpenses/annualContribution komen hieruit i.p.v.
 // een handmatig ingevoerd getal.
 
@@ -315,7 +316,6 @@ export const recurringItems = pgTable('recurring_items', {
   name:      text('name').notNull(),
   itemType:  text('item_type').notNull(),
   category:  text('category').notNull(),
-  amount:    numeric('amount', { precision: 15, scale: 2 }).notNull(),
   frequency: text('frequency').notNull(),
   isActive:  boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -325,6 +325,24 @@ export const recurringItems = pgTable('recurring_items', {
   check('recurring_items_item_type_check', sql`${t.itemType} IN ('income', 'expense')`),
   check('recurring_items_category_check', sql`${t.category} IN ('salary', 'insurance', 'subscription', 'mortgage', 'municipal_tax', 'groceries', 'other')`),
   check('recurring_items_frequency_check', sql`${t.frequency} IN ('monthly', 'four_weekly', 'quarterly', 'yearly')`),
+])
+
+// ─── recurring_item_amounts (bedraghistorie per vaste last/inkomen) ─────────
+// Append-only: elke wijziging voegt een rij toe i.p.v. te overschrijven, zodat
+// oudere periodes hun eigen bedrag behouden (bijv. zorgverzekering was €100 t/m
+// maart, daarna €120). De rij met de meest recente effective_date is het
+// huidige bedrag — zelfde "meest recente rij = huidige waarde"-patroon als
+// asset_valuations en de simple_entries-tabellen.
+
+export const recurringItemAmounts = pgTable('recurring_item_amounts', {
+  id:               uuid('id').primaryKey().defaultRandom(),
+  recurringItemId:  uuid('recurring_item_id').notNull().references(() => recurringItems.id, { onDelete: 'cascade' }),
+  amount:           numeric('amount', { precision: 15, scale: 2 }).notNull(),
+  effectiveDate:    date('effective_date').notNull(),
+  createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('recurring_item_amounts_item_id_idx').on(t.recurringItemId),
+  index('recurring_item_amounts_effective_date_idx').on(t.effectiveDate),
 ])
 
 // ─── fx_rates (geen RLS — gedeeld, niet user-gebonden) ───────────────────────
@@ -445,6 +463,11 @@ export const liabilitiesRelations = relations(liabilities, ({ one }) => ({
   tenant: one(tenants, { fields: [liabilities.tenantId], references: [tenants.id] }),
 }))
 
-export const recurringItemsRelations = relations(recurringItems, ({ one }) => ({
-  tenant: one(tenants, { fields: [recurringItems.tenantId], references: [tenants.id] }),
+export const recurringItemsRelations = relations(recurringItems, ({ one, many }) => ({
+  tenant:  one(tenants, { fields: [recurringItems.tenantId], references: [tenants.id] }),
+  amounts: many(recurringItemAmounts),
+}))
+
+export const recurringItemAmountsRelations = relations(recurringItemAmounts, ({ one }) => ({
+  recurringItem: one(recurringItems, { fields: [recurringItemAmounts.recurringItemId], references: [recurringItems.id] }),
 }))

@@ -92,6 +92,13 @@
       "when": 1782500000000,
       "tag": "0012_recurring_items_four_weekly",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782600000000,
+      "tag": "0013_recurring_item_amounts",
+      "breakpoints": true
     }
   ]
 }
