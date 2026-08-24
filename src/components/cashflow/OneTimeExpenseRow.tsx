@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, Check, X, Users } from 'lucide-react'
 import Decimal from 'decimal.js'
 import { formatCurrencyPrecise, formatDate } from '@/lib/utils/format'
 import type { OneTimeExpense } from '@/lib/db/queries/one-time-expenses'
@@ -22,42 +22,66 @@ export function OneTimeExpenseRow({ expense, updateAction, deleteAction }: OneTi
 
   if (editing) {
     return (
-      <tr className="border-b border-border last:border-0">
-        <td className="px-6 py-3" colSpan={4}>
-          <form action={handleSave} className="flex flex-wrap items-center gap-2">
+      <tr className="border-b border-border last:border-0 bg-muted/30">
+        <td className="px-6 py-4" colSpan={5}>
+          <form action={handleSave} className="space-y-3">
             <input type="hidden" name="expenseId" value={expense.id} />
-            <input
-              name="name"
-              defaultValue={expense.name}
-              required
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <input
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              defaultValue={expense.amount}
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <input
-              name="expenseDate"
-              type="date"
-              required
-              defaultValue={expense.expenseDate}
-              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <button type="submit" className="text-xs font-medium text-sage hover:opacity-70 transition-opacity">
-              Opslaan
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Annuleren
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                name="name"
+                defaultValue={expense.name}
+                required
+                className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <input
+                name="amount"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                defaultValue={expense.amount}
+                className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <input
+                name="expenseDate"
+                type="date"
+                required
+                defaultValue={expense.expenseDate}
+                className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  name="isShared"
+                  defaultChecked={expense.isShared}
+                  className="rounded border-border text-sage focus:ring-1 focus:ring-primary"
+                />
+                Gezamenlijk betaald
+              </label>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  aria-label="Opslaan"
+                  title="Opslaan"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-sage hover:bg-sage/10 transition-colors"
+                >
+                  <Check size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  aria-label="Annuleren"
+                  title="Annuleren"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
           </form>
         </td>
       </tr>
@@ -70,6 +94,13 @@ export function OneTimeExpenseRow({ expense, updateAction, deleteAction }: OneTi
       <td className="px-6 py-3 text-muted-foreground">{formatDate(expense.expenseDate)}</td>
       <td className="px-6 py-3 text-right font-medium text-foreground">
         {formatCurrencyPrecise(new Decimal(expense.amount).toNumber())}
+      </td>
+      <td className="px-6 py-3 text-center">
+        {expense.isShared && (
+          <span title="Gezamenlijk betaald" className="inline-flex">
+            <Users size={15} className="text-muted-foreground" aria-label="Gezamenlijk betaald" />
+          </span>
+        )}
       </td>
       <td className="px-6 py-3">
         <div className="flex items-center justify-end gap-3">

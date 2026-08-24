@@ -113,6 +113,13 @@
       "when": 1782800000000,
       "tag": "0015_recurring_items_is_shared",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1782900000000,
+      "tag": "0016_one_time_expenses_is_shared",
+      "breakpoints": true
     }
   ]
 }

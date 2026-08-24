@@ -360,6 +360,7 @@ export const oneTimeExpenses = pgTable('one_time_expenses', {
   name:        text('name').notNull(),
   amount:      numeric('amount', { precision: 15, scale: 2 }).notNull(),
   expenseDate: date('expense_date').notNull(),
+  isShared:    boolean('is_shared').notNull().default(false),
   createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:   timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

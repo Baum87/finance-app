@@ -51,6 +51,7 @@ export default async function EenmaligeUitgavenPage() {
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Naam</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Datum</th>
                   <th className="text-right px-6 py-3 text-muted-foreground font-medium">Bedrag</th>
+                  <th className="text-center px-6 py-3 text-muted-foreground font-medium">Gedeeld</th>
                   <th className="px-6 py-3" />
                 </tr>
               </thead>

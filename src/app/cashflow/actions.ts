@@ -105,6 +105,7 @@ const OneTimeExpenseSchema = z.object({
   name:        z.string().min(1, 'Naam is verplicht'),
   amount:      z.string().regex(/^\d+(\.\d{1,2})?$/, 'Ongeldig bedrag'),
   expenseDate: z.string().min(1, 'Datum is verplicht'),
+  isShared:    z.string().nullish(),
 })
 
 export async function createOneTimeExpenseAction(formData: FormData): Promise<ActionState> {
@@ -116,13 +117,14 @@ export async function createOneTimeExpenseAction(formData: FormData): Promise<Ac
     name:        formData.get('name'),
     amount:      formData.get('amount'),
     expenseDate: formData.get('expenseDate'),
+    isShared:    formData.get('isShared'),
   })
 
   if (!parsed.success) {
     return { error: parsed.error.issues.map(i => i.message).join(', ') }
   }
 
-  await createOneTimeExpense(user.id, parsed.data)
+  await createOneTimeExpense(user.id, { ...parsed.data, isShared: parsed.data.isShared === 'on' })
   revalidatePath('/cashflow')
   revalidatePath('/cashflow/eenmalige-uitgaven')
   return null
@@ -140,10 +142,11 @@ export async function updateOneTimeExpenseAction(formData: FormData) {
     name:        formData.get('name'),
     amount:      formData.get('amount'),
     expenseDate: formData.get('expenseDate'),
+    isShared:    formData.get('isShared'),
   })
   if (!parsed.success) return
 
-  await updateOneTimeExpense(user.id, expenseId, parsed.data)
+  await updateOneTimeExpense(user.id, expenseId, { ...parsed.data, isShared: parsed.data.isShared === 'on' })
   revalidatePath('/cashflow')
   revalidatePath('/cashflow/eenmalige-uitgaven')
 }

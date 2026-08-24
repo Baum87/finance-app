@@ -329,6 +329,7 @@ CREATE TABLE one_time_expenses (
   name         TEXT NOT NULL,
   amount       NUMERIC(15,2) NOT NULL,
   expense_date DATE NOT NULL,
+  is_shared    BOOLEAN NOT NULL DEFAULT false, -- gezamenlijk betaald, puur zichtbaarheid
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -7,6 +7,7 @@ export type OneTimeExpenseInput = {
   name: string
   amount: string
   expenseDate: string
+  isShared: boolean
 }
 
 export async function getOneTimeExpenses(userId: string) {
@@ -24,7 +25,7 @@ export async function createOneTimeExpense(userId: string, data: OneTimeExpenseI
   const tenantId = await getOrCreateTenant(userId)
   const [row] = await db
     .insert(oneTimeExpenses)
-    .values({ tenantId, name: data.name, amount: data.amount, expenseDate: data.expenseDate })
+    .values({ tenantId, name: data.name, amount: data.amount, expenseDate: data.expenseDate, isShared: data.isShared })
     .returning()
   return row
 }
@@ -33,7 +34,7 @@ export async function updateOneTimeExpense(userId: string, expenseId: string, da
   const tenantId = await getOrCreateTenant(userId)
   await db
     .update(oneTimeExpenses)
-    .set({ name: data.name, amount: data.amount, expenseDate: data.expenseDate, updatedAt: new Date() })
+    .set({ name: data.name, amount: data.amount, expenseDate: data.expenseDate, isShared: data.isShared, updatedAt: new Date() })
     .where(and(eq(oneTimeExpenses.id, expenseId), eq(oneTimeExpenses.tenantId, tenantId)))
 }
 
