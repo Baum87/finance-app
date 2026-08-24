@@ -100,13 +100,15 @@ export async function updateRecurringItem(userId: string, itemId: string, data: 
     .limit(1)
 
   const amountChanged = !latest || !new Decimal(latest.amount).equals(new Decimal(data.amount))
-  if (!amountChanged) return
+  const dateChanged   = !latest || latest.effectiveDate !== data.effectiveDate
+  if (!amountChanged && !dateChanged) return
 
   // Een latere ingangsdatum dan de huidige is een nieuwe periode: toevoegen,
   // de oudere periode blijft intact. Eenzelfde of eerdere datum kan nooit als
   // "huidig" naar boven komen (getRecurringItems pakt altijd de meest recente
-  // effectiveDate) — dat is dan een correctie op de huidige periode, geen
-  // nieuwe, dus die rij bijwerken i.p.v. een onzichtbare rij toevoegen.
+  // effectiveDate) — dat is dan een correctie op de huidige periode (bedrag
+  // en/of datum), geen nieuwe, dus die rij bijwerken i.p.v. een onzichtbare
+  // rij toevoegen.
   if (latest && data.effectiveDate <= latest.effectiveDate) {
     await db
       .update(recurringItemAmounts)

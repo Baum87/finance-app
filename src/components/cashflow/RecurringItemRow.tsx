@@ -26,11 +26,11 @@ export function RecurringItemRow({ item, updateAction, deleteAction }: Recurring
   if (editing) {
     return (
       <tr className="border-b border-border last:border-0 bg-muted/30">
-        <td className="px-6 py-4" colSpan={6}>
+        <td className="px-6 py-4" colSpan={7}>
           <form action={handleSave} className="space-y-3">
             <input type="hidden" name="itemId" value={item.id} />
 
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Naam</label>
                 <input
@@ -97,33 +97,29 @@ export function RecurringItemRow({ item, updateAction, deleteAction }: Recurring
                   className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground whitespace-nowrap">Geldig vanaf</label>
+                <input
+                  name="effectiveDate"
+                  type="date"
+                  required
+                  defaultValue={item.effectiveDate}
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    name="isShared"
-                    defaultChecked={item.isShared}
-                    className="rounded border-border text-sage focus:ring-1 focus:ring-primary"
-                  />
-                  Gezamenlijk betaald
-                </label>
-
-                {amount !== item.amount && (
-                  <div className="flex items-center gap-1.5">
-                    <label className="text-xs text-muted-foreground whitespace-nowrap">nieuw bedrag vanaf</label>
-                    <input
-                      name="effectiveDate"
-                      type="date"
-                      required
-                      defaultValue={new Date().toISOString().slice(0, 10)}
-                      className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                )}
-              </div>
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  name="isShared"
+                  defaultChecked={item.isShared}
+                  className="rounded border-border text-sage focus:ring-1 focus:ring-primary"
+                />
+                Gezamenlijk betaald
+              </label>
 
               <div className="flex items-center gap-2">
                 <button
@@ -153,16 +149,7 @@ export function RecurringItemRow({ item, updateAction, deleteAction }: Recurring
 
   return (
     <tr className="border-b border-border last:border-0">
-      <td className="px-6 py-3 font-medium text-foreground">
-        <span className="inline-flex items-center gap-1.5">
-          {item.name}
-          {item.isShared && (
-            <span title="Gezamenlijk betaald" className="shrink-0">
-              <Users size={13} className="text-muted-foreground" aria-label="Gezamenlijk betaald" />
-            </span>
-          )}
-        </span>
-      </td>
+      <td className="px-6 py-3 font-medium text-foreground">{item.name}</td>
       <td className="px-6 py-3 text-muted-foreground">{ITEM_TYPE_LABELS[item.itemType] ?? item.itemType}</td>
       <td className="px-6 py-3 text-muted-foreground">
         <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-muted">
@@ -177,6 +164,13 @@ export function RecurringItemRow({ item, updateAction, deleteAction }: Recurring
           {item.itemType === 'income' ? '+' : '−'}{formatCurrencyPrecise(new Decimal(item.amount).toNumber())}
         </div>
         <div className="text-xs text-muted-foreground">sinds {formatDate(item.effectiveDate)}</div>
+      </td>
+      <td className="px-6 py-3 text-center">
+        {item.isShared && (
+          <span title="Gezamenlijk betaald" className="inline-flex">
+            <Users size={15} className="text-muted-foreground" aria-label="Gezamenlijk betaald" />
+          </span>
+        )}
       </td>
       <td className="px-6 py-3">
         <div className="flex items-center justify-end gap-3">

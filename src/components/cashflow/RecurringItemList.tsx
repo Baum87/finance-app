@@ -7,7 +7,7 @@ import { RecurringItemRow } from './RecurringItemRow'
 import { ITEM_TYPE_LABELS, CATEGORY_LABELS, FREQUENCY_LABELS } from './recurring-item-labels'
 import type { RecurringItem } from '@/lib/db/queries/recurring-items'
 
-type SortKey = 'name' | 'itemType' | 'category' | 'frequency' | 'amount'
+type SortKey = 'name' | 'itemType' | 'category' | 'frequency' | 'amount' | 'isShared'
 
 interface RecurringItemListProps {
   items: RecurringItem[]
@@ -24,6 +24,7 @@ export function RecurringItemList({ items, updateAction, deleteAction }: Recurri
     if (key === 'category') return CATEGORY_LABELS[item.category] ?? item.category
     if (key === 'frequency') return FREQUENCY_LABELS[item.frequency] ?? item.frequency
     if (key === 'amount')   return new Decimal(item.amount).toNumber()
+    if (key === 'isShared') return item.isShared ? 1 : 0
     return null
   })
 
@@ -37,6 +38,7 @@ export function RecurringItemList({ items, updateAction, deleteAction }: Recurri
             <th className="text-left px-6 py-3 font-medium"><SortableHeader label="Categorie" sortKey="category" sort={sort} onToggle={toggle} /></th>
             <th className="text-left px-6 py-3 font-medium"><SortableHeader label="Frequentie" sortKey="frequency" sort={sort} onToggle={toggle} /></th>
             <th className="text-right px-6 py-3 font-medium"><SortableHeader label="Bedrag" sortKey="amount" sort={sort} onToggle={toggle} /></th>
+            <th className="text-center px-6 py-3 font-medium"><SortableHeader label="Gedeeld" sortKey="isShared" sort={sort} onToggle={toggle} /></th>
             <th className="px-6 py-3" />
           </tr>
         </thead>
