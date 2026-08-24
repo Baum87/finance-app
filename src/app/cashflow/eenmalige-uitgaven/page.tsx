@@ -5,7 +5,7 @@ import { formatCurrency } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { OneTimeExpenseForm } from '@/components/cashflow/OneTimeExpenseForm'
-import { OneTimeExpenseRow } from '@/components/cashflow/OneTimeExpenseRow'
+import { OneTimeExpenseList } from '@/components/cashflow/OneTimeExpenseList'
 import { createOneTimeExpenseAction, updateOneTimeExpenseAction, deleteOneTimeExpenseAction } from '@/app/cashflow/actions'
 
 export default async function EenmaligeUitgavenPage() {
@@ -44,29 +44,11 @@ export default async function EenmaligeUitgavenPage() {
             <p className="text-sm text-muted-foreground italic">Nog geen eenmalige uitgaven geregistreerd.</p>
           </div>
         ) : (
-          <div className="bg-card border border-border rounded-3xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Naam</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Datum</th>
-                  <th className="text-right px-6 py-3 text-muted-foreground font-medium">Bedrag</th>
-                  <th className="text-center px-6 py-3 text-muted-foreground font-medium">Gedeeld</th>
-                  <th className="px-6 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {oneTimeExpenseRows.map(expense => (
-                  <OneTimeExpenseRow
-                    key={expense.id}
-                    expense={expense}
-                    updateAction={updateOneTimeExpenseAction}
-                    deleteAction={deleteOneTimeExpenseAction}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <OneTimeExpenseList
+            expenses={oneTimeExpenseRows}
+            updateAction={updateOneTimeExpenseAction}
+            deleteAction={deleteOneTimeExpenseAction}
+          />
         )}
 
         <OneTimeExpenseForm action={createOneTimeExpenseAction} />
