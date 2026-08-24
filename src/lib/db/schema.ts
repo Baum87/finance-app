@@ -324,7 +324,7 @@ export const recurringItems = pgTable('recurring_items', {
   index('recurring_items_tenant_id_idx').on(t.tenantId),
   check('recurring_items_item_type_check', sql`${t.itemType} IN ('income', 'expense')`),
   check('recurring_items_category_check', sql`${t.category} IN ('salary', 'insurance', 'subscription', 'mortgage', 'municipal_tax', 'groceries', 'other')`),
-  check('recurring_items_frequency_check', sql`${t.frequency} IN ('monthly', 'quarterly', 'yearly')`),
+  check('recurring_items_frequency_check', sql`${t.frequency} IN ('monthly', 'four_weekly', 'quarterly', 'yearly')`),
 ])
 
 // ─── fx_rates (geen RLS — gedeeld, niet user-gebonden) ───────────────────────

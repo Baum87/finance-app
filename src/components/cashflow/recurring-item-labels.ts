@@ -14,7 +14,13 @@ export const CATEGORY_LABELS: Record<string, string> = {
 }
 
 export const FREQUENCY_LABELS: Record<string, string> = {
-  monthly:   'Maandelijks',
-  quarterly: 'Per kwartaal',
-  yearly:    'Jaarlijks',
+  monthly:     'Maandelijks',
+  four_weekly: 'Per 4 weken',
+  quarterly:   'Per kwartaal',
+  yearly:      'Jaarlijks',
+}
+
+export const CATEGORIES_BY_TYPE: Record<string, string[]> = {
+  income:  ['salary', 'other'],
+  expense: ['insurance', 'subscription', 'mortgage', 'municipal_tax', 'groceries', 'other'],
 }

@@ -1,6 +1,6 @@
 import Decimal from 'decimal.js'
 
-export type RecurringFrequency = 'monthly' | 'quarterly' | 'yearly'
+export type RecurringFrequency = 'monthly' | 'four_weekly' | 'quarterly' | 'yearly'
 export type RecurringItemType = 'income' | 'expense'
 
 type RecurringItemInput = {
@@ -19,10 +19,13 @@ export type RecurringCashflowTotals = {
   netMonthlyCashflow: Decimal
 }
 
+// 4-wekelijks (bijv. salaris): 13 periodes van 4 weken per jaar, de gangbare
+// Nederlandse loonadministratie-conventie (13 × 4 = 52 weken).
 const PERIODS_PER_YEAR: Record<RecurringFrequency, number> = {
-  monthly:   12,
-  quarterly: 4,
-  yearly:    1,
+  monthly:     12,
+  four_weekly: 13,
+  quarterly:   4,
+  yearly:      1,
 }
 
 /**

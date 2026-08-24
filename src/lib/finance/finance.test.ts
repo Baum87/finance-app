@@ -655,6 +655,10 @@ describe('annualizeAmount', () => {
     expect(annualizeAmount(d('300'), 'quarterly').toNumber()).toBe(1200)
   })
 
+  it('multiplies four-weekly amounts by 13', () => {
+    expect(annualizeAmount(d('100'), 'four_weekly').toNumber()).toBe(1300)
+  })
+
   it('leaves yearly amounts unchanged', () => {
     expect(annualizeAmount(d('1200'), 'yearly').toNumber()).toBe(1200)
   })

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
-import { createRecurringItem, deleteRecurringItem } from '@/lib/db/queries/recurring-items'
+import { createRecurringItem, updateRecurringItem, deleteRecurringItem } from '@/lib/db/queries/recurring-items'
 import type { ActionState } from '@/app/assets/actions'
 
 const RecurringItemSchema = z.object({
@@ -12,7 +12,7 @@ const RecurringItemSchema = z.object({
   itemType:  z.enum(['income', 'expense']),
   category:  z.enum(['salary', 'insurance', 'subscription', 'mortgage', 'municipal_tax', 'groceries', 'other']),
   amount:    z.string().regex(/^\d+(\.\d{1,2})?$/, 'Ongeldig bedrag'),
-  frequency: z.enum(['monthly', 'quarterly', 'yearly']),
+  frequency: z.enum(['monthly', 'four_weekly', 'quarterly', 'yearly']),
 })
 
 export async function createRecurringItemAction(formData: FormData): Promise<ActionState> {
@@ -35,6 +35,27 @@ export async function createRecurringItemAction(formData: FormData): Promise<Act
   await createRecurringItem(user.id, parsed.data)
   revalidatePath('/cashflow')
   return null
+}
+
+export async function updateRecurringItemAction(formData: FormData) {
+  const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const itemId = formData.get('itemId') as string
+  if (!itemId) throw new Error('Geen post-ID opgegeven')
+
+  const parsed = RecurringItemSchema.safeParse({
+    name:      formData.get('name'),
+    itemType:  formData.get('itemType'),
+    category:  formData.get('category'),
+    amount:    formData.get('amount'),
+    frequency: formData.get('frequency'),
+  })
+  if (!parsed.success) return
+
+  await updateRecurringItem(user.id, itemId, parsed.data)
+  revalidatePath('/cashflow')
 }
 
 export async function deleteRecurringItemAction(formData: FormData) {

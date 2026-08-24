@@ -2,12 +2,7 @@
 
 import { useRef, useState } from 'react'
 import type { ActionState } from '@/app/assets/actions'
-import { ITEM_TYPE_LABELS, CATEGORY_LABELS, FREQUENCY_LABELS } from './recurring-item-labels'
-
-const CATEGORIES_BY_TYPE: Record<string, string[]> = {
-  income:  ['salary', 'other'],
-  expense: ['insurance', 'subscription', 'mortgage', 'municipal_tax', 'groceries', 'other'],
-}
+import { ITEM_TYPE_LABELS, CATEGORY_LABELS, FREQUENCY_LABELS, CATEGORIES_BY_TYPE } from './recurring-item-labels'
 
 interface RecurringItemFormProps {
   action: (formData: FormData) => Promise<ActionState>

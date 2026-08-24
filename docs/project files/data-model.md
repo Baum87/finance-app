@@ -297,7 +297,7 @@ CREATE TABLE recurring_items (
   item_type  TEXT NOT NULL CHECK (item_type IN ('income', 'expense')),
   category   TEXT NOT NULL CHECK (category IN ('salary', 'insurance', 'subscription', 'mortgage', 'municipal_tax', 'groceries', 'other')),
   amount     NUMERIC(15,2) NOT NULL,
-  frequency  TEXT NOT NULL CHECK (frequency IN ('monthly', 'quarterly', 'yearly')),
+  frequency  TEXT NOT NULL CHECK (frequency IN ('monthly', 'four_weekly', 'quarterly', 'yearly')),
   is_active  BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

@@ -10,10 +10,9 @@ import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { PassiveIncomeBreakdown } from '@/components/cashflow/PassiveIncomeBreakdown'
 import { RecurringItemForm } from '@/components/cashflow/RecurringItemForm'
-import { DeleteRecurringItemButton } from '@/components/cashflow/DeleteRecurringItemButton'
+import { RecurringItemRow } from '@/components/cashflow/RecurringItemRow'
 import { NetWorthChart } from '@/components/vermogen/NetWorthChart'
-import { createRecurringItemAction, deleteRecurringItemAction } from './actions'
-import { ITEM_TYPE_LABELS, CATEGORY_LABELS, FREQUENCY_LABELS } from '@/components/cashflow/recurring-item-labels'
+import { createRecurringItemAction, updateRecurringItemAction, deleteRecurringItemAction } from './actions'
 
 function toDateStr(date: Date): string {
   return date.toISOString().slice(0, 10)
@@ -174,28 +173,12 @@ export default async function CashflowPage() {
               </thead>
               <tbody>
                 {recurringItemRows.map(item => (
-                  <tr key={item.id} className="border-b border-border last:border-0">
-                    <td className="px-6 py-3 font-medium text-foreground">{item.name}</td>
-                    <td className="px-6 py-3 text-muted-foreground">{ITEM_TYPE_LABELS[item.itemType] ?? item.itemType}</td>
-                    <td className="px-6 py-3 text-muted-foreground">
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-muted">
-                        {CATEGORY_LABELS[item.category] ?? item.category}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 text-muted-foreground">
-                      {FREQUENCY_LABELS[item.frequency] ?? item.frequency}
-                    </td>
-                    <td className={`px-6 py-3 text-right font-medium ${item.itemType === 'income' ? 'text-sage' : 'text-foreground'}`}>
-                      {item.itemType === 'income' ? '+' : '−'}{formatCurrency(new Decimal(item.amount).toNumber())}
-                    </td>
-                    <td className="px-6 py-3 text-right">
-                      <DeleteRecurringItemButton
-                        itemId={item.id}
-                        name={item.name}
-                        action={deleteRecurringItemAction}
-                      />
-                    </td>
-                  </tr>
+                  <RecurringItemRow
+                    key={item.id}
+                    item={item}
+                    updateAction={updateRecurringItemAction}
+                    deleteAction={deleteRecurringItemAction}
+                  />
                 ))}
               </tbody>
             </table>

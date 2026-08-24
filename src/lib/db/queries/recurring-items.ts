@@ -8,7 +8,7 @@ export type RecurringItemInput = {
   itemType: 'income' | 'expense'
   category: string
   amount: string
-  frequency: 'monthly' | 'quarterly' | 'yearly'
+  frequency: 'monthly' | 'four_weekly' | 'quarterly' | 'yearly'
 }
 
 export async function getRecurringItems(userId: string) {
@@ -36,6 +36,21 @@ export async function createRecurringItem(userId: string, data: RecurringItemInp
     })
     .returning()
   return row
+}
+
+export async function updateRecurringItem(userId: string, itemId: string, data: RecurringItemInput) {
+  const tenantId = await getOrCreateTenant(userId)
+  await db
+    .update(recurringItems)
+    .set({
+      name:      data.name,
+      itemType:  data.itemType,
+      category:  data.category,
+      amount:    data.amount,
+      frequency: data.frequency,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(recurringItems.id, itemId), eq(recurringItems.tenantId, tenantId)))
 }
 
 export async function deleteRecurringItem(userId: string, itemId: string) {
