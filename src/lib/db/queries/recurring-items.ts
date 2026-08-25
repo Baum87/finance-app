@@ -113,7 +113,7 @@ export async function updateRecurringItem(userId: string, itemId: string, data: 
     await db
       .update(recurringItemAmounts)
       .set({ amount: data.amount, effectiveDate: data.effectiveDate })
-      .where(eq(recurringItemAmounts.id, latest.id))
+      .where(and(eq(recurringItemAmounts.id, latest.id), eq(recurringItemAmounts.recurringItemId, itemId)))
   } else {
     await db.insert(recurringItemAmounts).values({
       recurringItemId: itemId,

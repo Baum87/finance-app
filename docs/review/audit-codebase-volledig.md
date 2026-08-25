@@ -39,6 +39,9 @@ SHOW row_security;
 ```
 Als `rolbypassrls = true`, is dit bevestigd en verdient het topprioriteit — ofwel door een dedicated, RLS-onderworpen DB-rol voor de Drizzle-connectie te gebruiken (met JWT-claims via `SET LOCAL` per request), ofwel door RLS bewust als "verdedigingslaag voor toekomstig PostgREST-gebruik" te documenteren terwijl de query-laag als enige echte grens wordt behandeld en dienovereenkomstig zwaarder getest.
 
+**Status (2026-08-25): bevestigd, bewust niet opgelost — query-laag gehard als vangnet.**
+De verificatiequery is uitgevoerd: `current_user = postgres`, `rolbypassrls = true`. RLS is dus daadwerkelijk inert voor het Drizzle-verkeer. Besluit: zolang er maar één tenant is, is het risico theoretisch; de aparte RLS-onderworpen DB-rol met per-request JWT-context (optie A) is een substantiële architectuurwijziging die pas nodig is zodra een tweede tenant/gebruiker echt wordt toegevoegd. Voor nu is gekozen voor de lichte vangnet-aanpak: `src/lib/db/queries/tenant-scoping.test.ts` is een statische test die voor elke query-functie afdwingt dat (a) ze `userId` als parameter neemt en (b) elke `update`/`delete`-mutatie op `tenantId` filtert — direct, via een `verify*Access`-helper, of via een inline pre-check die bij een lege match vroegtijdig stopt. Deze test ving bij het schrijven ervan meteen een echte instantie van dit patroon op in `updateRecurringItem` (tweede mutatie zonder scoping), die is gefixed. **Revisie-trigger:** zodra een tweede tenant wordt toegevoegd (bijv. een partner-login) of de Supabase Data API/PostgREST ooit voor iets anders dan auth wordt gebruikt, wordt optie A verplicht.
+
 ### K-2 — Netto vermogen negeert de `liabilities`-tabel volledig
 
 **Locatie:** `src/app/page.tsx:73-78` (homepage), `src/app/cashflow/page.tsx:64-69`, `src/app/portfolio/page.tsx`
