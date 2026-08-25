@@ -537,6 +537,10 @@ CREATE POLICY "stock_etf_entries_insert" ON public.stock_etf_entries
   FOR INSERT WITH CHECK (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );
+CREATE POLICY "stock_etf_entries_update" ON public.stock_etf_entries
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
 CREATE POLICY "stock_etf_entries_delete" ON public.stock_etf_entries
   FOR DELETE USING (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
@@ -548,6 +552,10 @@ CREATE POLICY "crypto_entries_select" ON public.crypto_entries
   );
 CREATE POLICY "crypto_entries_insert" ON public.crypto_entries
   FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "crypto_entries_update" ON public.crypto_entries
+  FOR UPDATE USING (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );
 CREATE POLICY "crypto_entries_delete" ON public.crypto_entries
@@ -563,6 +571,10 @@ CREATE POLICY "pension_entries_insert" ON public.pension_entries
   FOR INSERT WITH CHECK (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );
+CREATE POLICY "pension_entries_update" ON public.pension_entries
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
 CREATE POLICY "pension_entries_delete" ON public.pension_entries
   FOR DELETE USING (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
@@ -576,6 +588,10 @@ CREATE POLICY "savings_entries_insert" ON public.savings_entries
   FOR INSERT WITH CHECK (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );
+CREATE POLICY "savings_entries_update" ON public.savings_entries
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
 CREATE POLICY "savings_entries_delete" ON public.savings_entries
   FOR DELETE USING (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
@@ -587,6 +603,10 @@ CREATE POLICY "real_estate_entries_select" ON public.real_estate_entries
   );
 CREATE POLICY "real_estate_entries_insert" ON public.real_estate_entries
   FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "real_estate_entries_update" ON public.real_estate_entries
+  FOR UPDATE USING (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );
 CREATE POLICY "real_estate_entries_delete" ON public.real_estate_entries

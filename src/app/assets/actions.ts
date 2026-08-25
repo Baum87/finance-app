@@ -37,6 +37,16 @@ const baseSchema = z.object({
   currency:  z.string().default('EUR'),
 })
 
+const positiveAmount = (label: string) =>
+  z.string()
+    .min(1, `${label} is verplicht`)
+    .refine(v => !Number.isNaN(Number(v)) && Number(v) >= 0, { message: `${label} moet een positief getal zijn` })
+
+const optionalPositiveAmount = (label: string) =>
+  z.string()
+    .refine(v => !Number.isNaN(Number(v)) && Number(v) >= 0, { message: `${label} moet een positief getal zijn` })
+    .optional()
+
 const stockEtfSchema = z.object({
   ticker:         z.string().min(1, 'Ticker is verplicht'),
   isin:           z.string().optional(),
@@ -54,19 +64,19 @@ const cryptoSchema = z.object({
 const savingsSchema = z.object({
   bankName:         z.string().min(1, 'Bank is verplicht'),
   savingsAccountType: z.string().optional(),
-  interestRate:     z.string().optional(),
+  interestRate:     optionalPositiveAmount('Rente'),
 })
 
 const pensionSchema = z.object({
   provider:               z.string().min(1, 'Aanbieder is verplicht'),
   pensionType:            z.string().min(1, 'Type is verplicht'),
-  projectedAnnualBenefit: z.string().optional(),
+  projectedAnnualBenefit: optionalPositiveAmount('Verwachte jaarlijkse uitkering'),
 })
 
 const vorderingSchema = z.object({
   counterparty:    z.string().min(1, 'Naam schuldenaar is verplicht'),
-  principalAmount: z.string().min(1, 'Geleend bedrag is verplicht'),
-  interestRate:    z.string().optional(),
+  principalAmount: positiveAmount('Geleend bedrag'),
+  interestRate:    optionalPositiveAmount('Rente'),
   startDate:       z.string().optional(),
   endDate:         z.string().optional(),
   loanType:        z.string().optional(),
@@ -77,14 +87,14 @@ const realEstateSchema = z.object({
   postalCode:    z.string().optional(),
   city:          z.string().optional(),
   propertyType:  z.enum(['rental', 'primary_residence', 'vacation']),
-  purchasePrice: z.string().min(1, 'Aankoopprijs is verplicht'),
-  purchaseCosts: z.string().default('0'),
+  purchasePrice: positiveAmount('Aankoopprijs'),
+  purchaseCosts: positiveAmount('Aankoopkosten'),
   purchaseDate:  z.string().min(1, 'Aankoopdatum is verplicht'),
-  wozValue:      z.string().optional(),
+  wozValue:      optionalPositiveAmount('WOZ-waarde'),
   // hypotheek (optioneel, alleen bij rental)
   mortgageLender:         z.string().optional(),
-  mortgageOriginalAmount: z.string().optional(),
-  mortgageInterestRate:   z.string().optional(),
+  mortgageOriginalAmount: optionalPositiveAmount('Hypotheekbedrag'),
+  mortgageInterestRate:   optionalPositiveAmount('Hypotheekrente'),
   mortgageStartDate:      z.string().optional(),
   mortgageType:           z.string().optional(),
 })
@@ -100,14 +110,14 @@ const ALLOWED_TX_TYPES: Record<AssetType, TransactionType[]> = {
 
 const transactionSchema = z.object({
   transactionType: z.enum(['buy', 'sell', 'deposit', 'withdrawal', 'dividend', 'interest', 'rental_income', 'cost']),
-  amount:          z.string().min(1, 'Bedrag is verplicht'),
-  quantity:        z.string().optional(),
-  pricePerUnit:    z.string().optional(),
+  amount:          positiveAmount('Bedrag'),
+  quantity:        optionalPositiveAmount('Aantal'),
+  pricePerUnit:    optionalPositiveAmount('Prijs per stuk'),
   transactionDate: z.string().min(1, 'Datum is verplicht'),
   currency:        z.string().default('EUR'),
   fxRate:          z.string().default('1'),
   notes:           z.string().optional(),
-  fees:            z.string().optional(),
+  fees:            optionalPositiveAmount('Kosten'),
 })
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -334,11 +344,6 @@ export async function deleteTransactionAction(fd: FormData): Promise<void> {
 }
 
 // ─── Valuation actions ────────────────────────────────────────────────────────
-
-const positiveAmount = (label: string) =>
-  z.string()
-    .min(1, `${label} is verplicht`)
-    .refine(v => !Number.isNaN(Number(v)) && Number(v) >= 0, { message: `${label} moet een positief getal zijn` })
 
 const valuationSchema = z.object({
   valuationDate: z.string().min(1, 'Datum is verplicht'),

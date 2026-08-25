@@ -340,6 +340,21 @@ export async function updateAsset(
   })
 }
 
+export async function updateSavingsMonthlyDeposit(userId: string, assetId: string, amount: string) {
+  const tenantId = await getOrCreateTenant(userId)
+  const [asset] = await db
+    .select({ id: assets.id })
+    .from(assets)
+    .where(and(eq(assets.id, assetId), eq(assets.tenantId, tenantId)))
+    .limit(1)
+  if (!asset) throw new Error('Asset niet gevonden of geen toegang')
+
+  await db
+    .update(savingsDetails)
+    .set({ monthlyDepositAmount: amount })
+    .where(eq(savingsDetails.assetId, assetId))
+}
+
 export async function deleteAsset(userId: string, assetId: string) {
   const tenantId = await getOrCreateTenant(userId)
   await db

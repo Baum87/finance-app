@@ -11,7 +11,6 @@ import {
   calculateLtv,
   calculateEquity,
   calculateXirr,
-  calculatePassiveIncome,
 } from '@/lib/finance'
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
@@ -103,9 +102,15 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
   }))
 
   // Rental-specifieke berekeningen
+  // Let op: annualIncome is bewust bruto huurinkomen (alleen rental_income),
+  // niet via calculatePassiveIncome — die trekt 'cost' er zelf al vanaf, wat
+  // hieronder tot dubbele kostenaftrek zou leiden (annualCosts wordt hier apart
+  // gebruikt voor zowel bruto/netto-rendement als cash-on-cash).
   const currentYearStart = `${new Date().getFullYear()}-01-01`
   const annualIncome = isRental
-    ? calculatePassiveIncome(txs, currentYearStart)
+    ? txs
+        .filter(t => t.transactionType === 'rental_income' && t.transactionDate >= currentYearStart)
+        .reduce((sum, t) => sum.plus(new Decimal(t.amount)), new Decimal(0))
     : new Decimal(0)
   const annualCosts = isRental
     ? txs

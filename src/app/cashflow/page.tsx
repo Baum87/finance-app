@@ -5,7 +5,8 @@ import { getPassiveIncomeData, getNetWorthAtDate, getValuationTimeSeries, getMor
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
 import { getRecurringItems } from '@/lib/db/queries/recurring-items'
 import { getOneTimeExpenses } from '@/lib/db/queries/one-time-expenses'
-import { calculateNetWorth, calculateRecurringTotals } from '@/lib/finance'
+import { getLiabilities } from '@/lib/db/queries/liabilities'
+import { calculateNetWorth, calculateRecurringTotals, calculateOneTimeExpensesTotal } from '@/lib/finance'
 import { buildNetWorthSeries } from '@/lib/finance'
 import { formatCurrency } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
@@ -27,7 +28,7 @@ export default async function CashflowOverviewPage() {
   const ytdFrom = `${currentYear}-01-01`
   const todayStr = toDateStr(today)
 
-  const [txData, assets_, mortgageMap, networthJan1, valuationRows, mortgageBalanceRows, recurringItemRows, oneTimeExpenseRows] = await Promise.all([
+  const [txData, assets_, mortgageMap, networthJan1, valuationRows, mortgageBalanceRows, recurringItemRows, oneTimeExpenseRows, liabilities] = await Promise.all([
     getPassiveIncomeData(userId, ytdFrom, todayStr),
     getAssetsWithValues(userId),
     getMortgageBalancesMap(userId),
@@ -36,11 +37,22 @@ export default async function CashflowOverviewPage() {
     getMortgageBalanceTimeSeries(userId),
     getRecurringItems(userId),
     getOneTimeExpenses(userId),
+    getLiabilities(userId),
   ])
 
-  const oneTimeExpensesThisYear = oneTimeExpenseRows
-    .filter(e => e.expenseDate.slice(0, 4) === String(currentYear))
-    .reduce((s, e) => s.plus(e.amount), new Decimal(0))
+  // liabilities heeft geen historische bedrag-tracking (in tegenstelling tot
+  // mortgage_balances) — alleen huidige, actieve schulden. Voor de Jan1-vergelijking
+  // nemen we aan dat een schuld al meetelde als startDate vóór 1 jan ligt (of
+  // onbekend is); zo telt een lening die dit jaar is afgesloten pas mee vanaf het
+  // moment dat hij ontstond, en vertekent een al langer bestaande schuld de groei niet.
+  const totalLiabilitiesToday = liabilities.reduce((s, l) => s.plus(l.amount), new Decimal(0))
+  const totalLiabilitiesJan1 = liabilities
+    .filter(l => !l.startDate || l.startDate <= ytdFrom)
+    .reduce((s, l) => s.plus(l.amount), new Decimal(0))
+
+  const oneTimeExpensesThisYear = calculateOneTimeExpensesTotal(
+    oneTimeExpenseRows.filter(e => e.expenseDate.slice(0, 4) === String(currentYear)),
+  )
 
   const recurringTotals = calculateRecurringTotals(
     recurringItemRows.map(r => ({
@@ -48,6 +60,7 @@ export default async function CashflowOverviewPage() {
       amount:    r.amount,
       frequency: r.frequency as 'monthly' | 'four_weekly' | 'quarterly' | 'yearly',
       isActive:  r.isActive,
+      isShared:  r.isShared,
     })),
   )
 
@@ -65,9 +78,11 @@ export default async function CashflowOverviewPage() {
       value:     a.currentValue,
       liability: mortgageMap.get(a.id) ?? new Decimal(0),
     })),
-  )
+  ).minus(totalLiabilitiesToday)
 
-  const networthGrowth = networthJan1 != null ? networthToday.minus(networthJan1) : null
+  const networthGrowth = networthJan1 != null
+    ? networthToday.minus(networthJan1.minus(totalLiabilitiesJan1))
+    : null
   const growthPositive = networthGrowth?.gte(0) ?? true
 
   const latestMortgageAtDate = (assetId: string, date: string) => {

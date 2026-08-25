@@ -3,11 +3,9 @@
 import { redirect } from 'next/navigation'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { createTransaction } from '@/lib/db/queries/transactions'
-import { db } from '@/lib/db'
-import { savingsDetails } from '@/lib/db/schema'
+import { updateSavingsMonthlyDeposit } from '@/lib/db/queries/assets'
 import type { ActionState } from '@/app/assets/actions'
 
 const savingsTxSchema = z.object({
@@ -21,6 +19,11 @@ const savingsTxSchema = z.object({
 function str(fd: FormData, key: string) {
   return (fd.get(key) as string | null) ?? ''
 }
+
+const monthlyDepositSchema = z.object({
+  assetId: z.string().min(1, 'Asset is verplicht'),
+  amount:  z.string().min(1, 'Bedrag is verplicht').refine(v => parseFloat(v) > 0, 'Bedrag moet groter zijn dan 0'),
+})
 
 export async function createSavingsTransactionAction(
   prev: ActionState,
@@ -53,10 +56,7 @@ export async function createSavingsTransactionAction(
 
     // Bewaar als maandelijks bedrag als recurring aangevinkt
     if (data.recurring === 'on') {
-      await db
-        .update(savingsDetails)
-        .set({ monthlyDepositAmount: data.amount })
-        .where(eq(savingsDetails.assetId, assetId))
+      await updateSavingsMonthlyDeposit(user.id, assetId, data.amount)
     }
 
     redirect(redirectTo)
@@ -72,9 +72,11 @@ export async function applyMonthlyDepositAction(fd: FormData): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const assetId = fd.get('assetId') as string
-  const amount  = fd.get('amount') as string
-  const today   = new Date().toISOString().slice(0, 10)
+  const { assetId, amount } = monthlyDepositSchema.parse({
+    assetId: str(fd, 'assetId'),
+    amount:  str(fd, 'amount'),
+  })
+  const today = new Date().toISOString().slice(0, 10)
 
   await createTransaction(user.id, assetId, {
     transactionType: 'deposit',

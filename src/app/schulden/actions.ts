@@ -10,7 +10,7 @@ const LiabilitySchema = z.object({
   name:          z.string().min(1, 'Naam is verplicht'),
   liabilityType: z.enum(['student_loan', 'personal_loan', 'other']),
   amount:        z.string().regex(/^\d+(\.\d{1,2})?$/, 'Ongeldig bedrag'),
-  interestRate:  z.string().optional().nullable(),
+  interestRate:  z.string().regex(/^\d+(\.\d{1,4})?$/, 'Ongeldig rentepercentage').optional().nullable(),
   startDate:     z.string().optional().nullable(),
   endDate:       z.string().optional().nullable(),
   currency:      z.string().default('EUR'),

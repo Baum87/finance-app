@@ -142,8 +142,12 @@ export type DetailedTransaction = {
   fees: string
 }
 
-export async function getTransactionsByAssetsDetailed(assetIds: string[]): Promise<DetailedTransaction[]> {
+export async function getTransactionsByAssetsDetailed(
+  userId: string,
+  assetIds: string[],
+): Promise<DetailedTransaction[]> {
   if (assetIds.length === 0) return []
+  const tenantId = await getTenantId(userId)
   return db
     .select({
       assetId:         transactions.assetId,
@@ -154,7 +158,8 @@ export async function getTransactionsByAssetsDetailed(assetIds: string[]): Promi
       fees:            transactions.fees,
     })
     .from(transactions)
-    .where(inArray(transactions.assetId, assetIds))
+    .innerJoin(assets, eq(assets.id, transactions.assetId))
+    .where(and(inArray(transactions.assetId, assetIds), eq(assets.tenantId, tenantId)))
     .orderBy(asc(transactions.transactionDate))
 }
 
@@ -207,13 +212,15 @@ export async function importTransactions(
 }
 
 export async function getTransactionsByAssets(
+  userId: string,
   assetIds: string[],
   fromDate?: string,
 ): Promise<RawTransaction[]> {
   if (assetIds.length === 0) return []
+  const tenantId = await getTenantId(userId)
   const conditions = fromDate
-    ? and(inArray(transactions.assetId, assetIds), gte(transactions.transactionDate, fromDate))
-    : inArray(transactions.assetId, assetIds)
+    ? and(inArray(transactions.assetId, assetIds), gte(transactions.transactionDate, fromDate), eq(assets.tenantId, tenantId))
+    : and(inArray(transactions.assetId, assetIds), eq(assets.tenantId, tenantId))
 
   return db
     .select({
@@ -223,6 +230,7 @@ export async function getTransactionsByAssets(
       currency:        transactions.currency,
     })
     .from(transactions)
+    .innerJoin(assets, eq(assets.id, transactions.assetId))
     .where(conditions)
     .orderBy(asc(transactions.transactionDate))
 }

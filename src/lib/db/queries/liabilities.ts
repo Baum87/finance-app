@@ -1,6 +1,6 @@
 import { and, eq, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { liabilities, tenantUsers } from '@/lib/db/schema'
+import { liabilities } from '@/lib/db/schema'
 import { getOrCreateTenant } from './tenant'
 
 export type LiabilityInput = {
@@ -50,19 +50,8 @@ export async function deleteLiability(userId: string, liabilityId: string) {
     .where(and(eq(liabilities.id, liabilityId), eq(liabilities.tenantId, tenantId)))
 }
 
-async function verifyLiabilityAccess(userId: string, liabilityId: string): Promise<void> {
-  const tenantId = await getOrCreateTenant(userId)
-  const rows = await db
-    .select({ id: liabilities.id })
-    .from(liabilities)
-    .innerJoin(tenantUsers, eq(tenantUsers.tenantId, liabilities.tenantId))
-    .where(and(eq(liabilities.id, liabilityId), eq(liabilities.tenantId, tenantId)))
-    .limit(1)
-  if (!rows[0]) throw new Error('Schuld niet gevonden of geen toegang')
-}
-
 export async function updateLiability(userId: string, liabilityId: string, data: LiabilityInput) {
-  await verifyLiabilityAccess(userId, liabilityId)
+  const tenantId = await getOrCreateTenant(userId)
   const [row] = await db
     .update(liabilities)
     .set({
@@ -74,7 +63,8 @@ export async function updateLiability(userId: string, liabilityId: string, data:
       endDate:       data.endDate ?? null,
       currency:      data.currency ?? 'EUR',
     })
-    .where(eq(liabilities.id, liabilityId))
+    .where(and(eq(liabilities.id, liabilityId), eq(liabilities.tenantId, tenantId)))
     .returning()
+  if (!row) throw new Error('Schuld niet gevonden of geen toegang')
   return row
 }

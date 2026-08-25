@@ -22,7 +22,7 @@ export default async function VorderingenPage() {
   const assets = allAssets.filter(a => a.assetType === 'vordering')
   const assetIds = assets.map(a => a.id)
 
-  const allTxs = assetIds.length > 0 ? await getTransactionsByAssets(assetIds) : []
+  const allTxs = assetIds.length > 0 ? await getTransactionsByAssets(userId, assetIds) : []
 
   const totaalUitstaand = assets.reduce((s, a) => s.plus(a.currentValue), new Decimal(0))
 

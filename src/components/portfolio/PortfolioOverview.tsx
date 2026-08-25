@@ -30,7 +30,7 @@ export async function PortfolioOverview({ config, userId }: {
   const allAssets = await getAssetsWithValues(userId)
   const assets = allAssets.filter(a => a.assetType === config.assetType)
   const assetIds = assets.map(a => a.id)
-  const allTxs = assetIds.length > 0 ? await getTransactionsByAssetsDetailed(assetIds) : []
+  const allTxs = assetIds.length > 0 ? await getTransactionsByAssetsDetailed(userId, assetIds) : []
 
   // ─── KPI's ───────────────────────────────────────────────────────────────────
   const totaleWaarde = assets.reduce((s, a) => s.plus(a.currentValue), new Decimal(0))

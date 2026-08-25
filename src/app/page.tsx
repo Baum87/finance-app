@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
 import { getNetWorthAtDate } from '@/lib/db/queries/cashflow'
+import { getLiabilities } from '@/lib/db/queries/liabilities'
 import {
   getStockEtfEntries, getCryptoEntries, getPensionEntries, getSavingsEntries, getRealEstateEntries, latestPerGroup,
 } from '@/lib/db/queries/simple-entries'
@@ -33,7 +34,7 @@ export default async function OverzichtPage() {
   monthAgoDate.setDate(monthAgoDate.getDate() - 30)
   const monthAgoStr = monthAgoDate.toISOString().slice(0, 10)
 
-  const [assets, mortgageMap, netWorthMonthAgo, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, realEstateEntries] = await Promise.all([
+  const [assets, mortgageMap, netWorthMonthAgo, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, realEstateEntries, liabilities] = await Promise.all([
     getAssetsWithValues(user!.id),
     getMortgageBalancesMap(user!.id),
     getNetWorthAtDate(user!.id, monthAgoStr),
@@ -42,7 +43,10 @@ export default async function OverzichtPage() {
     getPensionEntries(user!.id),
     getSavingsEntries(user!.id),
     getRealEstateEntries(user!.id),
+    getLiabilities(user!.id),
   ])
+
+  const totalLiabilities = liabilities.reduce((s, l) => s.plus(l.amount), new Decimal(0))
 
   // Eenvoudige invoerlijsten (crypto/pensioen/spaarrekening/vastgoed): som van
   // de meest recente rij per broker/bank/adres — zie simple-entries.ts.
@@ -70,19 +74,25 @@ export default async function OverzichtPage() {
     .reduce((sum, a) => sum.plus(a.currentValue).minus(mortgageMap.get(a.id) ?? new Decimal(0)), new Decimal(0))
   const realEstateTotal = realEstateAssetsValue.plus(realEstateValue)
 
-  const netWorth = calculateNetWorth(
+  const assetNetWorth = calculateNetWorth(
     nonRealEstateAssets.map(a => ({
       value: a.currentValue,
       liability: mortgageMap.get(a.id) ?? new Decimal(0),
     })),
   ).plus(simpleCategories.reduce((sum, c) => sum.plus(c.value), new Decimal(0)))
 
+  // Schulden uit /schulden (studielening, persoonlijke lening e.d.) hebben geen
+  // historische waarde-tracking zoals hypotheken (mortgage_balances) — alleen het
+  // huidige bedrag. Ze tellen daarom wel mee in het headline netto vermogen,
+  // maar niet in de 30-dagen-delta hieronder (die blijft asset-gebaseerd).
+  const netWorth = assetNetWorth.minus(totalLiabilities)
+
   const illiquidNetValue = nonRealEstateAssets
     .filter(a => !a.isLiquid)
     .reduce((sum, a) => sum.plus(a.currentValue).minus(mortgageMap.get(a.id) ?? new Decimal(0)), new Decimal(0))
     .plus(simpleCategories.filter(c => !c.liquid).reduce((sum, c) => sum.plus(c.value), new Decimal(0)))
 
-  const delta = netWorthMonthAgo != null ? netWorth.minus(netWorthMonthAgo) : null
+  const delta = netWorthMonthAgo != null ? assetNetWorth.minus(netWorthMonthAgo) : null
   const deltaPositive = delta?.gte(0) ?? true
   const deltaStr = delta
     ? `${deltaPositive ? '+' : ''}${formatCurrency(delta.toNumber())}`
@@ -131,6 +141,11 @@ export default async function OverzichtPage() {
             {illiquidNetValue.gt(0) && (
               <p className="mt-0.5 text-sm text-muted-foreground">
                 waarvan {formatCurrency(illiquidNetValue.toNumber())} illiquide (pensioen)
+              </p>
+            )}
+            {totalLiabilities.gt(0) && (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                waarvan −{formatCurrency(totalLiabilities.toNumber())} schulden (<Link href="/schulden" className="underline hover:opacity-70">bekijk</Link>)
               </p>
             )}
             {realEstateTotal.gt(0) && (

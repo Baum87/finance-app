@@ -30,7 +30,7 @@ export default async function BrokerDetailPage({ params }: { params: Promise<{ i
   )
 
   const assetIds = assets.map(a => a.id)
-  const detailedTxs = assetIds.length > 0 ? await getTransactionsByAssetsDetailed(assetIds) : []
+  const detailedTxs = assetIds.length > 0 ? await getTransactionsByAssetsDetailed(user!.id, assetIds) : []
 
   // ─── KPI's — netto inleg (buys + deposits − sells − withdrawals, incl. fees) ──
   // Bron van waarheid: calculateNetDeposit uit lib/finance — zelfde functie als

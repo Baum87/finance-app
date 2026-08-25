@@ -60,7 +60,7 @@ export default async function PortfolioOverviewPage() {
   let portfolioXirr: Decimal | null = null
 
   if (liquidAssetIds.length > 0 && totalLiquidTracked.gt(0)) {
-    const ytdTxs = await getTransactionsByAssets(liquidAssetIds, ytdStart)
+    const ytdTxs = await getTransactionsByAssets(userId, liquidAssetIds, ytdStart)
     const cashflows = buildXirrCashflows(ytdTxs)
 
     const liquidAssetIdSet = new Set(liquidAssetIds)

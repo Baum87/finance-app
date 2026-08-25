@@ -15,7 +15,7 @@ export default async function AandelenRendementPage() {
   const allAssets = await getAssetsWithValues(user!.id)
   const assets = allAssets.filter(a => a.assetType === 'stock_etf')
   const assetIds = assets.map(a => a.id)
-  const txs = assetIds.length > 0 ? await getTransactionsByAssetsDetailed(assetIds) : []
+  const txs = assetIds.length > 0 ? await getTransactionsByAssetsDetailed(user!.id, assetIds) : []
 
   const tickerByAssetId = new Map<string, string>()
   for (const a of assets) {
