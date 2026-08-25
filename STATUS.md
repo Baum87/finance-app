@@ -92,7 +92,7 @@ De app heeft drie lagen (zie `docs/project files/fiscal-layer.md`):
 | `docs/fase-d-crypto-fixbatch.md` zweeft in docs-root | Verplaatst naar `docs/sprints/` | ✅ Gedaan |
 | `docs/todo-beleggingen.md` | Gearchiveerd als `docs/sprints/todo-beleggingen-archief.md` | ✅ Gedaan |
 | `src/middleware.ts` deprecated | Hernoemd naar `src/proxy.ts`, export default `proxy` | ✅ Gedaan |
-| `drizzle/migrations/meta/` mist snapshots 0005–0010 (migraties 0005 t/m 0010 zijn handmatig geschreven, nooit via `db:generate`) | `npm run db:generate` faalt hierdoor met een interactieve rename-prompt zodra het schema wijzigt — ook zonder échte wijzigingen. Migratie 0011 (`recurring_items`) is daarom ook handmatig geschreven, zelfde patroon als 0009/0010. Structureel fixen vraagt om de ontbrekende snapshots lokaal (met een echte TTY) te regenereren — niet gedaan vanuit deze sessie om de migratiehistorie niet te corrumperen | ⚠️ Open |
+| `drizzle/migrations/meta/` miste snapshots vanaf 0005 (migraties 0005 t/m 0019 zijn handmatig geschreven, nooit via `db:generate`) | Opgelost: snapshot 0020 gegenereerd tegen een lege tijdelijke migratiemap (geen voorgaande snapshot = geen hernoem-ambiguïteit = geen interactieve TTY nodig), overgenomen als accurate snapshot van de huidige `schema.ts` met `prevId` gekoppeld aan snapshot 0004. `npm run db:generate` meldt weer correct "No schema changes" — zie `docs/review/audit-codebase-volledig.md` M-1 en migratie `0020_baseline_resync.sql` | ✅ Gedaan |
 | Oude routes naast nieuwe `/portfolio/` | `/vastgoed` verwijderd (content in portfolio detail), `/vermogen` naar dropdown, `Beheer` weg uit nav | ✅ Gedaan |
 
 ---
