@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
 import type { ActionState } from '@/app/assets/actions'
+import { useCreateFormAction } from '@/lib/utils/use-create-form-action'
 import { ONE_TIME_EXPENSE_CATEGORY_LABELS } from './one-time-expense-labels'
 
 function todayIso() {
@@ -13,18 +13,7 @@ interface OneTimeExpenseFormProps {
 }
 
 export function OneTimeExpenseForm({ action }: OneTimeExpenseFormProps) {
-  const formRef = useRef<HTMLFormElement>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleSubmit(formData: FormData) {
-    const result = await action(formData)
-    if (result?.error) {
-      setError(result.error)
-      return
-    }
-    setError(null)
-    formRef.current?.reset()
-  }
+  const { formRef, error, handleSubmit } = useCreateFormAction(action)
 
   return (
     <form ref={formRef} action={handleSubmit} className="bg-card border border-border rounded-3xl p-6 space-y-4">

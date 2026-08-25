@@ -78,6 +78,10 @@ export const transactions = pgTable('transactions', {
   index('transactions_asset_id_idx').on(t.assetId),
   index('transactions_date_idx').on(t.transactionDate),
   check('transactions_type_check', sql`${t.transactionType} IN ('buy', 'sell', 'deposit', 'withdrawal', 'dividend', 'interest', 'rental_income', 'cost')`),
+  check('transactions_amount_check', sql`${t.amount} >= 0`),
+  check('transactions_fees_check', sql`${t.fees} >= 0`),
+  check('transactions_quantity_check', sql`${t.quantity} >= 0`),
+  check('transactions_price_per_unit_check', sql`${t.pricePerUnit} >= 0`),
   unique('transactions_asset_external_ref_unique').on(t.assetId, t.externalRef),
 ])
 
@@ -93,6 +97,7 @@ export const assetValuations = pgTable('asset_valuations', {
 }, (t) => [
   index('asset_valuations_asset_id_idx').on(t.assetId),
   index('asset_valuations_date_idx').on(t.valuationDate),
+  check('asset_valuations_value_check', sql`${t.value} >= 0`),
 ])
 
 // ─── simple_entries (eenvoudige invoer: crypto/pensioen/spaarrekening/vastgoed) ─
@@ -110,6 +115,8 @@ export const stockEtfEntries = pgTable('stock_etf_entries', {
   createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('stock_etf_entries_tenant_id_idx').on(t.tenantId),
+  check('stock_etf_entries_invested_check', sql`${t.invested} >= 0`),
+  check('stock_etf_entries_current_value_check', sql`${t.currentValue} >= 0`),
 ])
 
 export const cryptoEntries = pgTable('crypto_entries', {
@@ -122,6 +129,8 @@ export const cryptoEntries = pgTable('crypto_entries', {
   createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('crypto_entries_tenant_id_idx').on(t.tenantId),
+  check('crypto_entries_invested_check', sql`${t.invested} >= 0`),
+  check('crypto_entries_current_value_check', sql`${t.currentValue} >= 0`),
 ])
 
 export const pensionEntries = pgTable('pension_entries', {
@@ -134,6 +143,8 @@ export const pensionEntries = pgTable('pension_entries', {
   createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('pension_entries_tenant_id_idx').on(t.tenantId),
+  check('pension_entries_invested_check', sql`${t.invested} >= 0`),
+  check('pension_entries_current_value_check', sql`${t.currentValue} >= 0`),
 ])
 
 export const savingsEntries = pgTable('savings_entries', {
@@ -145,6 +156,7 @@ export const savingsEntries = pgTable('savings_entries', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('savings_entries_tenant_id_idx').on(t.tenantId),
+  check('savings_entries_balance_check', sql`${t.balance} >= 0`),
 ])
 
 export const realEstateEntries = pgTable('real_estate_entries', {
@@ -158,6 +170,7 @@ export const realEstateEntries = pgTable('real_estate_entries', {
   createdAt:  timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('real_estate_entries_tenant_id_idx').on(t.tenantId),
+  check('real_estate_entries_woz_value_check', sql`${t.wozValue} >= 0`),
 ])
 
 // ─── brokers ─────────────────────────────────────────────────────────────────
@@ -206,7 +219,10 @@ export const savingsDetails = pgTable('savings_details', {
   accountType:          text('account_type').default('savings'),
   interestRate:         numeric('interest_rate', { precision: 8, scale: 4 }),
   monthlyDepositAmount: numeric('monthly_deposit_amount', { precision: 15, scale: 2 }),
-})
+}, (t) => [
+  check('savings_details_interest_rate_check', sql`${t.interestRate} >= 0`),
+  check('savings_details_monthly_deposit_amount_check', sql`${t.monthlyDepositAmount} >= 0`),
+])
 
 // ─── pension_details ──────────────────────────────────────────────────────────
 
@@ -216,7 +232,9 @@ export const pensionDetails = pgTable('pension_details', {
   provider:                text('provider').notNull(),
   pensionType:             text('pension_type').notNull(),
   projectedAnnualBenefit:  numeric('projected_annual_benefit', { precision: 15, scale: 2 }),
-})
+}, (t) => [
+  check('pension_details_projected_annual_benefit_check', sql`${t.projectedAnnualBenefit} >= 0`),
+])
 
 // ─── vordering_details ───────────────────────────────────────────────────────
 
@@ -231,6 +249,8 @@ export const vorderingDetails = pgTable('vordering_details', {
   loanType:        text('loan_type').notNull().default('family'),
 }, (t) => [
   check('vordering_loan_type_check', sql`${t.loanType} IN ('family', 'business', 'other')`),
+  check('vordering_principal_amount_check', sql`${t.principalAmount} >= 0`),
+  check('vordering_interest_rate_check', sql`${t.interestRate} >= 0`),
 ])
 
 // ─── real_estate_details ─────────────────────────────────────────────────────
@@ -251,6 +271,9 @@ export const realEstateDetails = pgTable('real_estate_details', {
   isRental:      boolean('is_rental').generatedAlwaysAs(sql`property_type = 'rental'`),
 }, (t) => [
   check('real_estate_property_type_check', sql`${t.propertyType} IN ('rental', 'primary_residence', 'vacation')`),
+  check('real_estate_purchase_price_check', sql`${t.purchasePrice} >= 0`),
+  check('real_estate_purchase_costs_check', sql`${t.purchaseCosts} >= 0`),
+  check('real_estate_woz_value_check', sql`${t.wozValue} >= 0`),
 ])
 
 // ─── mortgages ───────────────────────────────────────────────────────────────
@@ -271,6 +294,8 @@ export const mortgages = pgTable('mortgages', {
 }, (t) => [
   index('mortgages_asset_id_idx').on(t.assetId),
   check('mortgages_type_check', sql`${t.mortgageType} IN ('annuity', 'linear', 'interest_only')`),
+  check('mortgages_original_amount_check', sql`${t.originalAmount} >= 0`),
+  check('mortgages_interest_rate_check', sql`${t.interestRate} >= 0`),
 ])
 
 // ─── mortgage_balances ───────────────────────────────────────────────────────
@@ -283,6 +308,7 @@ export const mortgageBalances = pgTable('mortgage_balances', {
   createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('mortgage_balances_mortgage_id_idx').on(t.mortgageId),
+  check('mortgage_balances_outstanding_balance_check', sql`${t.outstandingBalance} >= 0`),
 ])
 
 // ─── liabilities ─────────────────────────────────────────────────────────────
@@ -302,6 +328,8 @@ export const liabilities = pgTable('liabilities', {
   updatedAt:     timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('liabilities_tenant_id_idx').on(t.tenantId),
+  check('liabilities_amount_check', sql`${t.amount} >= 0`),
+  check('liabilities_interest_rate_check', sql`${t.interestRate} >= 0`),
 ])
 
 // ─── recurring_items (vaste lasten & inkomsten) ──────────────────────────────
@@ -348,6 +376,7 @@ export const recurringItemAmounts = pgTable('recurring_item_amounts', {
 }, (t) => [
   index('recurring_item_amounts_item_id_idx').on(t.recurringItemId),
   index('recurring_item_amounts_effective_date_idx').on(t.effectiveDate),
+  check('recurring_item_amounts_amount_check', sql`${t.amount} >= 0`),
 ])
 
 // ─── one_time_expenses (eenmalige grote aankopen) ────────────────────────────
@@ -369,6 +398,7 @@ export const oneTimeExpenses = pgTable('one_time_expenses', {
 }, (t) => [
   index('one_time_expenses_tenant_id_idx').on(t.tenantId),
   check('one_time_expenses_category_check', sql`${t.category} IN ('vacation', 'housing', 'appliances_electronics', 'furniture', 'car_transport', 'gifts_events', 'other')`),
+  check('one_time_expenses_amount_check', sql`${t.amount} >= 0`),
 ])
 
 // ─── fx_rates (geen RLS — gedeeld, niet user-gebonden) ───────────────────────

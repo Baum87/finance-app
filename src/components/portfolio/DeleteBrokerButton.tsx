@@ -1,6 +1,5 @@
-'use client'
-
 import { deleteBrokerAction } from '@/app/portfolio/_archief-aandelen-etf/actions'
+import { ConfirmDeleteButton } from '@/components/ui/ConfirmDeleteButton'
 
 export function DeleteBrokerButton({ brokerId, brokerName, positionCount = 0 }: {
   brokerId: string
@@ -13,15 +12,12 @@ export function DeleteBrokerButton({ brokerId, brokerName, positionCount = 0 }: 
     : `Broker "${brokerName}" verwijderen?`
 
   return (
-    <form action={deleteBrokerAction}>
-      <input type="hidden" name="brokerId" value={brokerId} />
-      <button
-        type="submit"
-        onClick={e => { if (!confirm(message)) e.preventDefault() }}
-        className="px-4 py-2 rounded-lg border border-terracotta/40 text-sm font-medium text-terracotta hover:bg-terracotta/10 transition-colors"
-      >
-        Broker verwijderen
-      </button>
-    </form>
+    <ConfirmDeleteButton
+      action={deleteBrokerAction}
+      hiddenFields={{ brokerId }}
+      confirmMessage={message}
+      label="Broker verwijderen"
+      className="px-4 py-2 rounded-lg border border-terracotta/40 text-sm font-medium text-terracotta hover:bg-terracotta/10 transition-colors"
+    />
   )
 }

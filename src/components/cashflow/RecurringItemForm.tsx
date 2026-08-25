@@ -1,7 +1,8 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import type { ActionState } from '@/app/assets/actions'
+import { useCreateFormAction } from '@/lib/utils/use-create-form-action'
 import { ITEM_TYPE_LABELS, CATEGORY_LABELS, FREQUENCY_LABELS, CATEGORIES_BY_TYPE } from './recurring-item-labels'
 
 interface RecurringItemFormProps {
@@ -9,20 +10,8 @@ interface RecurringItemFormProps {
 }
 
 export function RecurringItemForm({ action }: RecurringItemFormProps) {
-  const formRef = useRef<HTMLFormElement>(null)
   const [itemType, setItemType] = useState<'income' | 'expense'>('expense')
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleSubmit(formData: FormData) {
-    const result = await action(formData)
-    if (result?.error) {
-      setError(result.error)
-      return
-    }
-    setError(null)
-    formRef.current?.reset()
-    setItemType('expense')
-  }
+  const { formRef, error, handleSubmit } = useCreateFormAction(action, () => setItemType('expense'))
 
   return (
     <form ref={formRef} action={handleSubmit} className="bg-card border border-border rounded-3xl p-6 space-y-4">

@@ -134,6 +134,13 @@
       "when": 1783100000000,
       "tag": "0018_stock_etf_details_broker_id_index",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783200000000,
+      "tag": "0019_money_check_constraints",
+      "breakpoints": true
     }
   ]
 }
