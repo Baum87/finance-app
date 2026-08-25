@@ -163,6 +163,11 @@ export function RecurringItemRow({ item, updateAction, deleteAction }: Recurring
         <div className={`font-medium ${item.itemType === 'income' ? 'text-sage' : 'text-foreground'}`}>
           {item.itemType === 'income' ? '+' : '−'}{formatCurrencyPrecise(new Decimal(item.amount).toNumber())}
         </div>
+        {item.isShared && (
+          <div className="text-xs text-muted-foreground">
+            eigen aandeel {formatCurrencyPrecise(new Decimal(item.amount).dividedBy(2).toNumber())}
+          </div>
+        )}
         <div className="text-xs text-muted-foreground">sinds {formatDate(item.effectiveDate)}</div>
       </td>
       <td className="px-6 py-3 text-center">

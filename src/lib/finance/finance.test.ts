@@ -21,6 +21,8 @@ import { calculateExcessReturn } from './benchmark'
 import { buildNetWorthSeries } from './net-worth-series'
 import { buildSimpleEntryMonthlySeries, buildSingleValueMonthlySeries } from './simple-entry-series'
 import { annualizeAmount, calculateRecurringTotals } from './recurring-cashflow'
+import { calculateOneTimeExpensesTotal } from './one-time-expenses'
+import { calculatePercentChange } from './percent-change'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -674,10 +676,10 @@ describe('annualizeAmount', () => {
 describe('calculateRecurringTotals', () => {
   it('sums income and expenses across mixed frequencies', () => {
     const items = [
-      { itemType: 'income' as const, amount: '3500', frequency: 'monthly' as const, isActive: true },
-      { itemType: 'expense' as const, amount: '1200', frequency: 'monthly' as const, isActive: true },
-      { itemType: 'expense' as const, amount: '600', frequency: 'quarterly' as const, isActive: true },
-      { itemType: 'expense' as const, amount: '2400', frequency: 'yearly' as const, isActive: true },
+      { itemType: 'income' as const, amount: '3500', frequency: 'monthly' as const, isActive: true, isShared: false },
+      { itemType: 'expense' as const, amount: '1200', frequency: 'monthly' as const, isActive: true, isShared: false },
+      { itemType: 'expense' as const, amount: '600', frequency: 'quarterly' as const, isActive: true, isShared: false },
+      { itemType: 'expense' as const, amount: '2400', frequency: 'yearly' as const, isActive: true, isShared: false },
     ]
     const totals = calculateRecurringTotals(items)
     expect(totals.annualIncome.toNumber()).toBe(42000)
@@ -688,7 +690,7 @@ describe('calculateRecurringTotals', () => {
 
   it('ignores inactive items', () => {
     const items = [
-      { itemType: 'expense' as const, amount: '1000', frequency: 'monthly' as const, isActive: false },
+      { itemType: 'expense' as const, amount: '1000', frequency: 'monthly' as const, isActive: false, isShared: false },
     ]
     const totals = calculateRecurringTotals(items)
     expect(totals.annualExpenses.toNumber()).toBe(0)
@@ -697,5 +699,57 @@ describe('calculateRecurringTotals', () => {
   it('returns zero totals for empty input', () => {
     const totals = calculateRecurringTotals([])
     expect(totals.netAnnualCashflow.toNumber()).toBe(0)
+  })
+
+  it('halves shared items to the own-share amount', () => {
+    const items = [
+      { itemType: 'expense' as const, amount: '1000', frequency: 'monthly' as const, isActive: true, isShared: true },
+    ]
+    const totals = calculateRecurringTotals(items)
+    expect(totals.annualExpenses.toNumber()).toBe(1000 * 12 / 2)
+    expect(totals.monthlyExpenses.toNumber()).toBe(500)
+  })
+})
+
+// ─── calculateOneTimeExpensesTotal ──────────────────────────────────────────
+
+describe('calculateOneTimeExpensesTotal', () => {
+  it('sums full amounts for non-shared expenses', () => {
+    const total = calculateOneTimeExpensesTotal([
+      { amount: '500', isShared: false },
+      { amount: '250', isShared: false },
+    ])
+    expect(total.toNumber()).toBe(750)
+  })
+
+  it('halves shared expenses to the own-share amount', () => {
+    const total = calculateOneTimeExpensesTotal([
+      { amount: '1000', isShared: true },
+      { amount: '200', isShared: false },
+    ])
+    expect(total.toNumber()).toBe(700)
+  })
+
+  it('returns zero for empty input', () => {
+    const total = calculateOneTimeExpensesTotal([])
+    expect(total.toNumber()).toBe(0)
+  })
+})
+
+// ─── calculatePercentChange ─────────────────────────────────────────────────
+
+describe('calculatePercentChange', () => {
+  it('returns the relative change as a decimal', () => {
+    const change = calculatePercentChange(d(1150), d(1000))
+    expect(change?.toNumber()).toBeCloseTo(0.15)
+  })
+
+  it('returns a negative decimal when current is lower than previous', () => {
+    const change = calculatePercentChange(d(800), d(1000))
+    expect(change?.toNumber()).toBeCloseTo(-0.2)
+  })
+
+  it('returns null when there is no previous amount to compare against', () => {
+    expect(calculatePercentChange(d(500), d(0))).toBeNull()
   })
 })

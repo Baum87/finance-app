@@ -1,7 +1,7 @@
-import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getOneTimeExpenses } from '@/lib/db/queries/one-time-expenses'
-import { formatCurrency } from '@/lib/utils/format'
+import { calculateOneTimeExpensesTotal, calculatePercentChange } from '@/lib/finance'
+import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { OneTimeExpenseForm } from '@/components/cashflow/OneTimeExpenseForm'
@@ -19,9 +19,14 @@ export default async function EenmaligeUitgavenPage() {
 
   const oneTimeExpenseRows = await getOneTimeExpenses(userId)
 
-  const oneTimeExpensesThisYear = oneTimeExpenseRows
-    .filter(e => e.expenseDate.slice(0, 4) === String(currentYear))
-    .reduce((s, e) => s.plus(e.amount), new Decimal(0))
+  const oneTimeExpensesThisYear = calculateOneTimeExpensesTotal(
+    oneTimeExpenseRows.filter(e => e.expenseDate.slice(0, 4) === String(currentYear)),
+  )
+
+  const oneTimeExpensesPrevYear = calculateOneTimeExpensesTotal(
+    oneTimeExpenseRows.filter(e => e.expenseDate.slice(0, 4) === String(currentYear - 1)),
+  )
+  const percentChange = calculatePercentChange(oneTimeExpensesThisYear, oneTimeExpensesPrevYear)
 
   return (
     <>
@@ -33,11 +38,27 @@ export default async function EenmaligeUitgavenPage() {
           <p className="mt-1 text-sm text-muted-foreground">Losstaande grote aankopen, geen doorlopende post</p>
         </div>
 
-        <KpiCard
-          label="Eenmalige uitgaven dit jaar"
-          value={formatCurrency(oneTimeExpensesThisYear.toNumber())}
-          subtext={`t/m ${todayStr} — telt niet mee in de maandelijkse cashflow van vaste lasten`}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <KpiCard
+            label="Eenmalige uitgaven dit jaar"
+            value={formatCurrency(oneTimeExpensesThisYear.toNumber())}
+            subtext={`t/m ${todayStr} — telt niet mee in de maandelijkse cashflow van vaste lasten`}
+          />
+          <KpiCard
+            label="Verschil t.o.v. vorig jaar"
+            value={percentChange === null
+              ? '—'
+              : `${percentChange.gte(0) ? '+' : ''}${formatPercent(percentChange.toNumber())}`}
+            subtext={percentChange === null
+              ? `Geen uitgaven in ${currentYear - 1} om mee te vergelijken`
+              : `${formatCurrency(oneTimeExpensesPrevYear.toNumber())} in heel ${currentYear - 1}`}
+            trend={percentChange !== null
+              ? { value: percentChange.gte(0) ? 'Meer uitgegeven' : 'Minder uitgegeven', positive: percentChange.lte(0) }
+              : undefined}
+          />
+        </div>
+
+        <OneTimeExpenseForm action={createOneTimeExpenseAction} />
 
         {oneTimeExpenseRows.length === 0 ? (
           <div className="bg-card border border-border rounded-3xl p-10 text-center">
@@ -50,8 +71,6 @@ export default async function EenmaligeUitgavenPage() {
             deleteAction={deleteOneTimeExpenseAction}
           />
         )}
-
-        <OneTimeExpenseForm action={createOneTimeExpenseAction} />
 
       </main>
     </>

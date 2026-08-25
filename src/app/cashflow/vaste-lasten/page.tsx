@@ -21,6 +21,7 @@ export default async function VasteLastenPage() {
       amount:    r.amount,
       frequency: r.frequency as 'monthly' | 'four_weekly' | 'quarterly' | 'yearly',
       isActive:  r.isActive,
+      isShared:  r.isShared,
     })),
   )
 

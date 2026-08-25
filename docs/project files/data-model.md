@@ -327,6 +327,9 @@ CREATE TABLE one_time_expenses (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id    UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name         TEXT NOT NULL,
+  category     TEXT NOT NULL DEFAULT 'other'
+               CHECK (category IN ('vacation', 'housing', 'appliances_electronics',
+                                    'furniture', 'car_transport', 'gifts_events', 'other')),
   amount       NUMERIC(15,2) NOT NULL,
   expense_date DATE NOT NULL,
   is_shared    BOOLEAN NOT NULL DEFAULT false, -- gezamenlijk betaald, puur zichtbaarheid

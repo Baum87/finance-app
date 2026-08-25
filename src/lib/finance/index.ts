@@ -27,3 +27,5 @@ export { buildSimpleEntryMonthlySeries, buildSingleValueMonthlySeries } from './
 export type { SimpleEntryRow, SimpleEntryMonthPoint, SingleValueRow, SingleValueMonthPoint } from './simple-entry-series'
 export { annualizeAmount, calculateRecurringTotals } from './recurring-cashflow'
 export type { RecurringFrequency, RecurringItemType, RecurringCashflowTotals } from './recurring-cashflow'
+export { calculateOneTimeExpensesTotal } from './one-time-expenses'
+export { calculatePercentChange } from './percent-change'

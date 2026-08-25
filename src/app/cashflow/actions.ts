@@ -103,6 +103,7 @@ export async function deleteRecurringItemAction(formData: FormData) {
 
 const OneTimeExpenseSchema = z.object({
   name:        z.string().min(1, 'Naam is verplicht'),
+  category:    z.enum(['vacation', 'housing', 'appliances_electronics', 'furniture', 'car_transport', 'gifts_events', 'other']),
   amount:      z.string().regex(/^\d+(\.\d{1,2})?$/, 'Ongeldig bedrag'),
   expenseDate: z.string().min(1, 'Datum is verplicht'),
   isShared:    z.string().nullish(),
@@ -115,6 +116,7 @@ export async function createOneTimeExpenseAction(formData: FormData): Promise<Ac
 
   const parsed = OneTimeExpenseSchema.safeParse({
     name:        formData.get('name'),
+    category:    formData.get('category'),
     amount:      formData.get('amount'),
     expenseDate: formData.get('expenseDate'),
     isShared:    formData.get('isShared'),
@@ -140,6 +142,7 @@ export async function updateOneTimeExpenseAction(formData: FormData) {
 
   const parsed = OneTimeExpenseSchema.safeParse({
     name:        formData.get('name'),
+    category:    formData.get('category'),
     amount:      formData.get('amount'),
     expenseDate: formData.get('expenseDate'),
     isShared:    formData.get('isShared'),

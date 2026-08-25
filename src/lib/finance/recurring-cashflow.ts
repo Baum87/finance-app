@@ -8,6 +8,7 @@ type RecurringItemInput = {
   amount: string
   frequency: RecurringFrequency
   isActive: boolean
+  isShared: boolean
 }
 
 export type RecurringCashflowTotals = {
@@ -41,7 +42,8 @@ export function annualizeAmount(amount: Decimal, frequency: RecurringFrequency):
 
 /**
  * Telt actieve vaste lasten en inkomsten op tot jaar- en maandtotalen.
- * Inactieve items tellen niet mee.
+ * Inactieve items tellen niet mee. Gezamenlijk betaalde posten (isShared) tellen
+ * voor de helft mee — dat is het eigen aandeel in de gezamenlijke rekening.
  */
 export function calculateRecurringTotals(items: RecurringItemInput[]): RecurringCashflowTotals {
   let annualIncome = new Decimal(0)
@@ -50,7 +52,8 @@ export function calculateRecurringTotals(items: RecurringItemInput[]): Recurring
   for (const item of items) {
     if (!item.isActive) continue
 
-    const annual = annualizeAmount(new Decimal(item.amount), item.frequency)
+    let annual = annualizeAmount(new Decimal(item.amount), item.frequency)
+    if (item.isShared) annual = annual.dividedBy(2)
 
     if (item.itemType === 'income') {
       annualIncome = annualIncome.plus(annual)

@@ -358,6 +358,7 @@ export const oneTimeExpenses = pgTable('one_time_expenses', {
   id:          uuid('id').primaryKey().defaultRandom(),
   tenantId:    uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
   name:        text('name').notNull(),
+  category:    text('category').notNull().default('other'),
   amount:      numeric('amount', { precision: 15, scale: 2 }).notNull(),
   expenseDate: date('expense_date').notNull(),
   isShared:    boolean('is_shared').notNull().default(false),
@@ -365,6 +366,7 @@ export const oneTimeExpenses = pgTable('one_time_expenses', {
   updatedAt:   timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('one_time_expenses_tenant_id_idx').on(t.tenantId),
+  check('one_time_expenses_category_check', sql`${t.category} IN ('vacation', 'housing', 'appliances_electronics', 'furniture', 'car_transport', 'gifts_events', 'other')`),
 ])
 
 // ─── fx_rates (geen RLS — gedeeld, niet user-gebonden) ───────────────────────

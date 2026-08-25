@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Pencil, Trash2, Check, X, Users } from 'lucide-react'
 import Decimal from 'decimal.js'
 import { formatCurrencyPrecise, formatDate } from '@/lib/utils/format'
+import { ONE_TIME_EXPENSE_CATEGORY_LABELS } from './one-time-expense-labels'
 import type { OneTimeExpense } from '@/lib/db/queries/one-time-expenses'
 
 interface OneTimeExpenseRowProps {
@@ -23,7 +24,7 @@ export function OneTimeExpenseRow({ expense, updateAction, deleteAction }: OneTi
   if (editing) {
     return (
       <tr className="border-b border-border last:border-0 bg-muted/30">
-        <td className="px-6 py-4" colSpan={5}>
+        <td className="px-6 py-4" colSpan={6}>
           <form action={handleSave} className="space-y-3">
             <input type="hidden" name="expenseId" value={expense.id} />
             <div className="flex flex-wrap items-center gap-2">
@@ -33,6 +34,16 @@ export function OneTimeExpenseRow({ expense, updateAction, deleteAction }: OneTi
                 required
                 className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-primary"
               />
+              <select
+                name="category"
+                required
+                defaultValue={expense.category}
+                className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                {Object.entries(ONE_TIME_EXPENSE_CATEGORY_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
               <input
                 name="amount"
                 type="number"
@@ -91,9 +102,21 @@ export function OneTimeExpenseRow({ expense, updateAction, deleteAction }: OneTi
   return (
     <tr className="border-b border-border last:border-0">
       <td className="px-6 py-3 font-medium text-foreground">{expense.name}</td>
+      <td className="px-6 py-3 text-muted-foreground">
+        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-muted">
+          {ONE_TIME_EXPENSE_CATEGORY_LABELS[expense.category] ?? expense.category}
+        </span>
+      </td>
       <td className="px-6 py-3 text-muted-foreground">{formatDate(expense.expenseDate)}</td>
-      <td className="px-6 py-3 text-right font-medium text-foreground">
-        {formatCurrencyPrecise(new Decimal(expense.amount).toNumber())}
+      <td className="px-6 py-3 text-right">
+        <div className="font-medium text-foreground">
+          {formatCurrencyPrecise(new Decimal(expense.amount).toNumber())}
+        </div>
+        {expense.isShared && (
+          <div className="text-xs text-muted-foreground">
+            eigen aandeel {formatCurrencyPrecise(new Decimal(expense.amount).dividedBy(2).toNumber())}
+          </div>
+        )}
       </td>
       <td className="px-6 py-3 text-center">
         {expense.isShared && (
