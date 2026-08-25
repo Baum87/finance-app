@@ -2,15 +2,8 @@
 
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
-import { createServerSupabaseClient } from '@/lib/db/supabase-server'
+import { requireUser } from '@/lib/db/supabase-server'
 import { createBroker, deleteBroker } from '@/lib/db/queries/brokers'
-
-async function requireUser() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  return user
-}
 
 const brokerSchema = z.object({
   name: z.string().min(1, 'Naam is verplicht'),

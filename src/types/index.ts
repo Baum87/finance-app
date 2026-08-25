@@ -21,3 +21,13 @@ export type TransactionType =
   | 'interest'
   | 'rental_income'
   | 'cost'
+
+/** Transactie-projectie voor portfolio-XIRR/TWR-berekeningen (lib/finance). */
+export type DetailedTransaction = {
+  assetId: string
+  transactionType: string
+  amount: string
+  quantity: string | null
+  transactionDate: string
+  fees: string
+}

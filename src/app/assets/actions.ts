@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { z } from 'zod'
-import { createServerSupabaseClient } from '@/lib/db/supabase-server'
+import { requireUser } from '@/lib/db/supabase-server'
 import {
   createAsset, updateAsset, deleteAsset, getAsset,
 } from '@/lib/db/queries/assets'
@@ -19,15 +19,6 @@ import Decimal from 'decimal.js'
 import { getLatestPrice } from '@/lib/services/prices'
 
 export type ActionState = { error: string } | null
-
-// ─── Auth helper ──────────────────────────────────────────────────────────────
-
-async function requireUser() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  return user
-}
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 

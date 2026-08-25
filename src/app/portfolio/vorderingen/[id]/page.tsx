@@ -36,7 +36,7 @@ export default async function VorderingDetailPage({ params }: { params: Promise<
     .filter(t => t.transactionType === 'interest')
     .reduce((s, t) => s.plus(new Decimal(t.amount)), new Decimal(0))
 
-  const rente = d?.interestRate ? parseFloat(d.interestRate) : null
+  const rente = d?.interestRate ? new Decimal(d.interestRate) : null
 
   return (
     <>

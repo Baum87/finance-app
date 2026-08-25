@@ -1,23 +1,15 @@
 'use server'
 
-import { redirect } from 'next/navigation'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { createServerSupabaseClient } from '@/lib/db/supabase-server'
+import { requireUser } from '@/lib/db/supabase-server'
 import { getBrokers } from '@/lib/db/queries/brokers'
 import { createAsset, findStockEtfAssetsByIsins } from '@/lib/db/queries/assets'
 import { importTransactions, type ImportTransactionInput } from '@/lib/db/queries/transactions'
 import { parseTransactionFile } from '@/lib/services/import/parse'
 import { suggestTicker } from '@/lib/services/prices'
 import type { ParsedTransactionRow, ParseWarning } from '@/lib/services/import/types'
-
-async function requireUser() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  return user
-}
 
 async function requireBroker(userId: string, brokerId: string) {
   const brokers = await getBrokers(userId)

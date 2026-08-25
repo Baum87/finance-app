@@ -127,6 +127,13 @@
       "when": 1783000000000,
       "tag": "0017_one_time_expenses_category",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783100000000,
+      "tag": "0018_stock_etf_details_broker_id_index",
+      "breakpoints": true
     }
   ]
 }

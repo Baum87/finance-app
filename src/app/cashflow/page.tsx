@@ -6,6 +6,9 @@ import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/as
 import { getRecurringItems } from '@/lib/db/queries/recurring-items'
 import { getOneTimeExpenses } from '@/lib/db/queries/one-time-expenses'
 import { getLiabilities } from '@/lib/db/queries/liabilities'
+import {
+  getStockEtfEntries, getCryptoEntries, getPensionEntries, getSavingsEntries, getRealEstateEntries, latestPerGroup,
+} from '@/lib/db/queries/simple-entries'
 import { calculateNetWorth, calculateRecurringTotals, calculateOneTimeExpensesTotal } from '@/lib/finance'
 import { buildNetWorthSeries } from '@/lib/finance'
 import { formatCurrency } from '@/lib/utils/format'
@@ -28,7 +31,7 @@ export default async function CashflowOverviewPage() {
   const ytdFrom = `${currentYear}-01-01`
   const todayStr = toDateStr(today)
 
-  const [txData, assets_, mortgageMap, networthJan1, valuationRows, mortgageBalanceRows, recurringItemRows, oneTimeExpenseRows, liabilities] = await Promise.all([
+  const [txData, assets_, mortgageMap, networthJan1, valuationRows, mortgageBalanceRows, recurringItemRows, oneTimeExpenseRows, liabilities, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, realEstateEntries] = await Promise.all([
     getPassiveIncomeData(userId, ytdFrom, todayStr),
     getAssetsWithValues(userId),
     getMortgageBalancesMap(userId),
@@ -38,7 +41,35 @@ export default async function CashflowOverviewPage() {
     getRecurringItems(userId),
     getOneTimeExpenses(userId),
     getLiabilities(userId),
+    getStockEtfEntries(userId),
+    getCryptoEntries(userId),
+    getPensionEntries(userId),
+    getSavingsEntries(userId),
+    getRealEstateEntries(userId),
   ])
+
+  // Eenvoudige invoerlijsten (crypto/pensioen/spaarrekening/vastgoed) hebben geen
+  // "asset"-entiteit en zitten dus niet in getAssetsWithValues/getNetWorthAtDate —
+  // zelfde optelling als op de homepage, maar dan "as of" een datum: elke lijst
+  // is al newest-first, dus de laatste rij per groep vóór die datum is de waarde
+  // op dat moment (zelfde patroon als latestMortgageAtDate hieronder).
+  function sumLatestPerGroupAsOf<T extends { entryDate: string }>(
+    rows: T[],
+    keyFn: (r: T) => string,
+    valueFn: (r: T) => string,
+    asOfDate: string,
+  ): Decimal {
+    const latest = latestPerGroup(rows.filter(r => r.entryDate <= asOfDate), keyFn)
+    return latest.reduce((s, r) => s.plus(new Decimal(valueFn(r))), new Decimal(0))
+  }
+  const simpleEntriesValueAsOf = (asOfDate: string): Decimal =>
+    sumLatestPerGroupAsOf(stockEtfEntries, e => e.broker, e => e.currentValue, asOfDate)
+      .plus(sumLatestPerGroupAsOf(cryptoEntries, e => e.broker, e => e.currentValue, asOfDate))
+      .plus(sumLatestPerGroupAsOf(pensionEntries, e => e.broker, e => e.currentValue, asOfDate))
+      .plus(sumLatestPerGroupAsOf(savingsEntries, e => e.bank, e => e.balance, asOfDate))
+      .plus(sumLatestPerGroupAsOf(realEstateEntries, e => `${e.street}|${e.postalCode}|${e.city}`, e => e.wozValue, asOfDate))
+  const simpleEntriesToday = simpleEntriesValueAsOf(todayStr)
+  const simpleEntriesJan1  = simpleEntriesValueAsOf(ytdFrom)
 
   // liabilities heeft geen historische bedrag-tracking (in tegenstelling tot
   // mortgage_balances) — alleen huidige, actieve schulden. Voor de Jan1-vergelijking
@@ -78,10 +109,10 @@ export default async function CashflowOverviewPage() {
       value:     a.currentValue,
       liability: mortgageMap.get(a.id) ?? new Decimal(0),
     })),
-  ).minus(totalLiabilitiesToday)
+  ).plus(simpleEntriesToday).minus(totalLiabilitiesToday)
 
   const networthGrowth = networthJan1 != null
-    ? networthToday.minus(networthJan1.minus(totalLiabilitiesJan1))
+    ? networthToday.minus(networthJan1.plus(simpleEntriesJan1).minus(totalLiabilitiesJan1))
     : null
   const growthPositive = networthGrowth?.gte(0) ?? true
 

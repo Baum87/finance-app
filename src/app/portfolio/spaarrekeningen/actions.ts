@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { z } from 'zod'
-import { createServerSupabaseClient } from '@/lib/db/supabase-server'
+import { requireUser } from '@/lib/db/supabase-server'
 import { createTransaction } from '@/lib/db/queries/transactions'
 import { updateSavingsMonthlyDeposit } from '@/lib/db/queries/assets'
 import type { ActionState } from '@/app/assets/actions'
@@ -30,9 +30,7 @@ export async function createSavingsTransactionAction(
   fd: FormData,
 ): Promise<ActionState> {
   try {
-    const supabase = await createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) redirect('/login')
+    const user = await requireUser()
 
     const assetId    = str(fd, 'assetId')
     const redirectTo = str(fd, 'redirectTo') || `/portfolio/spaarrekeningen/${assetId}`
@@ -68,9 +66,7 @@ export async function createSavingsTransactionAction(
 }
 
 export async function applyMonthlyDepositAction(fd: FormData): Promise<void> {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const user = await requireUser()
 
   const { assetId, amount } = monthlyDepositSchema.parse({
     assetId: str(fd, 'assetId'),

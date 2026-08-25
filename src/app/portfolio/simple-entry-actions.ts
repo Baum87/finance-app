@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { z } from 'zod'
-import { createServerSupabaseClient } from '@/lib/db/supabase-server'
+import { requireUser } from '@/lib/db/supabase-server'
 import {
   createStockEtfEntry, updateStockEtfEntry, deleteStockEtfEntry,
   createCryptoEntry, updateCryptoEntry, deleteCryptoEntry,
@@ -13,13 +13,6 @@ import {
 } from '@/lib/db/queries/simple-entries'
 
 export type ActionState = { error: string } | null
-
-async function requireUser() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  return user
-}
 
 function str(fd: FormData, key: string): string {
   return (fd.get(key) as string | null) ?? ''

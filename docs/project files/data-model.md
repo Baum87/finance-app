@@ -1,6 +1,11 @@
 # data-model.md — Personal Finance App
 
-Laatst bijgewerkt: 11 juni 2026
+Laatst bijgewerkt: 25 augustus 2026 — drift-annotaties toegevoegd na codebase-audit
+(zie `docs/review/audit-codebase-volledig.md`, bevinding M-3). De originele
+Sprint 1.3-ontwerpblokken zijn bewust laten staan als besluitvormingsrecord;
+waar de huidige `lib/db/schema.ts` afwijkt staat dat nu expliciet vermeld i.p.v.
+alleen bij `transactions`. **`schema.ts` blijft bron van waarheid, dit document
+niet.**
 Status: definitief vastgesteld (Sprint 1.3) — bijgewerkt met multi-tenant fundament
 
 ---
@@ -171,6 +176,23 @@ Vastgoed: jaarlijks WOZ of taxatiewaarde invoeren.
 
 ---
 
+### Eenvoudige invoerlijsten (simple entries) — ontbreekt hierboven, wél in schema.ts
+
+Náást de `assets`/`asset_valuations`-flow bestaat een tweede, lichtere manier om
+een categorie bij te houden: vijf losstaande, append-only logboek-tabellen
+zonder eigen `assets`-rij — `stock_etf_entries`, `crypto_entries`,
+`pension_entries`, `savings_entries`, `real_estate_entries`. Elke tabel heeft
+`id`, `tenant_id`, een groepssleutel (`broker`/`bank`/adres), een waardeveld
+(`invested`+`current_value`, of `balance`, of `woz_value`) en `entry_date`. De
+meest recente rij per groep (op `entry_date`) is de huidige waarde — zelfde
+"laatste rij = actuele waarde"-patroon als `asset_valuations`, maar dan zonder
+transactiehistorie of detail-tabel. Gebruikt op de portfolio-overzichtspagina's
+en de homepage (`lib/db/queries/simple-entries.ts`) naast de volledige
+asset-tracking, zodat een gebruiker die bijvoorbeeld alleen "€ X op ING"
+bijhoudt niet uit het totaalvermogen valt.
+
+---
+
 ### Asset-specifieke detail-tabellen
 
 ```sql
@@ -207,6 +229,22 @@ CREATE TABLE pension_details (
   pension_age  INT              -- verwachte pensioenleeftijd
 );
 ```
+
+> **Let op — afwijkt van `schema.ts`:**
+> - `stock_etf_details`: geen `broker`/`benchmark`-tekstvelden — i.p.v. `broker` een
+>   `broker_id`-FK naar de nieuwe `brokers`-tabel (zie onder); `benchmark` bestaat
+>   niet (benchmark-vergelijking loopt centraal via `lib/services/benchmark.ts`,
+>   niet per positie). Kolommen `account_type`/`sector`/`instrument_type` erbij.
+> - `crypto_details.symbol` heet `ticker` en is nullable (simpele invoer via
+>   `crypto_entries` heeft geen ticker, geen live koers).
+> - `savings_details`: `bank` heet `bank_name`; geen `maturity_date`; wel
+>   `account_type` en `monthly_deposit_amount`.
+> - `pension_details`: `type` heet `pension_type`; geen `pension_age`; wel
+>   `projected_annual_benefit`.
+> - Ontbreekt hierboven volledig: `vordering_details` (asset-type `vordering`,
+>   familielening/zakelijke lening — counterparty, principal_amount,
+>   interest_rate, start/end_date, loan_type) en de `brokers`-tabel
+>   (id, tenant_id, name — waar `stock_etf_details.broker_id` naar verwijst).
 
 ---
 
@@ -279,6 +317,10 @@ CREATE TABLE liabilities (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
+
+> **Let op — afwijkt van `schema.ts`:** `type` heet `liability_type`,
+> `current_balance` heet `amount`; er is geen `notes`-kolom, wel een
+> `currency`-kolom (default `'EUR'`, ontbreekt hierboven).
 
 ---
 
@@ -359,6 +401,14 @@ CREATE TABLE fx_rates (
 
 Gevuld door de koersdataservice (Sprint 3.2). In v1 desnoods handmatig voor crypto.
 
+> **Let op — afwijkt van `schema.ts` én van de praktijk:** kolommen heten
+> `from_currency`/`to_currency` (niet `base_currency`/`quote_currency`), `rate`
+> heeft precisie `(15,6)` (niet `(15,8)`). Belangrijker: de tabel is in de
+> praktijk **leeg** — niet gevuld door een koersdataservice zoals hier staat.
+> Alle transacties worden vooralsnog EUR-geforceerd ingevoerd (`currency='EUR'`,
+> `fxRate='1'`); multi-currency ("Optie B") is ontworpen maar nog niet gebouwd.
+> Niet verwijderen zonder die beslissing eerst te nemen.
+
 ---
 
 ### Toekomstvast — belastinginzicht (box 3)
@@ -376,6 +426,13 @@ CREATE TABLE asset_tax_metadata (
 
 `tax_year` en `is_tax_relevant` zitten al op `transactions` (zie boven).
 
+> **Let op — afwijkt van `schema.ts`:** `tax_box` is in de praktijk `box`
+> (`INTEGER CHECK (box IN (1,2,3))`, niet `TEXT CHECK (... IN ('box1','box2','box3'))`
+> — een echt typeverschil, niet alleen een naamswijziging). `is_tax_exempt` heet
+> `is_exempt`, `tax_notes` heet `notes`. De rij wordt aangemaakt bij elke
+> `createAsset` (default box 3) maar nergens in de UI gelezen of getoond —
+> voorbereid voor Fase E (fiscale laag), nog niet actief gebruikt.
+
 ---
 
 ## Relatie-overzicht (ERD in tekst)
@@ -385,19 +442,27 @@ tenants
  └── tenant_users (N:N via users)
       └── users
            ├── assets (1:N)  [ook via tenant_id]
-           │    ├── stock_etf_details (1:0-1)
+           │    ├── stock_etf_details (1:0-1) ──→ brokers (N:1, optioneel)
            │    ├── crypto_details (1:0-1)
            │    ├── savings_details (1:0-1)
            │    ├── pension_details (1:0-1)
+           │    ├── vordering_details (1:0-1)
            │    ├── real_estate_details (1:0-1)
            │    │    └── mortgages (1:N)
            │    │         └── mortgage_balances (1:N)
            │    ├── transactions (1:N)
            │    ├── asset_valuations (1:N)
            │    └── asset_tax_metadata (1:0-1)
-           └── liabilities (1:N)  [ook via tenant_id]
+           ├── brokers (1:N)  [via tenant_id — los van assets]
+           ├── liabilities (1:N)  [ook via tenant_id]
+           ├── recurring_items (1:N)  [via tenant_id]
+           │    └── recurring_item_amounts (1:N)
+           ├── one_time_expenses (1:N)  [via tenant_id]
+           └── simple entries (1:N elk, via tenant_id — géén link naar assets):
+                stock_etf_entries, crypto_entries, pension_entries,
+                savings_entries, real_estate_entries
 
-fx_rates  (gedeeld, niet user/tenant-gebonden)
+fx_rates  (gedeeld, niet user/tenant-gebonden — in de praktijk leeg, zie boven)
 ```
 
 ---

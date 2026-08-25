@@ -1,20 +1,11 @@
 import { and, eq, desc, asc, inArray, gte } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { transactions, assets, tenantUsers } from '@/lib/db/schema'
-import type { TransactionType } from '@/types'
-
-async function getTenantId(userId: string): Promise<string> {
-  const rows = await db
-    .select({ tenantId: tenantUsers.tenantId })
-    .from(tenantUsers)
-    .where(and(eq(tenantUsers.userId, userId), eq(tenantUsers.role, 'owner')))
-    .limit(1)
-  if (!rows[0]) throw new Error('Geen toegang')
-  return rows[0].tenantId
-}
+import { transactions, assets } from '@/lib/db/schema'
+import type { TransactionType, DetailedTransaction } from '@/types'
+import { getOrCreateTenant } from './tenant'
 
 async function verifyAssetAccess(userId: string, assetId: string): Promise<void> {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
   const rows = await db
     .select({ id: assets.id })
     .from(assets)
@@ -25,7 +16,7 @@ async function verifyAssetAccess(userId: string, assetId: string): Promise<void>
 }
 
 async function verifyTransactionAccess(userId: string, transactionId: string): Promise<void> {
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
   const rows = await db
     .select({ id: transactions.id })
     .from(transactions)
@@ -133,21 +124,12 @@ export type RawTransaction = {
  * All transactions for a set of asset IDs, optionally filtered from a date.
  * Used for portfolio XIRR/TWR calculations in page components.
  */
-export type DetailedTransaction = {
-  assetId: string
-  transactionType: string
-  amount: string
-  quantity: string | null
-  transactionDate: string
-  fees: string
-}
-
 export async function getTransactionsByAssetsDetailed(
   userId: string,
   assetIds: string[],
 ): Promise<DetailedTransaction[]> {
   if (assetIds.length === 0) return []
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
   return db
     .select({
       assetId:         transactions.assetId,
@@ -217,7 +199,7 @@ export async function getTransactionsByAssets(
   fromDate?: string,
 ): Promise<RawTransaction[]> {
   if (assetIds.length === 0) return []
-  const tenantId = await getTenantId(userId)
+  const tenantId = await getOrCreateTenant(userId)
   const conditions = fromDate
     ? and(inArray(transactions.assetId, assetIds), gte(transactions.transactionDate, fromDate), eq(assets.tenantId, tenantId))
     : and(inArray(transactions.assetId, assetIds), eq(assets.tenantId, tenantId))

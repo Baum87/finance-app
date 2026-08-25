@@ -1,9 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 import { z } from 'zod'
-import { createServerSupabaseClient } from '@/lib/db/supabase-server'
+import { requireUser } from '@/lib/db/supabase-server'
 import { createLiability, deleteLiability } from '@/lib/db/queries/liabilities'
 
 const LiabilitySchema = z.object({
@@ -17,9 +16,7 @@ const LiabilitySchema = z.object({
 })
 
 export async function createLiabilityAction(formData: FormData) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const user = await requireUser()
 
   const parsed = LiabilitySchema.safeParse({
     name:          formData.get('name'),
@@ -40,9 +37,7 @@ export async function createLiabilityAction(formData: FormData) {
 }
 
 export async function deleteLiabilityAction(formData: FormData) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const user = await requireUser()
 
   const liabilityId = formData.get('liabilityId') as string
   if (!liabilityId) throw new Error('Geen schuld-ID opgegeven')

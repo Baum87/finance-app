@@ -1,7 +1,7 @@
 import Decimal from 'decimal.js'
 import { getLatestPrice, getHistoricalPrices } from '@/lib/services/prices'
 import type { PortfolioDataPoint } from './portfolio-series'
-import type { DetailedTransaction } from '@/lib/db/queries/transactions'
+import type { DetailedTransaction } from '@/types'
 import { calculateAnnualReturn, type AnnualReturnFigures } from './annual-return'
 import { buildXirrCashflows } from './xirr-cashflows'
 import { calculateTwr } from './twr'

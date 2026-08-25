@@ -1,7 +1,5 @@
-'use client'
-
 import Link from 'next/link'
-import { deleteAssetAction } from '@/app/assets/actions'
+import { AssetSectionDeleteButton } from './AssetSectionDeleteButton'
 
 export type SectionColumn = {
   header: string
@@ -87,16 +85,7 @@ export function AssetSection({ title, addLabel, addHref, columns, rows }: Props)
                       >
                         Bewerken
                       </Link>
-                      <form action={deleteAssetAction}>
-                        <input type="hidden" name="assetId" value={row.id} />
-                        <button
-                          type="submit"
-                          className="text-xs text-terracotta hover:opacity-70 transition-opacity"
-                          onClick={e => { if (!confirm(`${row.name} verwijderen?`)) e.preventDefault() }}
-                        >
-                          Verwijderen
-                        </button>
-                      </form>
+                      <AssetSectionDeleteButton assetId={row.id} assetName={row.name} />
                     </div>
                   </td>
                 </tr>

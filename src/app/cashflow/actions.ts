@@ -1,9 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 import { z } from 'zod'
-import { createServerSupabaseClient } from '@/lib/db/supabase-server'
+import { requireUser } from '@/lib/db/supabase-server'
 import { createRecurringItem, updateRecurringItem, deleteRecurringItem } from '@/lib/db/queries/recurring-items'
 import { createOneTimeExpense, updateOneTimeExpense, deleteOneTimeExpense } from '@/lib/db/queries/one-time-expenses'
 import type { ActionState } from '@/app/assets/actions'
@@ -26,9 +25,7 @@ const RecurringItemSchema = z.object({
 })
 
 export async function createRecurringItemAction(formData: FormData): Promise<ActionState> {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const user = await requireUser()
 
   const parsed = RecurringItemSchema.safeParse({
     name:      formData.get('name'),
@@ -54,9 +51,7 @@ export async function createRecurringItemAction(formData: FormData): Promise<Act
 }
 
 export async function updateRecurringItemAction(formData: FormData) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const user = await requireUser()
 
   const itemId = formData.get('itemId') as string
   if (!itemId) throw new Error('Geen post-ID opgegeven')
@@ -70,7 +65,7 @@ export async function updateRecurringItemAction(formData: FormData) {
     effectiveDate: formData.get('effectiveDate'),
     isShared:      formData.get('isShared'),
   })
-  if (!parsed.success) return
+  if (!parsed.success) throw new Error(parsed.error.issues.map(i => i.message).join(', '))
 
   // effectiveDate ontbreekt in het formulier als het bedrag niet is gewijzigd
   // (dan wordt er sowieso geen nieuwe bedrag-historie aangemaakt) — val in dat
@@ -87,9 +82,7 @@ export async function updateRecurringItemAction(formData: FormData) {
 }
 
 export async function deleteRecurringItemAction(formData: FormData) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const user = await requireUser()
 
   const itemId = formData.get('itemId') as string
   if (!itemId) throw new Error('Geen post-ID opgegeven')
@@ -110,9 +103,7 @@ const OneTimeExpenseSchema = z.object({
 })
 
 export async function createOneTimeExpenseAction(formData: FormData): Promise<ActionState> {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const user = await requireUser()
 
   const parsed = OneTimeExpenseSchema.safeParse({
     name:        formData.get('name'),
@@ -133,9 +124,7 @@ export async function createOneTimeExpenseAction(formData: FormData): Promise<Ac
 }
 
 export async function updateOneTimeExpenseAction(formData: FormData) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const user = await requireUser()
 
   const expenseId = formData.get('expenseId') as string
   if (!expenseId) throw new Error('Geen post-ID opgegeven')
@@ -147,7 +136,7 @@ export async function updateOneTimeExpenseAction(formData: FormData) {
     expenseDate: formData.get('expenseDate'),
     isShared:    formData.get('isShared'),
   })
-  if (!parsed.success) return
+  if (!parsed.success) throw new Error(parsed.error.issues.map(i => i.message).join(', '))
 
   await updateOneTimeExpense(user.id, expenseId, { ...parsed.data, isShared: parsed.data.isShared === 'on' })
   revalidatePath('/cashflow')
@@ -155,9 +144,7 @@ export async function updateOneTimeExpenseAction(formData: FormData) {
 }
 
 export async function deleteOneTimeExpenseAction(formData: FormData) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const user = await requireUser()
 
   const expenseId = formData.get('expenseId') as string
   if (!expenseId) throw new Error('Geen post-ID opgegeven')

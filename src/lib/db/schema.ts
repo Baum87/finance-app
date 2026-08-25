@@ -182,7 +182,9 @@ export const stockEtfDetails = pgTable('stock_etf_details', {
   accountType:    text('account_type').default('taxable'),
   sector:         text('sector'),
   instrumentType: text('instrument_type').default('stock'),
-})
+}, (t) => [
+  index('stock_etf_details_broker_id_idx').on(t.brokerId),
+])
 
 // ─── crypto_details ───────────────────────────────────────────────────────────
 

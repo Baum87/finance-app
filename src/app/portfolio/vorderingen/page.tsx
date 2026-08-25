@@ -75,7 +75,7 @@ export default async function VorderingenPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {assets.map(a => {
                 const d = a.vorderingDetails
-                const rente = d?.interestRate ? `${parseFloat(d.interestRate)}%` : null
+                const rente = d?.interestRate ? `${new Decimal(d.interestRate)}%` : null
                 return (
                   <PortfolioTile
                     key={a.id}

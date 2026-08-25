@@ -17,6 +17,7 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   savings:     'Spaargeld',
   real_estate: 'Vastgoed',
   pension:     'Pensioen',
+  vordering:   'Vorderingen',
 }
 
 function getGreeting(): string {
@@ -87,10 +88,17 @@ export default async function OverzichtPage() {
   // maar niet in de 30-dagen-delta hieronder (die blijft asset-gebaseerd).
   const netWorth = assetNetWorth.minus(totalLiabilities)
 
-  const illiquidNetValue = nonRealEstateAssets
-    .filter(a => !a.isLiquid)
+  const illiquidAssets = nonRealEstateAssets.filter(a => !a.isLiquid)
+  const illiquidSimpleCategories = simpleCategories.filter(c => !c.liquid)
+  const illiquidNetValue = illiquidAssets
     .reduce((sum, a) => sum.plus(a.currentValue).minus(mortgageMap.get(a.id) ?? new Decimal(0)), new Decimal(0))
-    .plus(simpleCategories.filter(c => !c.liquid).reduce((sum, c) => sum.plus(c.value), new Decimal(0)))
+    .plus(illiquidSimpleCategories.reduce((sum, c) => sum.plus(c.value), new Decimal(0)))
+  const illiquidLabel = [...new Set([
+    ...illiquidAssets.map(a => a.assetType),
+    ...illiquidSimpleCategories.map(c => c.assetType),
+  ])]
+    .map(t => (ASSET_TYPE_LABELS[t] ?? t).toLowerCase())
+    .join(', ')
 
   const delta = netWorthMonthAgo != null ? assetNetWorth.minus(netWorthMonthAgo) : null
   const deltaPositive = delta?.gte(0) ?? true
@@ -140,7 +148,7 @@ export default async function OverzichtPage() {
             )}
             {illiquidNetValue.gt(0) && (
               <p className="mt-0.5 text-sm text-muted-foreground">
-                waarvan {formatCurrency(illiquidNetValue.toNumber())} illiquide (pensioen)
+                waarvan {formatCurrency(illiquidNetValue.toNumber())} illiquide ({illiquidLabel})
               </p>
             )}
             {totalLiabilities.gt(0) && (
