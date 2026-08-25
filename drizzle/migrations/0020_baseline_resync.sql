@@ -1,0 +1,21 @@
+-- Geen schemawijziging — dit bestand herstelt alleen de snapshot-historie.
+--
+-- drizzle/migrations/meta/ had sinds migratie 0005 geen snapshots meer
+-- (0005-0019 zijn allemaal handmatig geschreven, buiten `drizzle-kit generate`
+-- om — zie STATUS.md). Daardoor kon `drizzle-kit generate` het schema niet
+-- meer betrouwbaar diffen: elke aanroep zag alle sinds 0004 toegevoegde
+-- tabellen/kolommen als "onbekend" en probeerde interactief te vragen of dat
+-- een hernoeming was, wat in een non-interactive/CI-omgeving vastloopt.
+--
+-- Dit bestand + de bijbehorende meta/0020_snapshot.json zijn gegenereerd door
+-- `drizzle-kit generate` te draaien tegen een LEGE tijdelijke migratiemap (dus
+-- zonder enige voorgaande snapshot om tegen te diffen — daardoor geen
+-- hernoem-ambiguïteit, geen interactieve prompt nodig). Het resultaat is een
+-- volledige, accurate snapshot van de huidige schema.ts, die hier is
+-- overgenomen als snapshot 0020 (prevId gekoppeld aan snapshot 0004, de
+-- laatste die al bestond) — zonder de bijbehorende CREATE TABLE-statements uit
+-- te voeren, want die tabellen bestaan al (aangemaakt via de handmatige
+-- migraties 0001-0019).
+--
+-- Gevolg: `npm run db:generate` kan vanaf nu weer normaal diffen tegen een
+-- actuele snapshot. Dit bestand zelf voert niets uit tegen de database.
