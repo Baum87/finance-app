@@ -1,4 +1,4 @@
-import { and, eq, desc } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { mortgageBalances, mortgages, assets } from '@/lib/db/schema'
 import { getOrCreateTenant } from './tenant'
@@ -45,21 +45,4 @@ export async function deleteMortgageBalance(userId: string, balanceId: string): 
   if (!row[0]) throw new Error('Saldo-snapshot niet gevonden')
 
   await db.delete(mortgageBalances).where(eq(mortgageBalances.id, balanceId))
-}
-
-export async function getMortgageBalanceHistory(userId: string, mortgageId: string, limit = 10) {
-  const tenantId = await getOrCreateTenant(userId)
-
-  return db
-    .select({
-      id:                 mortgageBalances.id,
-      balanceDate:        mortgageBalances.balanceDate,
-      outstandingBalance: mortgageBalances.outstandingBalance,
-    })
-    .from(mortgageBalances)
-    .innerJoin(mortgages, eq(mortgages.id, mortgageBalances.mortgageId))
-    .innerJoin(assets, eq(assets.id, mortgages.assetId))
-    .where(and(eq(mortgageBalances.mortgageId, mortgageId), eq(assets.tenantId, tenantId)))
-    .orderBy(desc(mortgageBalances.balanceDate))
-    .limit(limit)
 }

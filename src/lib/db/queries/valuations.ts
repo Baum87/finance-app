@@ -1,4 +1,4 @@
-import { and, eq, desc } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { assetValuations, assets } from '@/lib/db/schema'
 import { getOrCreateTenant } from './tenant'
@@ -44,22 +44,4 @@ export async function deleteValuation(userId: string, valuationId: string) {
   if (!row[0]) throw new Error('Waardering niet gevonden')
 
   await db.delete(assetValuations).where(eq(assetValuations.id, valuationId))
-}
-
-export async function getValuations(userId: string, assetId: string, limit = 10) {
-  const tenantId = await getOrCreateTenant(userId)
-
-  return db
-    .select({
-      id:            assetValuations.id,
-      valuationDate: assetValuations.valuationDate,
-      value:         assetValuations.value,
-      currency:      assetValuations.currency,
-      createdAt:     assetValuations.createdAt,
-    })
-    .from(assetValuations)
-    .innerJoin(assets, eq(assets.id, assetValuations.assetId))
-    .where(and(eq(assetValuations.assetId, assetId), eq(assets.tenantId, tenantId)))
-    .orderBy(desc(assetValuations.valuationDate))
-    .limit(limit)
 }

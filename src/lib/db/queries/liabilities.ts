@@ -49,22 +49,3 @@ export async function deleteLiability(userId: string, liabilityId: string) {
     .set({ isActive: false })
     .where(and(eq(liabilities.id, liabilityId), eq(liabilities.tenantId, tenantId)))
 }
-
-export async function updateLiability(userId: string, liabilityId: string, data: LiabilityInput) {
-  const tenantId = await getOrCreateTenant(userId)
-  const [row] = await db
-    .update(liabilities)
-    .set({
-      name:          data.name,
-      liabilityType: data.liabilityType,
-      amount:        data.amount,
-      interestRate:  data.interestRate ?? null,
-      startDate:     data.startDate ?? null,
-      endDate:       data.endDate ?? null,
-      currency:      data.currency ?? 'EUR',
-    })
-    .where(and(eq(liabilities.id, liabilityId), eq(liabilities.tenantId, tenantId)))
-    .returning()
-  if (!row) throw new Error('Schuld niet gevonden of geen toegang')
-  return row
-}

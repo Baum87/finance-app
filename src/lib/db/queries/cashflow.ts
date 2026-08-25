@@ -161,29 +161,3 @@ export async function getMortgageBalanceTimeSeries(userId: string): Promise<Mort
     .where(eq(assets.tenantId, tenantId))
     .orderBy(asc(mortgageBalances.balanceDate))
 }
-
-/**
- * Returns all transaction dates for liquid assets in a period (for benchmark sub-periods).
- */
-export async function getPortfolioTxDates(
-  userId: string,
-  from: string,
-  to: string,
-): Promise<Date[]> {
-  const tenantId = await getOrCreateTenant(userId)
-
-  const rows = await db
-    .select({ transactionDate: transactions.transactionDate })
-    .from(transactions)
-    .innerJoin(assets, eq(assets.id, transactions.assetId))
-    .where(
-      and(
-        eq(assets.tenantId, tenantId),
-        gte(transactions.transactionDate, from),
-        lte(transactions.transactionDate, to),
-      ),
-    )
-
-  const uniqueDates = [...new Set(rows.map(r => r.transactionDate))]
-  return uniqueDates.map(d => new Date(d)).sort((a, b) => a.getTime() - b.getTime())
-}
