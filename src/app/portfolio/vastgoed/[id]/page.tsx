@@ -11,15 +11,26 @@ import {
   calculateLtv,
   calculateEquity,
   calculateXirr,
+  calculateMortgageAmortizationForYear,
+  calculateRentalPeriodCashflowForYear,
 } from '@/lib/finance'
-import { formatCurrency, formatPercent, formatAddress } from '@/lib/utils/format'
+import type { MortgageType, RentalPeriodInput } from '@/lib/finance'
+import { formatCurrency, formatPercent, formatAddress, formatDate } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { ValuationForm } from '@/components/assets/ValuationForm'
+import { ValuationHistory } from '@/components/assets/ValuationHistory'
 import { MortgageBalanceForm } from '@/components/assets/MortgageBalanceForm'
+import { MortgageBalanceHistory } from '@/components/assets/MortgageBalanceHistory'
+import { WozValueForm } from '@/components/assets/WozValueForm'
+import { WozValueHistory } from '@/components/assets/WozValueHistory'
 import { TransactionList } from '@/components/assets/TransactionList'
-import { createValuationAction, createMortgageBalanceAction } from '@/app/assets/actions'
+import { RecurringCashflowForm } from '@/components/assets/RecurringCashflowForm'
+import { RecurringCashflowList } from '@/components/assets/RecurringCashflowList'
+import {
+  createValuationAction, createMortgageBalanceAction, createWozValueAction, createRecurringCashflowAction,
+} from '@/app/assets/actions'
 import { DeleteAssetButton } from '@/components/portfolio/DeleteAssetButton'
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
@@ -28,8 +39,33 @@ const PROPERTY_TYPE_LABELS: Record<string, string> = {
   vacation:          'Vakantiewoning',
 }
 
+const MORTGAGE_TYPE_LABELS: Record<string, string> = {
+  annuity:       'Annuïteit',
+  linear:        'Lineair',
+  interest_only: 'Aflossingsvrij',
+}
+
+function monthsBetween(start: Date, end: Date): number {
+  return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth())
+}
+
+function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null
+  return (
+    <div className="flex justify-between py-2 border-b border-border/60 last:border-0">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="text-sm font-medium text-foreground">{value}</span>
+    </div>
+  )
+}
+
+// Jaartotalen komen uit twee bronnen die naast elkaar bestaan (bewuste keuze,
+// zie stappenplan.md): losse rental_income/cost-transacties (voor incidentele
+// of historische posten) plus doorlopende huur/kosten-periodes (voor een
+// bedrag dat een tijd lang hetzelfde blijft) — deze tellen gewoon bij elkaar op.
 function groupByYear(
   txs: { transactionType: string; amount: string; transactionDate: string }[],
+  periods: RentalPeriodInput[],
 ): { year: number; income: Decimal; costs: Decimal; net: Decimal }[] {
   const years = new Map<number, { income: Decimal; costs: Decimal }>()
   for (const tx of txs) {
@@ -39,6 +75,22 @@ function groupByYear(
     else if (tx.transactionType === 'cost')    entry.costs = entry.costs.plus(new Decimal(tx.amount))
     years.set(year, entry)
   }
+
+  const currentYear = new Date().getFullYear()
+  for (const period of periods) {
+    const startYear = new Date(period.startDate).getFullYear()
+    const endYear = period.endDate ? new Date(period.endDate).getFullYear() : currentYear
+    for (let y = startYear; y <= endYear; y++) {
+      if (!years.has(y)) years.set(y, { income: new Decimal(0), costs: new Decimal(0) })
+    }
+  }
+
+  for (const [year, entry] of years) {
+    const periodTotals = calculateRentalPeriodCashflowForYear(periods, year)
+    entry.income = entry.income.plus(periodTotals.income)
+    entry.costs = entry.costs.plus(periodTotals.costs)
+  }
+
   return [...years.entries()]
     .sort(([a], [b]) => b - a)
     .slice(0, 3)
@@ -48,23 +100,6 @@ function groupByYear(
       costs: costs.toDecimalPlaces(2),
       net: income.minus(costs).toDecimalPlaces(2),
     }))
-}
-
-function BalanceHistory({ balances }: {
-  balances: { id: string; balanceDate: string; outstandingBalance: string }[]
-}) {
-  if (balances.length === 0) return null
-  return (
-    <div className="space-y-1 pt-4 border-t border-border">
-      <p className="text-xs font-medium text-muted-foreground mb-2">Saldo-historie</p>
-      {balances.map(b => (
-        <div key={b.id} className="flex justify-between py-1.5">
-          <span className="text-sm text-muted-foreground">{b.balanceDate}</span>
-          <span className="text-sm font-medium text-foreground">{formatCurrency(Number(b.outstandingBalance))}</span>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 export default async function VastgoedDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -83,9 +118,13 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
   const { currentValue } = calculations
 
   const mortgages = asset.mortgages ?? []
+  // Valt terug op het oorspronkelijke hypotheekbedrag als er nog geen
+  // saldo-snapshot is ingevoerd — zonder deze fallback lijkt een net
+  // aangemaakte hypotheek alsof er geen schuld is (zelfde patroon als
+  // getMortgageBalancesMap elders in de app).
   const totaleHypotheek = mortgages.reduce((s, m) => {
-    const bal = m.balances?.[0]?.outstandingBalance
-    return bal ? s.plus(new Decimal(bal)) : s
+    const bal = m.balances?.[0]?.outstandingBalance ?? m.originalAmount
+    return s.plus(new Decimal(bal))
   }, new Decimal(0))
   const eigenVermogen = calculateEquity(currentValue, totaleHypotheek)
   const ltv = currentValue.gt(0) && totaleHypotheek.gt(0)
@@ -94,6 +133,36 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
 
   const propertyType = asset.realEstateDetails?.propertyType ?? ''
   const isRental = propertyType === 'rental'
+  const latestWozValueRow = asset.wozValues?.[0]
+  const wozValue = latestWozValueRow
+    ? new Decimal(latestWozValueRow.value)
+    : asset.realEstateDetails?.wozValue
+      ? new Decimal(asset.realEstateDetails.wozValue)
+      : null
+  const primaryMortgage = mortgages[0]
+
+  // Rente/aflossing dit jaar — puur op basis van de hypotheekvoorwaarden
+  // (geen saldo-historie nodig), zie financial-expert.md §3b. Aanname:
+  // contractueel schema, geen extra aflossingen — vandaar de disclaimer
+  // in de UI hieronder.
+  let mortgageAmortization: { interestPaid: Decimal; principalRepaid: Decimal } | null = null
+  if (primaryMortgage?.endDate) {
+    const termMonths = monthsBetween(new Date(primaryMortgage.startDate), new Date(primaryMortgage.endDate))
+    if (termMonths > 0) {
+      try {
+        mortgageAmortization = calculateMortgageAmortizationForYear(
+          {
+            type: primaryMortgage.mortgageType as MortgageType,
+            originalAmount: new Decimal(primaryMortgage.originalAmount),
+            annualInterestRate: new Decimal(primaryMortgage.interestRate).dividedBy(100),
+            startDate: new Date(primaryMortgage.startDate),
+            termMonths,
+          },
+          new Date().getFullYear(),
+        )
+      } catch { /* ongeldige hypotheekvoorwaarden — toon niets i.p.v. crashen */ }
+    }
+  }
 
   const txs = txList.map(t => ({
     transactionType: t.transactionType,
@@ -106,17 +175,24 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
   // niet via calculatePassiveIncome — die trekt 'cost' er zelf al vanaf, wat
   // hieronder tot dubbele kostenaftrek zou leiden (annualCosts wordt hier apart
   // gebruikt voor zowel bruto/netto-rendement als cash-on-cash).
-  const currentYearStart = `${new Date().getFullYear()}-01-01`
-  const annualIncome = isRental
-    ? txs
-        .filter(t => t.transactionType === 'rental_income' && t.transactionDate >= currentYearStart)
-        .reduce((sum, t) => sum.plus(new Decimal(t.amount)), new Decimal(0))
-    : new Decimal(0)
-  const annualCosts = isRental
-    ? txs
-        .filter(t => t.transactionType === 'cost' && t.transactionDate >= currentYearStart)
-        .reduce((sum, t) => sum.plus(new Decimal(t.amount)), new Decimal(0))
-    : new Decimal(0)
+  //
+  // Gebruikt bewust het laatste jaar mét transacties, niet hardcoded het
+  // huidige kalenderjaar — anders staat alles op "—" zodra je nog geen
+  // transactie voor het nieuwe jaar hebt ingevoerd, of als je (zoals bij
+  // historische/test-invoer) oudere datums gebruikt. Zelfde aanpak als de
+  // "Cashflow per jaar"-tabel hieronder, die hier ook op leunt.
+  const recurringCashflows = asset.recurringCashflows ?? []
+  const periodsForFinance: RentalPeriodInput[] = recurringCashflows.map(r => ({
+    cashflowType: r.cashflowType as RentalPeriodInput['cashflowType'],
+    amount: r.amount,
+    frequency: r.frequency as RentalPeriodInput['frequency'],
+    startDate: r.startDate,
+    endDate: r.endDate,
+  }))
+  const cashflowByYear = isRental ? groupByYear(txs, periodsForFinance) : []
+  const rentalDataYear = cashflowByYear[0]?.year ?? null
+  const annualIncome = cashflowByYear[0]?.income ?? new Decimal(0)
+  const annualCosts = cashflowByYear[0]?.costs ?? new Decimal(0)
 
   const grossRentalYield = isRental && currentValue.gt(0) && annualIncome.gt(0)
     ? calculateGrossRentalYield(annualIncome, currentValue)
@@ -139,7 +215,7 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
     : null
 
   const annualNetCashflow = annualIncome.minus(annualCosts)
-  const cashOnCash = isRental && initialInvestment?.gt(0)
+  const cashOnCash = isRental && rentalDataYear && initialInvestment?.gt(0)
     ? calculateCashOnCash(annualNetCashflow, initialInvestment)
     : null
 
@@ -158,8 +234,6 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
       try { rentalXirr = calculateXirr(cashflows) } catch { /* onvoldoende data */ }
     }
   }
-
-  const cashflowByYear = isRental ? groupByYear(txs) : []
 
   return (
     <>
@@ -225,17 +299,17 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
               <KpiCard
                 label="Bruto huurrendement"
                 value={grossRentalYield ? formatPercent(grossRentalYield.toNumber()) : '—'}
-                subtext="Jaarinkomen / pandwaarde"
+                subtext={rentalDataYear ? `Jaarinkomen ${rentalDataYear} / pandwaarde` : 'Nog geen huurtransactie ingevoerd'}
               />
               <KpiCard
                 label="Netto huurrendement"
                 value={netRentalYield ? formatPercent(netRentalYield.toNumber()) : '—'}
-                subtext="Na exploitatiekosten"
+                subtext={rentalDataYear ? `Na exploitatiekosten ${rentalDataYear}` : 'Nog geen huurtransactie ingevoerd'}
               />
               <KpiCard
                 label="Cash-on-cash"
                 value={cashOnCash ? formatPercent(cashOnCash.toNumber()) : '—'}
-                subtext="Op eigen inleg excl. hypotheek"
+                subtext={rentalDataYear ? `Op eigen inleg, ${rentalDataYear}` : 'Op eigen inleg excl. hypotheek'}
               />
               <KpiCard
                 label="Totaalrendement"
@@ -270,6 +344,34 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
               />
             </div>
           </>
+        )}
+
+        {/* Details — WOZ-waarde en hypotheekgegevens */}
+        {(wozValue || primaryMortgage) && (
+          <div className="bg-card border border-border rounded-3xl p-6">
+            <p className="text-sm font-medium text-foreground mb-2">Details</p>
+            <DetailRow label="WOZ-waarde" value={wozValue ? formatCurrency(wozValue.toNumber()) : null} />
+            {primaryMortgage && (
+              <>
+                <DetailRow label="Hypotheekverstrekker" value={primaryMortgage.lender} />
+                <DetailRow label="Hypotheekrente" value={`${primaryMortgage.interestRate}%`} />
+                <DetailRow label="Hypotheekvorm" value={MORTGAGE_TYPE_LABELS[primaryMortgage.mortgageType] ?? primaryMortgage.mortgageType} />
+                <DetailRow label="Looptijd tot" value={primaryMortgage.endDate ? formatDate(primaryMortgage.endDate) : null} />
+                {mortgageAmortization && (
+                  <>
+                    <DetailRow label={`Rente ${new Date().getFullYear()} (geschat)`} value={formatCurrency(mortgageAmortization.interestPaid.toNumber())} />
+                    <DetailRow label={`Aflossing ${new Date().getFullYear()} (geschat)`} value={formatCurrency(mortgageAmortization.principalRepaid.toNumber())} />
+                  </>
+                )}
+              </>
+            )}
+            {mortgageAmortization && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Rente/aflossing zijn een schatting op basis van je hypotheekvoorwaarden (rente, vorm, looptijd) —
+                geen extra aflossingen meegerekend die je buiten dit schema om hebt gedaan.
+              </p>
+            )}
+          </div>
         )}
 
         {/* LTV balk */}
@@ -314,6 +416,18 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
           </div>
         )}
 
+        {/* Huur & kosten — doorlopende periodes, alleen verhuur */}
+        {isRental && (
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+            <RecurringCashflowForm
+              assetId={asset.id}
+              action={createRecurringCashflowAction}
+              redirectTo={`/portfolio/vastgoed/${asset.id}`}
+            />
+            <RecurringCashflowList items={recurringCashflows} />
+          </div>
+        )}
+
         {/* Marktwaarde bijwerken */}
         <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
           <ValuationForm
@@ -322,17 +436,16 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
             action={createValuationAction}
             label="Marktwaarde bijwerken"
           />
-          {asset.valuations && asset.valuations.length > 0 && (
-            <div className="space-y-1 pt-4 border-t border-border">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Waarde-historie</p>
-              {asset.valuations.map(v => (
-                <div key={v.id} className="flex justify-between py-1.5">
-                  <span className="text-sm text-muted-foreground">{v.valuationDate}</span>
-                  <span className="text-sm font-medium text-foreground">{formatCurrency(Number(v.value))}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <ValuationHistory valuations={asset.valuations ?? []} />
+        </div>
+
+        {/* WOZ-waarde bijwerken */}
+        <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+          <WozValueForm
+            assetId={asset.id}
+            action={createWozValueAction}
+          />
+          <WozValueHistory wozValues={asset.wozValues ?? []} />
         </div>
 
         {/* Hypotheeksaldo bijwerken */}
@@ -347,7 +460,7 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
               endDate={mortgage.endDate}
               action={createMortgageBalanceAction}
             />
-            <BalanceHistory balances={mortgage.balances ?? []} />
+            <MortgageBalanceHistory originalAmount={mortgage.originalAmount} balances={mortgage.balances ?? []} />
           </div>
         ))}
 
@@ -370,7 +483,7 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
         </div>
 
         <div className="flex justify-end pt-4">
-          <DeleteAssetButton assetId={asset.id} assetName={asset.name} redirectTo="/portfolio/vastgoed" />
+          <DeleteAssetButton assetId={asset.id} assetName={asset.name} redirectTo="/portfolio/vastgoed" label="Pand verwijderen" />
         </div>
 
       </main>

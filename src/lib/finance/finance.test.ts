@@ -23,6 +23,14 @@ import { buildSimpleEntryMonthlySeries, buildSingleValueMonthlySeries } from './
 import { annualizeAmount, calculateRecurringTotals } from './recurring-cashflow'
 import { calculateOneTimeExpensesTotal } from './one-time-expenses'
 import { calculatePercentChange } from './percent-change'
+import { calculateSavingsRate } from './savings-rate'
+import { calculateBufferMonths, classifyBufferMonths } from './buffer-coverage'
+import { calculatePassiveIncomeCoverage } from './passive-income-coverage'
+import { determineFinancialHealthSignal } from './financial-health-signal'
+import { calculateMortgageAmortizationForYear } from './mortgage-amortization'
+import type { MortgageTerms } from './mortgage-amortization'
+import { calculateRentalPeriodCashflowForYear } from './rental-period-cashflow'
+import type { RentalPeriodInput } from './rental-period-cashflow'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -751,5 +759,274 @@ describe('calculatePercentChange', () => {
 
   it('returns null when there is no previous amount to compare against', () => {
     expect(calculatePercentChange(d(500), d(0))).toBeNull()
+  })
+})
+
+// ─── calculateSavingsRate ───────────────────────────────────────────────────
+
+describe('calculateSavingsRate', () => {
+  it('returns the surplus as a fraction of income', () => {
+    const rate = calculateSavingsRate(d(700), d(3500))
+    expect(rate?.toNumber()).toBeCloseTo(0.2)
+  })
+
+  it('returns a negative decimal when spending exceeds income', () => {
+    const rate = calculateSavingsRate(d(-200), d(3500))
+    expect(rate?.toNumber()).toBeCloseTo(-200 / 3500)
+  })
+
+  it('returns null when there is no income to compare against', () => {
+    expect(calculateSavingsRate(d(0), d(0))).toBeNull()
+  })
+})
+
+// ─── calculateBufferMonths / classifyBufferMonths ──────────────────────────
+
+describe('calculateBufferMonths', () => {
+  it('divides liquid savings by monthly expenses', () => {
+    const months = calculateBufferMonths(d(9000), d(1800))
+    expect(months?.toNumber()).toBe(5)
+  })
+
+  it('returns null when there are no expenses to compare against', () => {
+    expect(calculateBufferMonths(d(9000), d(0))).toBeNull()
+  })
+})
+
+describe('classifyBufferMonths', () => {
+  it('labels less than 3 months as krap', () => {
+    expect(classifyBufferMonths(d(2.9))).toBe('krap')
+  })
+
+  it('labels 3 to 6 months as gezond', () => {
+    expect(classifyBufferMonths(d(3))).toBe('gezond')
+    expect(classifyBufferMonths(d(6))).toBe('gezond')
+  })
+
+  it('labels more than 6 months as ruim', () => {
+    expect(classifyBufferMonths(d(6.1))).toBe('ruim')
+  })
+})
+
+// ─── calculatePassiveIncomeCoverage ─────────────────────────────────────────
+
+describe('calculatePassiveIncomeCoverage', () => {
+  it('returns passive income as a fraction of monthly expenses', () => {
+    const coverage = calculatePassiveIncomeCoverage(d(540), d(1800))
+    expect(coverage?.toNumber()).toBeCloseTo(0.3)
+  })
+
+  it('returns null when there are no expenses to compare against', () => {
+    expect(calculatePassiveIncomeCoverage(d(540), d(0))).toBeNull()
+  })
+})
+
+// ─── determineFinancialHealthSignal ─────────────────────────────────────────
+
+describe('determineFinancialHealthSignal', () => {
+  it('flags a krap buffer as the highest-priority warning', () => {
+    const signal = determineFinancialHealthSignal(d(0.2), d(1.5))
+    expect(signal).toEqual({ level: 'warning', reason: 'buffer_krap', bufferMonths: d(1.5) })
+  })
+
+  it('flags a negative savings rate when the buffer is not krap', () => {
+    const signal = determineFinancialHealthSignal(d(-0.1), d(5))
+    expect(signal).toEqual({ level: 'warning', reason: 'savings_rate_negative', savingsRate: d(-0.1) })
+  })
+
+  it('prioritizes a krap buffer over a negative savings rate', () => {
+    const signal = determineFinancialHealthSignal(d(-0.1), d(1))
+    expect(signal).toEqual({ level: 'warning', reason: 'buffer_krap', bufferMonths: d(1) })
+  })
+
+  it('returns a positive signal when savings rate and buffer are both healthy', () => {
+    const signal = determineFinancialHealthSignal(d(0.2), d(5))
+    expect(signal).toEqual({ level: 'positive', savingsRate: d(0.2), bufferMonths: d(5) })
+  })
+
+  it('returns a positive signal with only savings rate when buffer data is missing', () => {
+    const signal = determineFinancialHealthSignal(d(0.2), null)
+    expect(signal).toEqual({ level: 'positive', savingsRate: d(0.2), bufferMonths: null })
+  })
+
+  it('returns a positive signal with only buffer months when income data is missing', () => {
+    const signal = determineFinancialHealthSignal(null, d(5))
+    expect(signal).toEqual({ level: 'positive', savingsRate: null, bufferMonths: d(5) })
+  })
+
+  it('returns null when there is no data at all', () => {
+    expect(determineFinancialHealthSignal(null, null)).toBeNull()
+  })
+})
+
+// ─── calculateMortgageAmortizationForYear ───────────────────────────────────
+
+describe('calculateMortgageAmortizationForYear', () => {
+  it('interest_only: full year of interest on the unchanged balance, no principal', () => {
+    const terms: MortgageTerms = {
+      type: 'interest_only',
+      originalAmount: d(300000),
+      annualInterestRate: d(0.04),
+      startDate: new Date(2020, 0, 1),
+      termMonths: 240,
+    }
+    const result = calculateMortgageAmortizationForYear(terms, 2021)
+    expect(result.interestPaid.toNumber()).toBeCloseTo(12000)
+    expect(result.principalRepaid.toNumber()).toBe(0)
+  })
+
+  it('linear: principal repayment is constant every month regardless of year', () => {
+    const terms: MortgageTerms = {
+      type: 'linear',
+      originalAmount: d(120000),
+      annualInterestRate: d(0.03),
+      startDate: new Date(2020, 0, 1),
+      termMonths: 120, // 10 years, 1000/month principal
+    }
+    const year1 = calculateMortgageAmortizationForYear(terms, 2020)
+    const year2 = calculateMortgageAmortizationForYear(terms, 2021)
+    expect(year1.principalRepaid.toNumber()).toBeCloseTo(12000)
+    expect(year2.principalRepaid.toNumber()).toBeCloseTo(12000)
+    // Balance declines over the year, so interest paid should drop year over year.
+    expect(year2.interestPaid.toNumber()).toBeLessThan(year1.interestPaid.toNumber())
+  })
+
+  it('annuity: interest + principal sums to the constant monthly payment each full year', () => {
+    const terms: MortgageTerms = {
+      type: 'annuity',
+      originalAmount: d(250000),
+      annualInterestRate: d(0.035),
+      startDate: new Date(2020, 0, 1),
+      termMonths: 360, // 30 years
+    }
+    const year1 = calculateMortgageAmortizationForYear(terms, 2020)
+    const monthlyPayment = year1.interestPaid.plus(year1.principalRepaid).dividedBy(12)
+    const year5 = calculateMortgageAmortizationForYear(terms, 2024)
+    // Annuity: total payment (rente + aflossing) stays constant, but the
+    // interest/principal split shifts toward principal over time.
+    expect(year5.interestPaid.plus(year5.principalRepaid).dividedBy(12).toNumber()).toBeCloseTo(monthlyPayment.toNumber(), 2)
+    expect(year5.interestPaid.toNumber()).toBeLessThan(year1.interestPaid.toNumber())
+    expect(year5.principalRepaid.toNumber()).toBeGreaterThan(year1.principalRepaid.toNumber())
+  })
+
+  it('returns zero for a year entirely before the mortgage started', () => {
+    const terms: MortgageTerms = {
+      type: 'annuity',
+      originalAmount: d(250000),
+      annualInterestRate: d(0.035),
+      startDate: new Date(2020, 0, 1),
+      termMonths: 360,
+    }
+    const result = calculateMortgageAmortizationForYear(terms, 2019)
+    expect(result.interestPaid.toNumber()).toBe(0)
+    expect(result.principalRepaid.toNumber()).toBe(0)
+  })
+
+  it('returns zero for a year entirely after the mortgage is fully repaid', () => {
+    const terms: MortgageTerms = {
+      type: 'linear',
+      originalAmount: d(120000),
+      annualInterestRate: d(0.03),
+      startDate: new Date(2000, 0, 1),
+      termMonths: 120,
+    }
+    const result = calculateMortgageAmortizationForYear(terms, 2020)
+    expect(result.interestPaid.toNumber()).toBe(0)
+    expect(result.principalRepaid.toNumber()).toBe(0)
+  })
+
+  it('throws on a non-positive original amount', () => {
+    const terms: MortgageTerms = {
+      type: 'linear', originalAmount: d(0), annualInterestRate: d(0.03),
+      startDate: new Date(2020, 0, 1), termMonths: 120,
+    }
+    expect(() => calculateMortgageAmortizationForYear(terms, 2020)).toThrow()
+  })
+
+  it('throws on a non-positive term', () => {
+    const terms: MortgageTerms = {
+      type: 'linear', originalAmount: d(120000), annualInterestRate: d(0.03),
+      startDate: new Date(2020, 0, 1), termMonths: 0,
+    }
+    expect(() => calculateMortgageAmortizationForYear(terms, 2020)).toThrow()
+  })
+
+  it('throws on a negative interest rate', () => {
+    const terms: MortgageTerms = {
+      type: 'linear', originalAmount: d(120000), annualInterestRate: d(-0.01),
+      startDate: new Date(2020, 0, 1), termMonths: 120,
+    }
+    expect(() => calculateMortgageAmortizationForYear(terms, 2020)).toThrow()
+  })
+})
+
+// ─── calculateRentalPeriodCashflowForYear ────────────────────────────────────
+
+describe('calculateRentalPeriodCashflowForYear', () => {
+  it('counts a full-year monthly period as 12 months', () => {
+    const periods: RentalPeriodInput[] = [
+      { cashflowType: 'rental_income', amount: d(1000), frequency: 'monthly', startDate: '2024-01-01', endDate: null },
+    ]
+    const result = calculateRentalPeriodCashflowForYear(periods, 2024)
+    expect(result.income.toNumber()).toBe(12000)
+    expect(result.costs.toNumber()).toBe(0)
+  })
+
+  it('prorates a period that starts mid-year', () => {
+    const periods: RentalPeriodInput[] = [
+      { cashflowType: 'rental_income', amount: d(1000), frequency: 'monthly', startDate: '2024-07-01', endDate: null },
+    ]
+    const result = calculateRentalPeriodCashflowForYear(periods, 2024)
+    // juli t/m december = 6 maanden
+    expect(result.income.toNumber()).toBe(6000)
+  })
+
+  it('prorates a period that ends mid-year', () => {
+    const periods: RentalPeriodInput[] = [
+      { cashflowType: 'cost', amount: d(150), frequency: 'monthly', startDate: '2023-01-01', endDate: '2024-03-31' },
+    ]
+    const result = calculateRentalPeriodCashflowForYear(periods, 2024)
+    // januari t/m maart = 3 maanden
+    expect(result.costs.toNumber()).toBe(450)
+  })
+
+  it('excludes a period entirely outside the target year', () => {
+    const periods: RentalPeriodInput[] = [
+      { cashflowType: 'rental_income', amount: d(1000), frequency: 'monthly', startDate: '2020-01-01', endDate: '2020-12-31' },
+    ]
+    const result = calculateRentalPeriodCashflowForYear(periods, 2024)
+    expect(result.income.toNumber()).toBe(0)
+  })
+
+  it('counts a "once" period fully in its own year, not others', () => {
+    const periods: RentalPeriodInput[] = [
+      { cashflowType: 'cost', amount: d(2500), frequency: 'once', startDate: '2024-05-15', endDate: null },
+    ]
+    expect(calculateRentalPeriodCashflowForYear(periods, 2024).costs.toNumber()).toBe(2500)
+    expect(calculateRentalPeriodCashflowForYear(periods, 2025).costs.toNumber()).toBe(0)
+  })
+
+  it('sums income and costs from multiple overlapping periods', () => {
+    const periods: RentalPeriodInput[] = [
+      { cashflowType: 'rental_income', amount: d(1200), frequency: 'monthly', startDate: '2023-06-01', endDate: null },
+      { cashflowType: 'cost', amount: d(180), frequency: 'monthly', startDate: '2024-01-01', endDate: null },
+    ]
+    const result = calculateRentalPeriodCashflowForYear(periods, 2024)
+    expect(result.income.toNumber()).toBe(14400)
+    expect(result.costs.toNumber()).toBe(2160)
+  })
+
+  it('throws on a negative amount', () => {
+    const periods: RentalPeriodInput[] = [
+      { cashflowType: 'rental_income', amount: d(-100), frequency: 'monthly', startDate: '2024-01-01', endDate: null },
+    ]
+    expect(() => calculateRentalPeriodCashflowForYear(periods, 2024)).toThrow()
+  })
+
+  it('throws on an unknown frequency', () => {
+    const periods: RentalPeriodInput[] = [
+      { cashflowType: 'rental_income', amount: d(100), frequency: 'weekly' as RentalPeriodInput['frequency'], startDate: '2024-01-01', endDate: null },
+    ]
+    expect(() => calculateRentalPeriodCashflowForYear(periods, 2024)).toThrow()
   })
 })

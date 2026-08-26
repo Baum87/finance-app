@@ -148,15 +148,22 @@ export default async function PortfolioOverviewPage() {
           <KpiCard
             label="Rendement dit jaar"
             value={portfolioXirr ? formatPercent(portfolioXirr.toNumber()) : '—'}
-            subtext="XIRR — aandelen, crypto, spaargeld"
+            subtext={`XIRR sinds 1 jan ${currentYear} — aandelen, crypto, spaargeld`}
             trend={portfolioXirr ? { value: formatPercent(portfolioXirr.toNumber()), positive: portfolioXirr.gt(0) } : undefined}
           />
           <KpiCard
             label="Marktrendement (MSCI World)"
             value={benchmarkTwr ? formatPercent(benchmarkTwr.toNumber()) : '—'}
-            subtext="IWDA ETF (EUR), ter referentie"
+            subtext={`IWDA ETF (EUR) sinds 1 jan ${currentYear}, ter referentie`}
           />
         </div>
+
+        {(portfolioXirr || benchmarkTwr) && (
+          <p className="text-xs text-muted-foreground -mt-2">
+            Dit vergelijkt jouw persoonlijk rendement (XIRR) met de marktprestatie (TWR).
+            Timing van stortingen beïnvloedt dit getal sterk.
+          </p>
+        )}
 
         {/* Vermogensontwikkeling */}
         <NetWorthChart data={chartData} />

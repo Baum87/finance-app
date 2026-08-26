@@ -1,6 +1,7 @@
 import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getSavingsEntries, latestPerGroup, groupBy } from '@/lib/db/queries/simple-entries'
+import { getAssetsWithValues } from '@/lib/db/queries/assets'
 import { buildSingleValueMonthlySeries } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
@@ -8,6 +9,7 @@ import { KpiCard } from '@/components/ui/KpiCard'
 import { EntryLogForm } from '@/components/portfolio/EntryLogForm'
 import { EntryLogList } from '@/components/portfolio/EntryLogList'
 import { SingleLineChart } from '@/components/portfolio/SingleLineChart'
+import { AssetPositionsCard } from '@/components/portfolio/AssetPositionsCard'
 import { createSavingsEntryAction, updateSavingsEntryAction, deleteSavingsEntryAction } from '@/app/portfolio/simple-entry-actions'
 
 const FIELDS = [
@@ -20,9 +22,16 @@ export default async function SpaarrekeningenPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const entries = await getSavingsEntries(user!.id)
+  const [entries, assets] = await Promise.all([
+    getSavingsEntries(user!.id),
+    getAssetsWithValues(user!.id),
+  ])
   const latestPerBank = latestPerGroup(entries, e => e.bank)
   const byBank = groupBy(entries, e => e.bank)
+
+  const assetPositions = assets
+    .filter(a => a.assetType === 'savings')
+    .map(a => ({ id: a.id, name: a.name, currentValue: a.currentValue.toNumber() }))
 
   const totalBalance = latestPerBank.reduce((s, e) => s.plus(new Decimal(e.balance)), new Decimal(0))
 
@@ -67,6 +76,14 @@ export default async function SpaarrekeningenPage() {
             trend={differencePct ? { value: formatPercent(differencePct.toNumber()), positive: difference!.gte(0) } : undefined}
           />
         </div>
+
+        <AssetPositionsCard
+          positions={assetPositions}
+          addHref="/assets/new?type=savings&cancel=/portfolio/spaarrekeningen"
+          addLabel="+ Spaarrekening met transacties toevoegen"
+          description="Met stortingen/opnames/rente bijgehouden — voedt rente-inkomsten"
+          backTo="/portfolio/spaarrekeningen"
+        />
 
         <EntryLogForm
           action={createSavingsEntryAction}

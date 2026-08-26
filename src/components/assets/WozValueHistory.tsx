@@ -1,20 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import Decimal from 'decimal.js'
 import { Pencil, Trash2, Check, X } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils/format'
-import { updateMortgageBalanceAction, deleteMortgageBalanceAction } from '@/app/assets/actions'
+import { updateWozValueAction, deleteWozValueAction } from '@/app/assets/actions'
 
-type Balance = {
+type WozValue = {
   id: string
-  balanceDate: string
-  outstandingBalance: string
+  wozDate: string
+  value: string
 }
 
 type Props = {
-  originalAmount: string
-  balances: Balance[]
+  wozValues: WozValue[]
 }
 
 function formatDate(dateStr: string): string {
@@ -23,40 +21,39 @@ function formatDate(dateStr: string): string {
   }).format(new Date(dateStr + 'T00:00:00'))
 }
 
-export function MortgageBalanceHistory({ originalAmount, balances }: Props) {
+export function WozValueHistory({ wozValues }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null)
-  const orig = new Decimal(originalAmount)
 
   async function handleSave(fd: FormData) {
-    await updateMortgageBalanceAction(fd)
+    await updateWozValueAction(fd)
     setEditingId(null)
   }
 
   return (
     <div className="space-y-1 pt-4 border-t border-border">
-      <p className="text-xs font-medium text-muted-foreground mb-2">Saldohistorie</p>
-      {balances.length === 0 ? (
+      <p className="text-xs font-medium text-muted-foreground mb-2">WOZ-historie</p>
+      {wozValues.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Nog geen saldo ingevoerd. De app gebruikt nu het originele hypotheekbedrag als schatting.
+          Nog geen WOZ-waarde ingevoerd.
         </p>
       ) : (
-        balances.map(b => {
-          if (editingId === b.id) {
+        wozValues.map(w => {
+          if (editingId === w.id) {
             return (
-              <form key={b.id} action={handleSave} className="flex items-center gap-2 py-1.5">
-                <input type="hidden" name="balanceId" value={b.id} />
+              <form key={w.id} action={handleSave} className="flex items-center gap-2 py-1.5">
+                <input type="hidden" name="wozValueId" value={w.id} />
                 <input
-                  name="balanceDate"
+                  name="wozDate"
                   type="date"
-                  defaultValue={b.balanceDate}
+                  defaultValue={w.wozDate}
                   className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
                 />
                 <input
-                  name="outstandingBalance"
+                  name="value"
                   type="number"
                   step="0.01"
                   min="0"
-                  defaultValue={b.outstandingBalance}
+                  defaultValue={w.value}
                   className="h-8 w-28 rounded-md border border-input bg-transparent px-2 text-sm"
                 />
                 <button type="submit" aria-label="Opslaan" title="Opslaan" className="text-sage hover:opacity-70 transition-opacity">
@@ -68,42 +65,30 @@ export function MortgageBalanceHistory({ originalAmount, balances }: Props) {
               </form>
             )
           }
-
-          const balance  = new Decimal(b.outstandingBalance)
-          const afgelost = orig.minus(balance)
-          const pct      = orig.gt(0) ? afgelost.div(orig).mul(100).toDecimalPlaces(1) : new Decimal(0)
-
           return (
-            <div key={b.id} className="flex items-center justify-between py-1.5">
-              <span className="text-sm text-muted-foreground">{formatDate(b.balanceDate)}</span>
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <span className="text-sm font-medium text-foreground">
-                    {formatCurrency(balance.toNumber())}
-                  </span>
-                  {afgelost.gt(0) && (
-                    <span className="ml-2 text-xs text-[var(--color-sage)]">
-                      {formatCurrency(afgelost.toNumber())} afgelost ({pct.toNumber()}%)
-                    </span>
-                  )}
-                </div>
+            <div key={w.id} className="flex items-center justify-between py-1.5">
+              <span className="text-sm text-muted-foreground">{formatDate(w.wozDate)}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-foreground">
+                  {formatCurrency(Number(w.value))}
+                </span>
                 <button
                   type="button"
-                  onClick={() => setEditingId(b.id)}
+                  onClick={() => setEditingId(w.id)}
                   aria-label="Bewerken"
                   title="Bewerken"
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <Pencil size={14} />
                 </button>
-                <form action={deleteMortgageBalanceAction}>
-                  <input type="hidden" name="balanceId" value={b.id} />
+                <form action={deleteWozValueAction}>
+                  <input type="hidden" name="wozValueId" value={w.id} />
                   <button
                     type="submit"
                     aria-label="Verwijderen"
                     title="Verwijderen"
                     className="text-muted-foreground hover:text-terracotta transition-colors"
-                    onClick={e => { if (!confirm('Saldo-snapshot verwijderen?')) e.preventDefault() }}
+                    onClick={e => { if (!confirm('WOZ-waarde verwijderen?')) e.preventDefault() }}
                   >
                     <Trash2 size={14} />
                   </button>

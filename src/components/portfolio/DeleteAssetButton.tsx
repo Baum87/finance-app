@@ -5,15 +5,16 @@ type Props = {
   assetId: string
   assetName: string
   redirectTo: string
+  label?: string
 }
 
-export function DeleteAssetButton({ assetId, assetName, redirectTo }: Props) {
+export function DeleteAssetButton({ assetId, assetName, redirectTo, label = 'Verwijderen' }: Props) {
   return (
     <ConfirmDeleteButton
       action={deleteAssetAction}
       hiddenFields={{ assetId, redirectTo }}
       confirmMessage={`"${assetName}" definitief verwijderen? Dit kan niet ongedaan worden gemaakt.`}
-      label="Rekening verwijderen"
+      label={label}
       className="px-4 py-2 rounded-lg border border-terracotta/40 text-sm font-medium text-terracotta hover:bg-terracotta/10 transition-colors"
     />
   )

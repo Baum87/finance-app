@@ -9,7 +9,6 @@ import {
   createCryptoEntry, updateCryptoEntry, deleteCryptoEntry,
   createPensionEntry, updatePensionEntry, deletePensionEntry,
   createSavingsEntry, updateSavingsEntry, deleteSavingsEntry,
-  createRealEstateEntry, updateRealEstateEntry, deleteRealEstateEntry,
 } from '@/lib/db/queries/simple-entries'
 
 export type ActionState = { error: string } | null
@@ -165,44 +164,3 @@ export async function deleteSavingsEntryAction(fd: FormData): Promise<void> {
   redirect('/portfolio/spaarrekeningen')
 }
 
-// ─── Vastgoed ──────────────────────────────────────────────────────────────
-
-const realEstateEntrySchema = z.object({
-  street:     z.string().min(1, 'Straat is verplicht'),
-  postalCode: z.string().min(1, 'Postcode is verplicht'),
-  city:       z.string().min(1, 'Plaats is verplicht'),
-  wozValue:   z.string().min(1, 'WOZ-waarde is verplicht'),
-  entryDate:  z.string().min(1, 'Datum is verplicht'),
-})
-
-export async function createRealEstateEntryAction(prev: ActionState, fd: FormData): Promise<ActionState> {
-  try {
-    const user = await requireUser()
-    const d = realEstateEntrySchema.parse({
-      street: str(fd, 'street'), postalCode: str(fd, 'postalCode'),
-      city: str(fd, 'city'), wozValue: str(fd, 'wozValue'), entryDate: str(fd, 'entryDate'),
-    })
-    await createRealEstateEntry(user.id, d)
-    redirect('/portfolio/vastgoed')
-  } catch (e) {
-    if (isRedirectError(e)) throw e
-    if (e instanceof z.ZodError) return { error: e.issues[0].message }
-    return { error: e instanceof Error ? e.message : 'Onbekende fout' }
-  }
-}
-
-export async function updateRealEstateEntryAction(fd: FormData): Promise<void> {
-  const user = await requireUser()
-  const d = realEstateEntrySchema.parse({
-    street: str(fd, 'street'), postalCode: str(fd, 'postalCode'),
-    city: str(fd, 'city'), wozValue: str(fd, 'wozValue'), entryDate: str(fd, 'entryDate'),
-  })
-  await updateRealEstateEntry(user.id, str(fd, 'id'), d)
-  redirect('/portfolio/vastgoed')
-}
-
-export async function deleteRealEstateEntryAction(fd: FormData): Promise<void> {
-  const user = await requireUser()
-  await deleteRealEstateEntry(user.id, str(fd, 'id'))
-  redirect('/portfolio/vastgoed')
-}

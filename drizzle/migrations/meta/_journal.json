@@ -148,6 +148,27 @@
       "when": 1783300000000,
       "tag": "0020_baseline_resync",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787745304647,
+      "tag": "0021_drop-real-estate-entries",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1787749632921,
+      "tag": "0022_add-woz-values",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787755954537,
+      "tag": "0023_brief_deathstrike",
+      "breakpoints": true
     }
   ]
 }

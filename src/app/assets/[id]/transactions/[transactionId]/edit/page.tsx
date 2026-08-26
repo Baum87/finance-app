@@ -53,6 +53,7 @@ export default async function EditTransactionPage({
             <TransactionForm
               action={updateTransactionAction}
               assetId={id}
+              assetType={asset.assetType}
               transactionId={transactionId}
               initialData={transaction}
               redirectTo={backHref}

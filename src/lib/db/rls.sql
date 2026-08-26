@@ -9,6 +9,8 @@ ALTER TABLE public.tenant_users      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.assets            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.asset_valuations  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.woz_values        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recurring_cashflows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stock_etf_details ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.crypto_details    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.savings_details   ENABLE ROW LEVEL SECURITY;
@@ -27,8 +29,9 @@ ALTER TABLE public.stock_etf_entries   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.crypto_entries      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pension_entries     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.savings_entries     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.real_estate_entries ENABLE ROW LEVEL SECURITY;
 -- fx_rates: GEEN RLS — gedeelde tabel, niet user-gebonden
+-- real_estate_entries: tabel verwijderd (migratie 0021) — simple-entry
+-- vastgoedtracking uitgefaseerd, alleen het volle asset-systeem blijft over
 
 -- ─── users ──────────────────────────────────────────────────────────────────
 
@@ -150,6 +153,82 @@ CREATE POLICY "asset_valuations_update" ON public.asset_valuations
 -- ─── asset_valuations DELETE ──────────────────────────────────────────────────
 
 CREATE POLICY "asset_valuations_delete" ON public.asset_valuations
+  FOR DELETE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+
+-- ─── woz_values ──────────────────────────────────────────────────────────────
+
+CREATE POLICY "woz_values_select" ON public.woz_values
+  FOR SELECT USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "woz_values_insert" ON public.woz_values
+  FOR INSERT WITH CHECK (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "woz_values_update" ON public.woz_values
+  FOR UPDATE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "woz_values_delete" ON public.woz_values
+  FOR DELETE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+
+-- ─── recurring_cashflows ─────────────────────────────────────────────────────
+
+CREATE POLICY "recurring_cashflows_select" ON public.recurring_cashflows
+  FOR SELECT USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "recurring_cashflows_insert" ON public.recurring_cashflows
+  FOR INSERT WITH CHECK (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "recurring_cashflows_update" ON public.recurring_cashflows
+  FOR UPDATE USING (
+    asset_id IN (
+      SELECT a.id FROM public.assets a
+      JOIN public.tenant_users tu ON tu.tenant_id = a.tenant_id
+      WHERE tu.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "recurring_cashflows_delete" ON public.recurring_cashflows
   FOR DELETE USING (
     asset_id IN (
       SELECT a.id FROM public.assets a
@@ -597,22 +676,7 @@ CREATE POLICY "savings_entries_delete" ON public.savings_entries
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );
 
-CREATE POLICY "real_estate_entries_select" ON public.real_estate_entries
-  FOR SELECT USING (
-    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
-  );
-CREATE POLICY "real_estate_entries_insert" ON public.real_estate_entries
-  FOR INSERT WITH CHECK (
-    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
-  );
-CREATE POLICY "real_estate_entries_update" ON public.real_estate_entries
-  FOR UPDATE USING (
-    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
-  );
-CREATE POLICY "real_estate_entries_delete" ON public.real_estate_entries
-  FOR DELETE USING (
-    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
-  );
+-- real_estate_entries policies verwijderd (migratie 0021 — tabel gedropt)
 
 -- ─── brokers ─────────────────────────────────────────────────────────────────
 

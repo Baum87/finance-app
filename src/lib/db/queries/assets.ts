@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import {
   assets, tenantUsers, stockEtfDetails, cryptoDetails,
   savingsDetails, pensionDetails, realEstateDetails, vorderingDetails,
-  mortgages, mortgageBalances, assetValuations, transactions, assetTaxMetadata,
+  mortgages, mortgageBalances, assetValuations, wozValues, recurringCashflows, transactions, assetTaxMetadata,
 } from '@/lib/db/schema'
 import type { AssetType } from '@/types'
 import Decimal from 'decimal.js'
@@ -35,6 +35,13 @@ export async function getAssets(userId: string) {
       valuations: {
         orderBy: [desc(assetValuations.valuationDate)],
         limit: 1,
+      },
+      wozValues: {
+        orderBy: [desc(wozValues.wozDate)],
+        limit: 1,
+      },
+      recurringCashflows: {
+        orderBy: [desc(recurringCashflows.startDate)],
       },
     },
     orderBy: [asc(assets.createdAt)],
@@ -69,6 +76,13 @@ export async function getAsset(userId: string, assetId: string) {
       valuations: {
         orderBy: [desc(assetValuations.valuationDate)],
         limit: 12,
+      },
+      wozValues: {
+        orderBy: [desc(wozValues.wozDate)],
+        limit: 12,
+      },
+      recurringCashflows: {
+        orderBy: [desc(recurringCashflows.startDate)],
       },
     },
   })
@@ -124,6 +138,7 @@ export type RealEstateInput = {
     originalAmount: string
     interestRate: string
     startDate: string
+    endDate?: string | null
     mortgageType: string
   } | null
 }
@@ -236,6 +251,7 @@ async function insertAssetWithDetails(
           originalAmount: d.mortgage.originalAmount,
           interestRate: d.mortgage.interestRate,
           startDate: d.mortgage.startDate,
+          endDate: d.mortgage.endDate ?? null,
           mortgageType: d.mortgage.mortgageType,
         })
       }
@@ -320,6 +336,43 @@ export async function updateAsset(
             wozValue: d.wozValue ?? null,
           })
           .where(eq(realEstateDetails.assetId, assetId))
+
+        // Hypotheekgegevens stonden hier voorheen niet in — "Bewerken" liet
+        // ze wel zien (vooringevuld vanuit de bestaande hypotheek) maar sloeg
+        // wijzigingen nooit op. Update de bestaande hypotheek als die er is,
+        // of maak er een aan als het pand nog geen hypotheek had.
+        if (d.mortgage) {
+          const [existingMortgage] = await tx
+            .select({ id: mortgages.id })
+            .from(mortgages)
+            .where(eq(mortgages.assetId, assetId))
+            .limit(1)
+
+          if (existingMortgage) {
+            await tx
+              .update(mortgages)
+              .set({
+                lender:         d.mortgage.lender,
+                originalAmount: d.mortgage.originalAmount,
+                interestRate:   d.mortgage.interestRate,
+                startDate:      d.mortgage.startDate,
+                endDate:        d.mortgage.endDate ?? null,
+                mortgageType:   d.mortgage.mortgageType,
+                updatedAt:      new Date(),
+              })
+              .where(eq(mortgages.id, existingMortgage.id))
+          } else {
+            await tx.insert(mortgages).values({
+              assetId,
+              lender:         d.mortgage.lender,
+              originalAmount: d.mortgage.originalAmount,
+              interestRate:   d.mortgage.interestRate,
+              startDate:      d.mortgage.startDate,
+              endDate:        d.mortgage.endDate ?? null,
+              mortgageType:   d.mortgage.mortgageType,
+            })
+          }
+        }
         break
       case 'vordering':
         await tx

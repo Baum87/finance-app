@@ -1,6 +1,7 @@
 import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getCryptoEntries, latestPerGroup, groupBy } from '@/lib/db/queries/simple-entries'
+import { getAssetsWithValues } from '@/lib/db/queries/assets'
 import { buildSimpleEntryMonthlySeries } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
@@ -8,6 +9,7 @@ import { KpiCard } from '@/components/ui/KpiCard'
 import { EntryLogForm } from '@/components/portfolio/EntryLogForm'
 import { EntryLogList } from '@/components/portfolio/EntryLogList'
 import { InvestedVsValueChart } from '@/components/portfolio/InvestedVsValueChart'
+import { AssetPositionsCard } from '@/components/portfolio/AssetPositionsCard'
 import { createCryptoEntryAction, updateCryptoEntryAction, deleteCryptoEntryAction } from '@/app/portfolio/simple-entry-actions'
 
 const FIELDS = [
@@ -21,9 +23,16 @@ export default async function CryptoPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const entries = await getCryptoEntries(user!.id)
+  const [entries, assets] = await Promise.all([
+    getCryptoEntries(user!.id),
+    getAssetsWithValues(user!.id),
+  ])
   const latestPerBroker = latestPerGroup(entries, e => e.broker)
   const byBroker = groupBy(entries, e => e.broker)
+
+  const assetPositions = assets
+    .filter(a => a.assetType === 'crypto')
+    .map(a => ({ id: a.id, name: a.name, currentValue: a.currentValue.toNumber() }))
 
   const totalCurrentValue = latestPerBroker.reduce((s, e) => s.plus(new Decimal(e.currentValue)), new Decimal(0))
   const totalInvested = latestPerBroker.reduce((s, e) => s.plus(new Decimal(e.invested)), new Decimal(0))
@@ -67,6 +76,14 @@ export default async function CryptoPage() {
             trend={gainLossPct ? { value: formatPercent(gainLossPct.toNumber()), positive: totalGainLoss.gte(0) } : undefined}
           />
         </div>
+
+        <AssetPositionsCard
+          positions={assetPositions}
+          addHref="/assets/new?type=crypto&cancel=/portfolio/crypto"
+          addLabel="+ Crypto met transacties toevoegen"
+          description="Met koop-/verkooptransacties bijgehouden — voedt rendement (XIRR)"
+          backTo="/portfolio/crypto"
+        />
 
         <EntryLogForm
           action={createCryptoEntryAction}

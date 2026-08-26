@@ -17,7 +17,11 @@ const ALLOWED_TYPES: Record<string, TransactionType[]> = {
   stock_etf:   ['buy', 'sell', 'dividend', 'cost'],
   crypto:      ['buy', 'sell'],
   savings:     ['deposit', 'withdrawal', 'interest'],
-  real_estate: ['buy', 'sell', 'rental_income', 'cost'],
+  // rental_income/cost bewust niet in de nieuwe-transactie-flow: doorlopende
+  // huur/kosten gaan via de periode-invoer op de vastgoed-detailpagina
+  // (RecurringCashflowForm) i.p.v. losse maandtransacties. Bestaande losse
+  // transacties blijven gewoon bewerkbaar (zie ALLOWED_TYPES in de edit-pagina).
+  real_estate: ['buy', 'sell'],
   pension:     ['deposit'],
   vordering:   ['deposit', 'withdrawal', 'interest'],
 }
@@ -140,6 +144,7 @@ export default async function NewTransactionPage({
               <TransactionForm
                 action={createTransactionAction}
                 assetId={asset.id}
+                assetType={asset.assetType}
                 redirectTo={from}
                 cancelHref={backHref}
                 allowedTypes={isStockEtf ? ['dividend', 'cost'] : ALLOWED_TYPES[asset.assetType]}

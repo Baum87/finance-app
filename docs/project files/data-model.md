@@ -179,17 +179,24 @@ Vastgoed: jaarlijks WOZ of taxatiewaarde invoeren.
 ### Eenvoudige invoerlijsten (simple entries) — ontbreekt hierboven, wél in schema.ts
 
 Náást de `assets`/`asset_valuations`-flow bestaat een tweede, lichtere manier om
-een categorie bij te houden: vijf losstaande, append-only logboek-tabellen
+een categorie bij te houden: vier losstaande, append-only logboek-tabellen
 zonder eigen `assets`-rij — `stock_etf_entries`, `crypto_entries`,
-`pension_entries`, `savings_entries`, `real_estate_entries`. Elke tabel heeft
-`id`, `tenant_id`, een groepssleutel (`broker`/`bank`/adres), een waardeveld
-(`invested`+`current_value`, of `balance`, of `woz_value`) en `entry_date`. De
+`pension_entries`, `savings_entries`. Elke tabel heeft
+`id`, `tenant_id`, een groepssleutel (`broker`/`bank`), een waardeveld
+(`invested`+`current_value`, of `balance`) en `entry_date`. De
 meest recente rij per groep (op `entry_date`) is de huidige waarde — zelfde
 "laatste rij = actuele waarde"-patroon als `asset_valuations`, maar dan zonder
 transactiehistorie of detail-tabel. Gebruikt op de portfolio-overzichtspagina's
 en de homepage (`lib/db/queries/simple-entries.ts`) naast de volledige
 asset-tracking, zodat een gebruiker die bijvoorbeeld alleen "€ X op ING"
 bijhoudt niet uit het totaalvermogen valt.
+
+**Vastgoed heeft geen simple-entry-variant meer.** `real_estate_entries`
+bood alleen adres + WOZ-waarde, zonder hypotheek/transacties/rendement — en
+stond los van de rijkere asset-flow, wat tot verwarring leidde (zie
+`stappenplan.md`, C2/vastgoed). Tabel verwijderd in migratie 0021
+(`drop-real-estate-entries.sql`). Vastgoed loopt nu uitsluitend via
+`assets`/`real_estate_details`/`mortgages`/`transactions`.
 
 ---
 
@@ -460,7 +467,7 @@ tenants
            ├── one_time_expenses (1:N)  [via tenant_id]
            └── simple entries (1:N elk, via tenant_id — géén link naar assets):
                 stock_etf_entries, crypto_entries, pension_entries,
-                savings_entries, real_estate_entries
+                savings_entries
 
 fx_rates  (gedeeld, niet user/tenant-gebonden — in de praktijk leeg, zie boven)
 ```

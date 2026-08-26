@@ -1,21 +1,18 @@
 import Decimal from 'decimal.js'
 import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
-import { getPassiveIncomeData, getNetWorthAtDate, getValuationTimeSeries, getMortgageBalanceTimeSeries } from '@/lib/db/queries/cashflow'
-import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
+import { getPassiveIncomeData } from '@/lib/db/queries/cashflow'
 import { getRecurringItems } from '@/lib/db/queries/recurring-items'
 import { getOneTimeExpenses } from '@/lib/db/queries/one-time-expenses'
-import { getLiabilities } from '@/lib/db/queries/liabilities'
+import { getSavingsEntries, latestPerGroup } from '@/lib/db/queries/simple-entries'
 import {
-  getStockEtfEntries, getCryptoEntries, getPensionEntries, getSavingsEntries, getRealEstateEntries, latestPerGroup,
-} from '@/lib/db/queries/simple-entries'
-import { calculateNetWorth, calculateRecurringTotals, calculateOneTimeExpensesTotal } from '@/lib/finance'
-import { buildNetWorthSeries } from '@/lib/finance'
-import { formatCurrency } from '@/lib/utils/format'
+  calculateRecurringTotals, calculateOneTimeExpensesTotal,
+  calculateSavingsRate, calculateBufferMonths, classifyBufferMonths, calculatePassiveIncomeCoverage,
+} from '@/lib/finance'
+import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { PassiveIncomeBreakdown } from '@/components/cashflow/PassiveIncomeBreakdown'
-import { NetWorthChart } from '@/components/vermogen/NetWorthChart'
 
 function toDateStr(date: Date): string {
   return date.toISOString().slice(0, 10)
@@ -31,28 +28,16 @@ export default async function CashflowOverviewPage() {
   const ytdFrom = `${currentYear}-01-01`
   const todayStr = toDateStr(today)
 
-  const [txData, assets_, mortgageMap, networthJan1, valuationRows, mortgageBalanceRows, recurringItemRows, oneTimeExpenseRows, liabilities, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, realEstateEntries] = await Promise.all([
+  const [txData, recurringItemRows, oneTimeExpenseRows, savingsEntries] = await Promise.all([
     getPassiveIncomeData(userId, ytdFrom, todayStr),
-    getAssetsWithValues(userId),
-    getMortgageBalancesMap(userId),
-    getNetWorthAtDate(userId, ytdFrom),
-    getValuationTimeSeries(userId),
-    getMortgageBalanceTimeSeries(userId),
     getRecurringItems(userId),
     getOneTimeExpenses(userId),
-    getLiabilities(userId),
-    getStockEtfEntries(userId),
-    getCryptoEntries(userId),
-    getPensionEntries(userId),
     getSavingsEntries(userId),
-    getRealEstateEntries(userId),
   ])
 
-  // Eenvoudige invoerlijsten (crypto/pensioen/spaarrekening/vastgoed) hebben geen
-  // "asset"-entiteit en zitten dus niet in getAssetsWithValues/getNetWorthAtDate —
-  // zelfde optelling als op de homepage, maar dan "as of" een datum: elke lijst
-  // is al newest-first, dus de laatste rij per groep vóór die datum is de waarde
-  // op dat moment (zelfde patroon als latestMortgageAtDate hieronder).
+  // Eenvoudige invoerlijsten (o.a. spaarrekeningen) hebben geen "asset"-entiteit
+  // en zijn newest-first, dus de laatste rij per groep vóór een datum is de
+  // waarde op dat moment.
   function sumLatestPerGroupAsOf<T extends { entryDate: string }>(
     rows: T[],
     keyFn: (r: T) => string,
@@ -62,24 +47,6 @@ export default async function CashflowOverviewPage() {
     const latest = latestPerGroup(rows.filter(r => r.entryDate <= asOfDate), keyFn)
     return latest.reduce((s, r) => s.plus(new Decimal(valueFn(r))), new Decimal(0))
   }
-  const simpleEntriesValueAsOf = (asOfDate: string): Decimal =>
-    sumLatestPerGroupAsOf(stockEtfEntries, e => e.broker, e => e.currentValue, asOfDate)
-      .plus(sumLatestPerGroupAsOf(cryptoEntries, e => e.broker, e => e.currentValue, asOfDate))
-      .plus(sumLatestPerGroupAsOf(pensionEntries, e => e.broker, e => e.currentValue, asOfDate))
-      .plus(sumLatestPerGroupAsOf(savingsEntries, e => e.bank, e => e.balance, asOfDate))
-      .plus(sumLatestPerGroupAsOf(realEstateEntries, e => `${e.street}|${e.postalCode}|${e.city}`, e => e.wozValue, asOfDate))
-  const simpleEntriesToday = simpleEntriesValueAsOf(todayStr)
-  const simpleEntriesJan1  = simpleEntriesValueAsOf(ytdFrom)
-
-  // liabilities heeft geen historische bedrag-tracking (in tegenstelling tot
-  // mortgage_balances) — alleen huidige, actieve schulden. Voor de Jan1-vergelijking
-  // nemen we aan dat een schuld al meetelde als startDate vóór 1 jan ligt (of
-  // onbekend is); zo telt een lening die dit jaar is afgesloten pas mee vanaf het
-  // moment dat hij ontstond, en vertekent een al langer bestaande schuld de groei niet.
-  const totalLiabilitiesToday = liabilities.reduce((s, l) => s.plus(l.amount), new Decimal(0))
-  const totalLiabilitiesJan1 = liabilities
-    .filter(l => !l.startDate || l.startDate <= ytdFrom)
-    .reduce((s, l) => s.plus(l.amount), new Decimal(0))
 
   const oneTimeExpensesThisYear = calculateOneTimeExpensesTotal(
     oneTimeExpenseRows.filter(e => e.expenseDate.slice(0, 4) === String(currentYear)),
@@ -94,6 +61,7 @@ export default async function CashflowOverviewPage() {
       isShared:  r.isShared,
     })),
   )
+  const netCashflowInclOneTime = recurringTotals.netAnnualCashflow.minus(oneTimeExpensesThisYear)
 
   // Passief inkomen YTD
   const dividend  = txData.filter(t => t.transactionType === 'dividend').reduce((s, t) => s.plus(t.amount), new Decimal(0))
@@ -103,36 +71,26 @@ export default async function CashflowOverviewPage() {
   const rentalNet = rentalIn.minus(costs)
   const totalPassive = dividend.plus(interest).plus(rentalNet)
 
-  // Netto vermogen vandaag
-  const networthToday = calculateNetWorth(
-    assets_.map(a => ({
-      value:     a.currentValue,
-      liability: mortgageMap.get(a.id) ?? new Decimal(0),
-    })),
-  ).plus(simpleEntriesToday).minus(totalLiabilitiesToday)
+  // Financiële gezondheid — spaarquote, buffer-dekking, dekkingsgraad passief inkomen
+  const liquidSavingsToday = sumLatestPerGroupAsOf(savingsEntries, e => e.bank, e => e.balance, todayStr)
 
-  const networthGrowth = networthJan1 != null
-    ? networthToday.minus(networthJan1.plus(simpleEntriesJan1).minus(totalLiabilitiesJan1))
+  const savingsRate = calculateSavingsRate(recurringTotals.netMonthlyCashflow, recurringTotals.monthlyIncome)
+
+  const bufferMonths = calculateBufferMonths(liquidSavingsToday, recurringTotals.monthlyExpenses)
+  const bufferLabel = bufferMonths != null ? classifyBufferMonths(bufferMonths) : null
+  const bufferLabelText: Record<'krap' | 'gezond' | 'ruim', string> = { krap: 'Krap', gezond: 'Gezond', ruim: 'Ruim' }
+
+  // Passief inkomen is een YTD-totaal — pas herleiden naar een maandgemiddelde
+  // zodra er minstens 1 maand aan data is, anders vertekent een paar dagen
+  // begin januari de dekkingsgraad enorm (zelfde voorzichtigheid als bij XIRR
+  // over korte periodes, zie financial-expert.md §2a).
+  const msPerDay = 24 * 60 * 60 * 1000
+  const daysElapsedYtd = Math.floor((today.getTime() - new Date(ytdFrom).getTime()) / msPerDay) + 1
+  const monthsElapsedYtd = daysElapsedYtd / (365 / 12)
+  const monthlyPassiveIncome = monthsElapsedYtd >= 1 ? totalPassive.dividedBy(monthsElapsedYtd) : null
+  const passiveIncomeCoverage = monthlyPassiveIncome != null
+    ? calculatePassiveIncomeCoverage(monthlyPassiveIncome, recurringTotals.monthlyExpenses)
     : null
-  const growthPositive = networthGrowth?.gte(0) ?? true
-
-  const latestMortgageAtDate = (assetId: string, date: string) => {
-    const relevant = mortgageBalanceRows
-      .filter(m => m.assetId === assetId && m.balanceDate <= date)
-    return relevant.length > 0
-      ? new Decimal(relevant[relevant.length - 1].outstandingBalance)
-      : new Decimal(0)
-  }
-
-  const series = buildNetWorthSeries(
-    valuationRows.map(v => ({
-      assetId:   v.assetId,
-      date:      v.valuationDate,
-      value:     new Decimal(v.value),
-      liability: latestMortgageAtDate(v.assetId, v.valuationDate),
-    })),
-  )
-  const chartData = series.map(p => ({ date: p.date, value: p.netWorth.toNumber() }))
 
   return (
     <>
@@ -141,29 +99,53 @@ export default async function CashflowOverviewPage() {
 
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Cashflow</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Overzicht van passief inkomen, vaste lasten en vermogensontwikkeling</p>
+          <p className="mt-1 text-sm text-muted-foreground">Overzicht van inkomen, uitgaven en de gezondheid van je cashflow</p>
         </div>
 
-        {/* KPI cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Financiële gezondheid */}
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Financiële gezondheid</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Hou je genoeg over, en kun je een tegenslag opvangen?</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <KpiCard
-            label="Passief inkomen dit jaar"
-            value={txData.length === 0 ? '—' : formatCurrency(totalPassive.toNumber())}
-            subtext={txData.length === 0
-              ? 'Nog geen inkomsten geregistreerd dit jaar'
-              : `Dividend, rente en huurinkomsten t/m ${todayStr} — excl. hypotheeklasten`}
+            label="Spaarquote"
+            value={savingsRate != null ? formatPercent(savingsRate.toNumber()) : '—'}
+            subtext={savingsRate != null ? 'Vuistregel: streef naar 20% of meer' : 'Nog geen inkomen geregistreerd'}
+            trend={savingsRate != null ? {
+              value:    savingsRate.gte(0) ? 'Overschot' : 'Tekort',
+              positive: savingsRate.gte(0),
+            } : undefined}
           />
           <KpiCard
-            label="Netto vermogen groei dit jaar"
-            value={
-              networthGrowth != null
-                ? `${growthPositive ? '+' : ''}${formatCurrency(networthGrowth.toNumber())}`
-                : '—'
-            }
-            subtext={networthGrowth != null ? `t.o.v. 1 jan ${currentYear}` : 'Onvoldoende historische data'}
-            trend={networthGrowth != null ? { value: '', positive: growthPositive } : undefined}
+            label="Buffer-dekking"
+            value={bufferMonths != null ? `${bufferMonths.toDecimalPlaces(1).toString()} mnd` : '—'}
+            subtext={bufferMonths != null
+              ? `${formatCurrency(liquidSavingsToday.toNumber())} liquide spaargeld / vaste lasten per maand`
+              : 'Geen vaste lasten geregistreerd om tegen af te zetten'}
+            trend={bufferLabel != null ? {
+              value:    bufferLabelText[bufferLabel],
+              positive: bufferLabel !== 'krap',
+            } : undefined}
+          />
+          <KpiCard
+            label="Dekkingsgraad passief inkomen"
+            value={passiveIncomeCoverage != null ? formatPercent(passiveIncomeCoverage.toNumber()) : '—'}
+            subtext={passiveIncomeCoverage != null
+              ? 'Deel van je vaste lasten gedekt door bruto passief inkomen'
+              : 'Onvoldoende data dit jaar (nog geen volledige maand, of geen vaste lasten)'}
           />
         </div>
+
+        {/* Bruto passief inkomen */}
+        <KpiCard
+          label="Bruto passief inkomen dit jaar"
+          value={txData.length === 0 ? '—' : formatCurrency(totalPassive.toNumber())}
+          subtext={txData.length === 0
+            ? 'Nog geen inkomsten geregistreerd dit jaar'
+            : `Dividend, rente en huurinkomsten t/m ${todayStr} — excl. hypotheeklasten`}
+        />
 
         {/* Passief inkomen breakdown */}
         <PassiveIncomeBreakdown
@@ -171,10 +153,6 @@ export default async function CashflowOverviewPage() {
           interest={interest}
           rentalNet={rentalNet}
         />
-
-        {/* Nettovermogen tijdlijn */}
-        {/* TODO: tweede lijn toevoegen als doelen-entiteit bestaat (Sprint 4) */}
-        <NetWorthChart data={chartData} />
 
         {/* Vaste lasten & inkomsten */}
         <div className="flex items-center justify-between">
@@ -220,11 +198,22 @@ export default async function CashflowOverviewPage() {
           </Link>
         </div>
 
-        <KpiCard
-          label="Eenmalige uitgaven dit jaar"
-          value={formatCurrency(oneTimeExpensesThisYear.toNumber())}
-          subtext={`t/m ${todayStr} — telt niet mee in de maandelijkse cashflow hierboven`}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <KpiCard
+            label="Eenmalige uitgaven dit jaar"
+            value={formatCurrency(oneTimeExpensesThisYear.toNumber())}
+            subtext={`t/m ${todayStr} — telt niet mee in de maandelijkse cashflow hierboven`}
+          />
+          <KpiCard
+            label="Cashflow dit jaar incl. eenmalige uitgaven"
+            value={`${netCashflowInclOneTime.gte(0) ? '+' : ''}${formatCurrency(netCashflowInclOneTime.toNumber())}`}
+            subtext={`${formatCurrency(recurringTotals.netAnnualCashflow.toNumber())} netto cashflow − ${formatCurrency(oneTimeExpensesThisYear.toNumber())} eenmalige uitgaven = ${formatCurrency(netCashflowInclOneTime.toNumber())}`}
+            trend={{
+              value:    netCashflowInclOneTime.gte(0) ? 'Overschot' : 'Tekort',
+              positive: netCashflowInclOneTime.gte(0),
+            }}
+          />
+        </div>
 
       </main>
     </>

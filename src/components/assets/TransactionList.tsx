@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Decimal from 'decimal.js'
-import { Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { deleteTransactionAction } from '@/app/assets/actions'
 import { useSortable } from '@/lib/utils/use-sortable'
@@ -123,17 +123,27 @@ export function TransactionList({ transactions, assetId, addHref, redirectTo, cu
                   </span>
                 </>
               )}
-              <div className="w-16 flex justify-end" onClick={e => e.stopPropagation()}>
+              <div className="w-16 flex items-center justify-end gap-3" onClick={e => e.stopPropagation()}>
+                <Link
+                  href={editHref}
+                  aria-label="Bewerken"
+                  title="Bewerken"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Pencil size={15} />
+                </Link>
                 <form action={deleteTransactionAction}>
                   <input type="hidden" name="transactionId" value={tx.id} />
                   <input type="hidden" name="assetId" value={assetId} />
                   {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
                   <button
                     type="submit"
+                    aria-label="Verwijderen"
+                    title="Verwijderen"
                     className="text-muted-foreground hover:text-terracotta transition-colors"
                     onClick={e => { if (!confirm('Transactie verwijderen?')) e.preventDefault() }}
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={15} />
                   </button>
                 </form>
               </div>

@@ -4,11 +4,16 @@ import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
 import { getNetWorthAtDate } from '@/lib/db/queries/cashflow'
 import { getLiabilities } from '@/lib/db/queries/liabilities'
+import { getRecurringItems } from '@/lib/db/queries/recurring-items'
 import {
-  getStockEtfEntries, getCryptoEntries, getPensionEntries, getSavingsEntries, getRealEstateEntries, latestPerGroup,
+  getStockEtfEntries, getCryptoEntries, getPensionEntries, getSavingsEntries, latestPerGroup,
 } from '@/lib/db/queries/simple-entries'
-import { calculateNetWorth, calculateAllocation } from '@/lib/finance'
-import { formatCurrency } from '@/lib/utils/format'
+import {
+  calculateNetWorth, calculateAllocation, calculateRecurringTotals,
+  calculateSavingsRate, calculateBufferMonths, determineFinancialHealthSignal,
+} from '@/lib/finance'
+import type { FinancialHealthSignal } from '@/lib/finance'
+import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
@@ -27,6 +32,23 @@ function getGreeting(): string {
   return 'Goedenavond'
 }
 
+// Vertaalt het financiële-gezondheidssignaal (lib/finance/financial-health-signal.ts)
+// naar een Nederlandse zin — de financiële laag geeft alleen cijfers en een
+// urgentie terug, de tekst hoort in de UI-laag thuis.
+function healthSignalText(signal: FinancialHealthSignal): string {
+  if (signal.level === 'warning') {
+    if (signal.reason === 'buffer_krap') {
+      return `Je buffer dekt nog maar ${signal.bufferMonths.toDecimalPlaces(1).toString()} maanden vaste lasten — vuistregel is 3-6 maanden.`
+    }
+    return `Je geeft op dit moment meer uit dan er binnenkomt (spaarquote ${formatPercent(signal.savingsRate.toNumber())}).`
+  }
+  const parts = [
+    signal.savingsRate != null ? `spaarquote ${formatPercent(signal.savingsRate.toNumber())}` : null,
+    signal.bufferMonths != null ? `buffer ${signal.bufferMonths.toDecimalPlaces(1).toString()} maanden` : null,
+  ].filter((p): p is string => p != null)
+  return `Financieel gezond: ${parts.join(', ')}.`
+}
+
 export default async function OverzichtPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -35,7 +57,7 @@ export default async function OverzichtPage() {
   monthAgoDate.setDate(monthAgoDate.getDate() - 30)
   const monthAgoStr = monthAgoDate.toISOString().slice(0, 10)
 
-  const [assets, mortgageMap, netWorthMonthAgo, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, realEstateEntries, liabilities] = await Promise.all([
+  const [assets, mortgageMap, netWorthMonthAgo, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, liabilities, recurringItemRows] = await Promise.all([
     getAssetsWithValues(user!.id),
     getMortgageBalancesMap(user!.id),
     getNetWorthAtDate(user!.id, monthAgoStr),
@@ -43,8 +65,8 @@ export default async function OverzichtPage() {
     getCryptoEntries(user!.id),
     getPensionEntries(user!.id),
     getSavingsEntries(user!.id),
-    getRealEstateEntries(user!.id),
     getLiabilities(user!.id),
+    getRecurringItems(user!.id),
   ])
 
   const totalLiabilities = liabilities.reduce((s, l) => s.plus(l.amount), new Decimal(0))
@@ -58,7 +80,22 @@ export default async function OverzichtPage() {
   const cryptoValue      = sumLatestPerGroup(cryptoEntries, e => e.broker, e => e.currentValue)
   const pensionValue     = sumLatestPerGroup(pensionEntries, e => e.broker, e => e.currentValue)
   const savingsValue     = sumLatestPerGroup(savingsEntries, e => e.bank, e => e.balance)
-  const realEstateValue  = sumLatestPerGroup(realEstateEntries, e => `${e.street}|${e.postalCode}|${e.city}`, e => e.wozValue)
+
+  // Financiële-gezondheidssignaal — hergebruikt dezelfde berekeningen als de
+  // Cashflow-pagina (spaarquote, buffer-dekking), maar toont hier alleen het
+  // meest urgente signaal i.p.v. alle tegels. Zie stappenplanOverallOverzicht.md.
+  const recurringTotals = calculateRecurringTotals(
+    recurringItemRows.map(r => ({
+      itemType:  r.itemType as 'income' | 'expense',
+      amount:    r.amount,
+      frequency: r.frequency as 'monthly' | 'four_weekly' | 'quarterly' | 'yearly',
+      isActive:  r.isActive,
+      isShared:  r.isShared,
+    })),
+  )
+  const savingsRate = calculateSavingsRate(recurringTotals.netMonthlyCashflow, recurringTotals.monthlyIncome)
+  const bufferMonths = calculateBufferMonths(savingsValue, recurringTotals.monthlyExpenses)
+  const healthSignal = determineFinancialHealthSignal(savingsRate, bufferMonths)
 
   const simpleCategories = [
     { assetType: 'stock_etf',   value: stockEtfValue,   liquid: true },
@@ -70,10 +107,9 @@ export default async function OverzichtPage() {
   // Vastgoed geeft een vertekend beeld in "Netto vermogen" (grote, illiquide
   // klap) — apart gehouden en los getoond i.p.v. meegeteld.
   const nonRealEstateAssets = assets.filter(a => a.assetType !== 'real_estate')
-  const realEstateAssetsValue = assets
+  const realEstateTotal = assets
     .filter(a => a.assetType === 'real_estate')
     .reduce((sum, a) => sum.plus(a.currentValue).minus(mortgageMap.get(a.id) ?? new Decimal(0)), new Decimal(0))
-  const realEstateTotal = realEstateAssetsValue.plus(realEstateValue)
 
   const assetNetWorth = calculateNetWorth(
     nonRealEstateAssets.map(a => ({
@@ -190,6 +226,24 @@ export default async function OverzichtPage() {
             </Link>
           </div>
         </div>
+
+        {/* Blok 2b — Financiële gezondheid (aandachtspunt-signaal) */}
+        {healthSignal && (
+          <div className={`bg-card border rounded-3xl p-6 ${healthSignal.level === 'warning' ? 'border-terracotta/30' : 'border-border'}`}>
+            <p className="text-sm font-medium text-muted-foreground">Financiële gezondheid</p>
+            <p className={`mt-2 text-sm font-medium ${healthSignal.level === 'warning' ? 'text-terracotta' : 'text-sage'}`}>
+              {healthSignal.level === 'warning' ? '⚠ ' : '✓ '}{healthSignalText(healthSignal)}
+            </p>
+            <div className="mt-3 flex justify-end">
+              <Link
+                href="/cashflow"
+                className="text-sm font-medium text-[var(--color-blue-brand)] hover:opacity-70 transition-opacity"
+              >
+                Bekijk details →
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Blok 3 — Actief doel (placeholder — doelen-datamodel volgt in Sprint 4) */}
         <div className="bg-card border border-border rounded-3xl p-6">

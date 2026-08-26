@@ -1,7 +1,7 @@
 import Decimal from 'decimal.js'
 import { getAssetsWithValues, getMortgageBalancesMap } from './assets'
 import {
-  getStockEtfEntries, getCryptoEntries, getPensionEntries, getSavingsEntries, getRealEstateEntries, latestPerGroup,
+  getStockEtfEntries, getCryptoEntries, getPensionEntries, getSavingsEntries, latestPerGroup,
 } from './simple-entries'
 
 export type PortfolioCategoryType = 'stock_etf' | 'crypto' | 'savings' | 'real_estate' | 'pension' | 'vordering'
@@ -21,17 +21,17 @@ const CATEGORY_ORDER: PortfolioCategoryType[] = ['stock_etf', 'crypto', 'savings
  * transacties/waarderingen) én de eenvoudige invoerlijsten (stock_etf_entries
  * e.d. — zie simple-entries.ts). Beide tellen mee, anders ontbreekt een deel
  * van iemands vermogen als ze voor de simpele invoer kozen. Vastgoed wordt
- * genetto met de hypotheek; vorderingen hebben geen simpele-invoer-variant.
+ * genetto met de hypotheek en heeft geen simpele-invoer-variant meer (die
+ * bood geen rendement/transacties en is uitgefaseerd) — net als vorderingen.
  */
 export async function getPortfolioCategoryTotals(userId: string): Promise<PortfolioCategoryTotal[]> {
-  const [assets, mortgageMap, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, realEstateEntries] = await Promise.all([
+  const [assets, mortgageMap, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries] = await Promise.all([
     getAssetsWithValues(userId),
     getMortgageBalancesMap(userId),
     getStockEtfEntries(userId),
     getCryptoEntries(userId),
     getPensionEntries(userId),
     getSavingsEntries(userId),
-    getRealEstateEntries(userId),
   ])
 
   const sumLatestPerGroup = <T,>(rows: T[], keyFn: (r: T) => string, valueFn: (r: T) => string) =>
@@ -46,7 +46,7 @@ export async function getPortfolioCategoryTotals(userId: string): Promise<Portfo
     stock_etf:   assetTotalByType('stock_etf').plus(sumLatestPerGroup(stockEtfEntries, e => e.broker, e => e.currentValue)),
     crypto:      assetTotalByType('crypto').plus(sumLatestPerGroup(cryptoEntries, e => e.broker, e => e.currentValue)),
     savings:     assetTotalByType('savings').plus(sumLatestPerGroup(savingsEntries, e => e.bank, e => e.balance)),
-    real_estate: assetTotalByType('real_estate').plus(sumLatestPerGroup(realEstateEntries, e => `${e.street}|${e.postalCode}|${e.city}`, e => e.wozValue)),
+    real_estate: assetTotalByType('real_estate'),
     pension:     assetTotalByType('pension').plus(sumLatestPerGroup(pensionEntries, e => e.broker, e => e.currentValue)),
     vordering:   assetTotalByType('vordering'),
   }

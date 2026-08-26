@@ -1,7 +1,7 @@
 import { and, eq, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import {
-  stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, realEstateEntries,
+  stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries,
 } from '@/lib/db/schema'
 import { getOrCreateTenant } from './tenant'
 
@@ -167,34 +167,3 @@ export async function getSavingsEntries(userId: string) {
     .orderBy(desc(savingsEntries.entryDate), desc(savingsEntries.createdAt))
 }
 
-export async function createRealEstateEntry(
-  userId: string,
-  data: { street: string; postalCode: string; city: string; wozValue: string; entryDate: string },
-) {
-  const tenantId = await getOrCreateTenant(userId)
-  const [row] = await db.insert(realEstateEntries).values({ tenantId, ...data }).returning()
-  return row
-}
-
-export async function updateRealEstateEntry(
-  userId: string,
-  id: string,
-  data: { street: string; postalCode: string; city: string; wozValue: string; entryDate: string },
-) {
-  const tenantId = await getOrCreateTenant(userId)
-  await db.update(realEstateEntries).set(data)
-    .where(and(eq(realEstateEntries.id, id), eq(realEstateEntries.tenantId, tenantId)))
-}
-
-export async function deleteRealEstateEntry(userId: string, id: string) {
-  const tenantId = await getOrCreateTenant(userId)
-  await db.delete(realEstateEntries)
-    .where(and(eq(realEstateEntries.id, id), eq(realEstateEntries.tenantId, tenantId)))
-}
-
-export async function getRealEstateEntries(userId: string) {
-  const tenantId = await getOrCreateTenant(userId)
-  return db.select().from(realEstateEntries)
-    .where(eq(realEstateEntries.tenantId, tenantId))
-    .orderBy(desc(realEstateEntries.entryDate), desc(realEstateEntries.createdAt))
-}

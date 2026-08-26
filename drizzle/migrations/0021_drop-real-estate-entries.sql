@@ -1,0 +1,1 @@
+DROP TABLE "real_estate_entries" CASCADE;

@@ -11,8 +11,10 @@ import type { TransactionType, AssetType } from '@/types'
 import {
   createTransaction, updateTransaction, deleteTransaction,
 } from '@/lib/db/queries/transactions'
-import { createValuation, deleteValuation } from '@/lib/db/queries/valuations'
-import { createMortgageBalance, deleteMortgageBalance } from '@/lib/db/queries/mortgage-balances'
+import { createValuation, updateValuation, deleteValuation } from '@/lib/db/queries/valuations'
+import { createMortgageBalance, updateMortgageBalance, deleteMortgageBalance } from '@/lib/db/queries/mortgage-balances'
+import { createWozValue, updateWozValue, deleteWozValue } from '@/lib/db/queries/woz-values'
+import { createRecurringCashflow, updateRecurringCashflow, deleteRecurringCashflow } from '@/lib/db/queries/recurring-cashflows'
 import { revalidatePath } from 'next/cache'
 import type { AssetDetailsInput } from '@/lib/db/queries/assets'
 import Decimal from 'decimal.js'
@@ -74,9 +76,9 @@ const vorderingSchema = z.object({
 })
 
 const realEstateSchema = z.object({
-  street:        z.string().optional(),
+  street:        z.string().min(1, 'Straat en huisnummer is verplicht'),
   postalCode:    z.string().optional(),
-  city:          z.string().optional(),
+  city:          z.string().min(1, 'Plaats is verplicht'),
   propertyType:  z.enum(['rental', 'primary_residence', 'vacation']),
   purchasePrice: positiveAmount('Aankoopprijs'),
   purchaseCosts: positiveAmount('Aankoopkosten'),
@@ -87,6 +89,7 @@ const realEstateSchema = z.object({
   mortgageOriginalAmount: optionalPositiveAmount('Hypotheekbedrag'),
   mortgageInterestRate:   optionalPositiveAmount('Hypotheekrente'),
   mortgageStartDate:      z.string().optional(),
+  mortgageEndDate:        z.string().optional(),
   mortgageType:           z.string().optional(),
 })
 
@@ -151,9 +154,9 @@ function parseDetails(assetType: string, fd: FormData): AssetDetailsInput {
     }
     case 'real_estate': {
       const d = realEstateSchema.parse({
-        street:        optStr(fd, 'street'),
+        street:        str(fd, 'street'),
         postalCode:    optStr(fd, 'postalCode'),
-        city:          optStr(fd, 'city'),
+        city:          str(fd, 'city'),
         propertyType:  str(fd, 'propertyType'),
         purchasePrice: str(fd, 'purchasePrice'),
         purchaseCosts: str(fd, 'purchaseCosts') || '0',
@@ -163,6 +166,7 @@ function parseDetails(assetType: string, fd: FormData): AssetDetailsInput {
         mortgageOriginalAmount: optStr(fd, 'mortgageOriginalAmount'),
         mortgageInterestRate:   optStr(fd, 'mortgageInterestRate'),
         mortgageStartDate:      optStr(fd, 'mortgageStartDate'),
+        mortgageEndDate:        optStr(fd, 'mortgageEndDate'),
         mortgageType:           optStr(fd, 'mortgageType'),
       })
       const hasMortgage = d.mortgageLender && d.mortgageOriginalAmount && d.mortgageInterestRate && d.mortgageStartDate && d.mortgageType
@@ -181,6 +185,7 @@ function parseDetails(assetType: string, fd: FormData): AssetDetailsInput {
           originalAmount: d.mortgageOriginalAmount!,
           interestRate: d.mortgageInterestRate!,
           startDate: d.mortgageStartDate!,
+          endDate: d.mortgageEndDate || null,
           mortgageType: d.mortgageType!,
         } : null,
       }
@@ -206,7 +211,11 @@ function parseDetails(assetType: string, fd: FormData): AssetDetailsInput {
 export async function createAssetAction(prev: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const user = await requireUser()
-    const base = baseSchema.parse({ name: str(fd, 'name'), assetType: str(fd, 'assetType'), currency: str(fd, 'currency') || 'EUR' })
+    const assetTypeRaw = str(fd, 'assetType')
+    const name = assetTypeRaw === 'real_estate'
+      ? [str(fd, 'street'), str(fd, 'city')].filter(Boolean).join(', ')
+      : str(fd, 'name')
+    const base = baseSchema.parse({ name, assetType: assetTypeRaw, currency: str(fd, 'currency') || 'EUR' })
     const details = parseDetails(base.assetType, fd)
 
     if (details.kind === 'crypto' && details.ticker) {
@@ -236,6 +245,29 @@ export async function createAssetAction(prev: ActionState, fd: FormData): Promis
       })
     }
 
+    // Vastgoed heeft geen "buy"-transactie-flow (huidige waarde komt uit
+    // asset_valuations, niet uit transacties) — zonder dit blijft de huidige
+    // waarde 0 tot iemand handmatig een waardering toevoegt, terwijl de
+    // aankoopprijs al bekend is. Aankoopprijs wordt daarom meteen de eerste
+    // waardering, op de aankoopdatum.
+    if (details.kind === 'real_estate' && purchasePrice && purchaseDate) {
+      await createValuation(user.id, asset.id, {
+        valuationDate: purchaseDate,
+        value:         purchasePrice,
+        currency:      base.currency,
+      })
+    }
+
+    // WOZ-waarde is een apart historisch gegeven (zie schema.ts) — de bij
+    // aanmaken ingevoerde waarde wordt meteen de eerste WOZ-snapshot, zodat
+    // "WOZ-waarde bijwerken" niet leeg start terwijl er al een waarde bekend is.
+    if (details.kind === 'real_estate' && details.wozValue && purchaseDate) {
+      await createWozValue(user.id, asset.id, {
+        wozDate: purchaseDate,
+        value:   details.wozValue,
+      })
+    }
+
     const redirectBase = str(fd, 'redirectBase')
     redirect(redirectBase ? `${redirectBase}/${asset.id}` : `/assets/${asset.id}`)
   } catch (e) {
@@ -249,7 +281,11 @@ export async function updateAssetAction(prev: ActionState, fd: FormData): Promis
   try {
     const user = await requireUser()
     const assetId = str(fd, 'assetId')
-    const base = baseSchema.parse({ name: str(fd, 'name'), assetType: str(fd, 'assetType'), currency: str(fd, 'currency') || 'EUR' })
+    const assetTypeRaw = str(fd, 'assetType')
+    const name = assetTypeRaw === 'real_estate'
+      ? [str(fd, 'street'), str(fd, 'city')].filter(Boolean).join(', ')
+      : str(fd, 'name')
+    const base = baseSchema.parse({ name, assetType: assetTypeRaw, currency: str(fd, 'currency') || 'EUR' })
     const details = parseDetails(base.assetType, fd)
     await updateAsset(user.id, assetId, { name: base.name, currency: base.currency, details })
     redirect(str(fd, 'redirectTo') || `/assets/${assetId}`)
@@ -269,6 +305,25 @@ export async function deleteAssetAction(fd: FormData): Promise<void> {
 }
 
 // ─── Transaction actions ──────────────────────────────────────────────────────
+
+const repeatSchema = z.object({
+  repeatFrequency: z.enum(['monthly', 'four_weekly', 'quarterly', 'yearly']),
+  repeatCount:     z.coerce.number().int().min(1, 'Aantal keer moet minstens 1 zijn').max(60, 'Maximaal 60 herhalingen per keer'),
+})
+
+/**
+ * Telt een datum een aantal frequentie-stappen op — puur kalenderrekenwerk
+ * (geen geldbedrag), vandaar hier en niet in lib/finance. `steps` is het
+ * aantal periodes ná de oorspronkelijke datum (0 = de datum zelf).
+ */
+function advanceDate(dateStr: string, frequency: string, steps: number): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  if (frequency === 'monthly') d.setMonth(d.getMonth() + steps)
+  else if (frequency === 'four_weekly') d.setDate(d.getDate() + steps * 28)
+  else if (frequency === 'quarterly') d.setMonth(d.getMonth() + steps * 3)
+  else if (frequency === 'yearly') d.setFullYear(d.getFullYear() + steps)
+  return d.toISOString().slice(0, 10)
+}
 
 export async function createTransactionAction(prev: ActionState, fd: FormData): Promise<ActionState> {
   try {
@@ -291,7 +346,22 @@ export async function createTransactionAction(prev: ActionState, fd: FormData): 
     if (allowed && !allowed.includes(data.transactionType as TransactionType)) {
       return { error: `Transactietype '${data.transactionType}' is niet toegestaan voor dit asset type` }
     }
-    await createTransaction(user.id, assetId, data)
+
+    if (str(fd, 'repeat') === 'on') {
+      const repeatData = repeatSchema.parse({
+        repeatFrequency: str(fd, 'repeatFrequency'),
+        repeatCount:     str(fd, 'repeatCount'),
+      })
+      for (let i = 0; i < repeatData.repeatCount; i++) {
+        await createTransaction(user.id, assetId, {
+          ...data,
+          transactionDate: advanceDate(data.transactionDate, repeatData.repeatFrequency, i),
+        })
+      }
+    } else {
+      await createTransaction(user.id, assetId, data)
+    }
+
     redirect(str(fd, 'redirectTo') || `/assets/${assetId}`)
   } catch (e) {
     if (isRedirectError(e)) throw e
@@ -360,12 +430,26 @@ export async function createValuationAction(prev: ActionState, fd: FormData): Pr
   }
 }
 
+export async function updateValuationAction(fd: FormData): Promise<void> {
+  const user = await requireUser()
+  const valuationId = str(fd, 'valuationId')
+  if (!valuationId) throw new Error('Geen waardering-ID opgegeven')
+  const data = valuationSchema.parse({
+    valuationDate: str(fd, 'valuationDate'),
+    value:         str(fd, 'value'),
+    currency:      str(fd, 'currency') || 'EUR',
+  })
+  await updateValuation(user.id, valuationId, data)
+  revalidatePath('/assets/[id]', 'page')
+  revalidatePath('/portfolio/vastgoed/[id]', 'page')
+}
+
 export async function deleteValuationAction(fd: FormData): Promise<void> {
   const user = await requireUser()
   const valuationId = fd.get('valuationId') as string
-  const redirectTo  = fd.get('redirectTo') as string | null
   await deleteValuation(user.id, valuationId)
-  redirect(redirectTo ?? '/assets')
+  revalidatePath('/assets/[id]', 'page')
+  revalidatePath('/portfolio/vastgoed/[id]', 'page')
 }
 
 // ─── Mortgage balance actions ─────────────────────────────────────────────────
@@ -385,7 +469,6 @@ export async function createMortgageBalanceAction(prev: ActionState, fd: FormDat
       outstandingBalance: str(fd, 'outstandingBalance'),
     })
     await createMortgageBalance(user.id, mortgageId, data)
-    revalidatePath('/vastgoed')
     redirect(`/assets/${assetId}`)
   } catch (e) {
     if (isRedirectError(e)) throw e
@@ -394,11 +477,142 @@ export async function createMortgageBalanceAction(prev: ActionState, fd: FormDat
   }
 }
 
+export async function updateMortgageBalanceAction(fd: FormData): Promise<void> {
+  const user = await requireUser()
+  const balanceId = str(fd, 'balanceId')
+  if (!balanceId) throw new Error('Geen saldo-ID opgegeven')
+  const data = mortgageBalanceSchema.parse({
+    balanceDate:        str(fd, 'balanceDate'),
+    outstandingBalance: str(fd, 'outstandingBalance'),
+  })
+  await updateMortgageBalance(user.id, balanceId, data)
+  revalidatePath('/assets/[id]', 'page')
+  revalidatePath('/portfolio/vastgoed/[id]', 'page')
+}
+
 export async function deleteMortgageBalanceAction(fd: FormData): Promise<void> {
   const user = await requireUser()
-  const balanceId  = fd.get('balanceId') as string
-  const redirectTo = fd.get('redirectTo') as string | null
+  const balanceId = fd.get('balanceId') as string
   await deleteMortgageBalance(user.id, balanceId)
-  revalidatePath('/vastgoed')
-  redirect(redirectTo ?? '/assets')
+  revalidatePath('/assets/[id]', 'page')
+  revalidatePath('/portfolio/vastgoed/[id]', 'page')
+}
+
+// ─── WOZ-waarde actions ─────────────────────────────────────────────────────
+
+const wozValueSchema = z.object({
+  wozDate: z.string().min(1, 'Datum is verplicht'),
+  value:   positiveAmount('WOZ-waarde'),
+})
+
+export async function createWozValueAction(prev: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const user = await requireUser()
+    const assetId = str(fd, 'assetId')
+    const data = wozValueSchema.parse({
+      wozDate: str(fd, 'wozDate'),
+      value:   str(fd, 'value'),
+    })
+    await createWozValue(user.id, assetId, data)
+    redirect(str(fd, 'redirectTo') || `/assets/${assetId}`)
+  } catch (e) {
+    if (isRedirectError(e)) throw e
+    if (e instanceof z.ZodError) return { error: e.issues[0].message }
+    return { error: e instanceof Error ? e.message : 'Onbekende fout' }
+  }
+}
+
+export async function updateWozValueAction(fd: FormData): Promise<void> {
+  const user = await requireUser()
+  const wozValueId = str(fd, 'wozValueId')
+  if (!wozValueId) throw new Error('Geen WOZ-waarde-ID opgegeven')
+  const data = wozValueSchema.parse({
+    wozDate: str(fd, 'wozDate'),
+    value:   str(fd, 'value'),
+  })
+  await updateWozValue(user.id, wozValueId, data)
+  revalidatePath('/assets/[id]', 'page')
+  revalidatePath('/portfolio/vastgoed/[id]', 'page')
+  revalidatePath('/portfolio/vastgoed')
+}
+
+export async function deleteWozValueAction(fd: FormData): Promise<void> {
+  const user = await requireUser()
+  const wozValueId = fd.get('wozValueId') as string
+  await deleteWozValue(user.id, wozValueId)
+  revalidatePath('/assets/[id]', 'page')
+  revalidatePath('/portfolio/vastgoed/[id]', 'page')
+  revalidatePath('/portfolio/vastgoed')
+}
+
+// ─── Doorlopende huur/kosten-periode actions ───────────────────────────────
+// Alternatief voor losse maandelijkse rental_income/cost-transacties: 1 rij
+// per periode (vanaf-datum, evt. tot-datum, bedrag per maand). Zie
+// recurringCashflows in schema.ts. Bestaande losse transacties blijven gewoon
+// meetellen — deze periodes komen er in de jaartotalen bovenop.
+
+const recurringCashflowSchema = z.object({
+  cashflowType: z.enum(['rental_income', 'cost']),
+  amount:       positiveAmount('Bedrag'),
+  frequency:    z.enum(['monthly', 'once']),
+  startDate:    z.string().min(1, 'Startdatum is verplicht'),
+  endDate:      z.string().optional(),
+  notes:        z.string().optional(),
+}).refine(d => d.frequency !== 'monthly' || !d.endDate || d.endDate >= d.startDate, {
+  message: 'Einddatum moet op of na de startdatum liggen',
+  path: ['endDate'],
+})
+
+export async function createRecurringCashflowAction(prev: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const user = await requireUser()
+    const assetId = str(fd, 'assetId')
+    const data = recurringCashflowSchema.parse({
+      cashflowType: str(fd, 'cashflowType'),
+      amount:       str(fd, 'amount'),
+      frequency:    str(fd, 'frequency'),
+      startDate:    str(fd, 'startDate'),
+      endDate:      optStr(fd, 'endDate'),
+      notes:        optStr(fd, 'notes'),
+    })
+    await createRecurringCashflow(user.id, assetId, {
+      ...data,
+      endDate: data.frequency === 'once' ? null : (data.endDate ?? null),
+    })
+    redirect(str(fd, 'redirectTo') || `/assets/${assetId}`)
+  } catch (e) {
+    if (isRedirectError(e)) throw e
+    if (e instanceof z.ZodError) return { error: e.issues[0].message }
+    return { error: e instanceof Error ? e.message : 'Onbekende fout' }
+  }
+}
+
+export async function updateRecurringCashflowAction(fd: FormData): Promise<void> {
+  const user = await requireUser()
+  const recurringCashflowId = str(fd, 'recurringCashflowId')
+  if (!recurringCashflowId) throw new Error('Geen periode-ID opgegeven')
+  const data = recurringCashflowSchema.parse({
+    cashflowType: str(fd, 'cashflowType'),
+    amount:       str(fd, 'amount'),
+    frequency:    str(fd, 'frequency'),
+    startDate:    str(fd, 'startDate'),
+    endDate:      optStr(fd, 'endDate'),
+    notes:        optStr(fd, 'notes'),
+  })
+  await updateRecurringCashflow(user.id, recurringCashflowId, {
+    ...data,
+    endDate: data.frequency === 'once' ? null : (data.endDate ?? null),
+  })
+  revalidatePath('/assets/[id]', 'page')
+  revalidatePath('/portfolio/vastgoed/[id]', 'page')
+  revalidatePath('/portfolio/vastgoed')
+}
+
+export async function deleteRecurringCashflowAction(fd: FormData): Promise<void> {
+  const user = await requireUser()
+  const recurringCashflowId = fd.get('recurringCashflowId') as string
+  await deleteRecurringCashflow(user.id, recurringCashflowId)
+  revalidatePath('/assets/[id]', 'page')
+  revalidatePath('/portfolio/vastgoed/[id]', 'page')
+  revalidatePath('/portfolio/vastgoed')
 }

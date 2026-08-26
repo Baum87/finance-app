@@ -215,9 +215,9 @@ function RealEstateSection({ data, propertyType, onPropertyTypeChange }: {
             <option value="vacation">Vakantiewoning</option>
           </select>
         </div>
-        <Field label="Straat en huisnummer" name="street" defaultValue={data?.street ?? ''} placeholder="Keizersgracht 1" />
+        <Field label="Straat en huisnummer" name="street" defaultValue={data?.street ?? ''} placeholder="Keizersgracht 1" required />
         <Field label="Postcode" name="postalCode" defaultValue={data?.postalCode ?? ''} placeholder="1015 CJ" />
-        <Field label="Plaats" name="city" defaultValue={data?.city ?? ''} placeholder="Amsterdam" />
+        <Field label="Plaats" name="city" defaultValue={data?.city ?? ''} placeholder="Amsterdam" required />
         <Field label="Aankoopprijs (€)" name="purchasePrice" defaultValue={data?.purchasePrice ?? ''} placeholder="350000" required />
         <Field label="Aankoopkosten (€)" name="purchaseCosts" defaultValue={data?.purchaseCosts ?? '0'} placeholder="15000" />
         <Field label="Aankoopdatum" name="purchaseDate" type="date" defaultValue={data?.purchaseDate ?? ''} required />
@@ -227,11 +227,15 @@ function RealEstateSection({ data, propertyType, onPropertyTypeChange }: {
       {/* Hypotheek */}
       <div className="space-y-4 pt-4 border-t border-border">
         <p className="text-sm font-medium text-foreground">Hypotheek <span className="text-muted-foreground font-normal">(optioneel)</span></p>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Einddatum is nodig om rente/aflossing per jaar te kunnen berekenen.
+        </p>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Geldverstrekker" name="mortgageLender" defaultValue={mortgage?.lender ?? ''} placeholder="Rabobank" />
           <Field label="Oorspronkelijk bedrag (€)" name="mortgageOriginalAmount" defaultValue={mortgage?.originalAmount ?? ''} placeholder="310000" />
           <Field label="Rente (%)" name="mortgageInterestRate" defaultValue={mortgage?.interestRate ?? ''} placeholder="3.50" />
           <Field label="Startdatum" name="mortgageStartDate" type="date" defaultValue={mortgage?.startDate ?? ''} />
+          <Field label="Einddatum (looptijd)" name="mortgageEndDate" type="date" defaultValue={mortgage?.endDate ?? ''} />
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="mortgageType">Hypotheekvorm</Label>
             <select name="mortgageType" id="mortgageType" defaultValue={mortgage?.mortgageType ?? 'annuity'}
@@ -273,7 +277,7 @@ export function AssetForm({ action, initialData, assetId, lockedType, redirectTo
 
       {/* Basisvelden */}
       <div className="grid grid-cols-2 gap-4">
-        {!isNewStockEtf && (
+        {!isNewStockEtf && assetType !== 'real_estate' && (
           <div className="col-span-2">
             <Field label="Naam" name="name" defaultValue={initialData?.name} placeholder="VWRL ETF" required />
           </div>
@@ -297,7 +301,7 @@ export function AssetForm({ action, initialData, assetId, lockedType, redirectTo
         {(lockedType || initialData) && (
           <input type="hidden" name="assetType" value={assetType} />
         )}
-        {!isNewStockEtf && (
+        {!isNewStockEtf && assetType !== 'real_estate' && (
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="currency">Valuta</Label>
             <select name="currency" id="currency" defaultValue={initialData?.currency ?? 'EUR'}
@@ -309,6 +313,7 @@ export function AssetForm({ action, initialData, assetId, lockedType, redirectTo
             </select>
           </div>
         )}
+        {assetType === 'real_estate' && <input type="hidden" name="currency" value="EUR" />}
       </div>
 
       {/* Type-specifieke velden */}

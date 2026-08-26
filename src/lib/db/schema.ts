@@ -100,6 +100,47 @@ export const assetValuations = pgTable('asset_valuations', {
   check('asset_valuations_value_check', sql`${t.value} >= 0`),
 ])
 
+// WOZ-waarde is bewust een aparte historie, geen extra rij in asset_valuations:
+// het is de gemeentelijke taxatie voor belastingdoeleinden, niet de eigen
+// inschatting van de marktwaarde (die twee lopen vaak uit elkaar). Zelfde
+// "laatste rij = huidige waarde"-patroon als asset_valuations/mortgage_balances.
+export const wozValues = pgTable('woz_values', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  assetId:   uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  wozDate:   date('woz_date').notNull(),
+  value:     numeric('value', { precision: 15, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('woz_values_asset_id_idx').on(t.assetId),
+  check('woz_values_value_check', sql`${t.value} >= 0`),
+])
+
+// ─── recurring_cashflows (doorlopende huur/kosten-periodes bij vastgoed) ────
+// Alternatief voor 12x dezelfde rental_income/cost-transactie los invoeren:
+// 1 rij per periode (vanaf-datum, evt. tot-datum, bedrag per maand). Verandert
+// de huur? Dan krijgt de oude periode een endDate en komt er een nieuwe rij.
+// endDate = null betekent "nog actief". Staat los van `transactions` — telt
+// er in de jaartotalen (huurrendement, cash-on-cash) gewoon bovenop, dus
+// bestaande losse rental_income/cost-transacties hoeven niet gemigreerd.
+// frequency 'once' is voor een eenmalige kostenpost zonder maandelijkse herhaling.
+
+export const recurringCashflows = pgTable('recurring_cashflows', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  assetId:      uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  cashflowType: text('cashflow_type').notNull(),
+  amount:       numeric('amount', { precision: 15, scale: 2 }).notNull(),
+  frequency:    text('frequency').notNull().default('monthly'),
+  startDate:    date('start_date').notNull(),
+  endDate:      date('end_date'),
+  notes:        text('notes'),
+  createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('recurring_cashflows_asset_id_idx').on(t.assetId),
+  check('recurring_cashflows_type_check', sql`${t.cashflowType} IN ('rental_income', 'cost')`),
+  check('recurring_cashflows_frequency_check', sql`${t.frequency} IN ('monthly', 'once')`),
+  check('recurring_cashflows_amount_check', sql`${t.amount} >= 0`),
+])
+
 // ─── simple_entries (eenvoudige invoer: crypto/pensioen/spaarrekening/vastgoed) ─
 // Geen "asset"-entiteit — gewoon een append-only logboek per categorie,
 // getoond als lijst op de betreffende portfolio-pagina. De meest recente rij
@@ -157,20 +198,6 @@ export const savingsEntries = pgTable('savings_entries', {
 }, (t) => [
   index('savings_entries_tenant_id_idx').on(t.tenantId),
   check('savings_entries_balance_check', sql`${t.balance} >= 0`),
-])
-
-export const realEstateEntries = pgTable('real_estate_entries', {
-  id:         uuid('id').primaryKey().defaultRandom(),
-  tenantId:   uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
-  street:     text('street').notNull(),
-  postalCode: text('postal_code').notNull(),
-  city:       text('city').notNull(),
-  wozValue:   numeric('woz_value', { precision: 15, scale: 2 }).notNull(),
-  entryDate:  date('entry_date').notNull(),
-  createdAt:  timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [
-  index('real_estate_entries_tenant_id_idx').on(t.tenantId),
-  check('real_estate_entries_woz_value_check', sql`${t.wozValue} >= 0`),
 ])
 
 // ─── brokers ─────────────────────────────────────────────────────────────────
@@ -460,6 +487,8 @@ export const assetsRelations = relations(assets, ({ one, many }) => ({
   tenant:            one(tenants, { fields: [assets.tenantId], references: [tenants.id] }),
   transactions:      many(transactions),
   valuations:        many(assetValuations),
+  wozValues:         many(wozValues),
+  recurringCashflows: many(recurringCashflows),
   stockEtfDetails:   one(stockEtfDetails,   { fields: [assets.id], references: [stockEtfDetails.assetId] }),
   cryptoDetails:     one(cryptoDetails,      { fields: [assets.id], references: [cryptoDetails.assetId] }),
   savingsDetails:    one(savingsDetails,     { fields: [assets.id], references: [savingsDetails.assetId] }),
@@ -505,6 +534,14 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
 
 export const assetValuationsRelations = relations(assetValuations, ({ one }) => ({
   asset: one(assets, { fields: [assetValuations.assetId], references: [assets.id] }),
+}))
+
+export const wozValuesRelations = relations(wozValues, ({ one }) => ({
+  asset: one(assets, { fields: [wozValues.assetId], references: [assets.id] }),
+}))
+
+export const recurringCashflowsRelations = relations(recurringCashflows, ({ one }) => ({
+  asset: one(assets, { fields: [recurringCashflows.assetId], references: [assets.id] }),
 }))
 
 export const mortgagesRelations = relations(mortgages, ({ one, many }) => ({
