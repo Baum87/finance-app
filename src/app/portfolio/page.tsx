@@ -32,6 +32,21 @@ const CATEGORY_HREFS: Record<string, string> = {
   vordering:   '/portfolio/vorderingen',
 }
 
+// Vast per assettype (§4b) — geen individuele-positie-verfijning, dat vraagt
+// een extra invoerveld over vijf categorieën heen voor weinig extra nut.
+const RISK_LABELS: Record<string, string | null> = {
+  stock_etf:   'Gemiddeld',
+  crypto:      'Volatiel',
+  savings:     'Veilig',
+  real_estate: null,
+  pension:     null,
+  vordering:   null,
+}
+
+function formatUpdatedDate(dateStr: string): string {
+  return new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(dateStr + 'T00:00:00'))
+}
+
 export default async function PortfolioOverviewPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -57,6 +72,15 @@ export default async function PortfolioOverviewPage() {
   // rekenen — daarom hier niet meegenomen i.p.v. een onbetrouwbaar getal tonen.
   const liquidAssetIds = liquidAssets.map(a => a.id)
   const totalLiquidTracked = liquidAssets.reduce((s, a) => s.plus(a.currentValue), new Decimal(0))
+
+  // Ingelegd vs. huidige waarde (C6) — tastbaarder dan een XIRR-percentage,
+  // vaak het eerste dat een adviseur laat zien. Bewust dezelfde scope als
+  // Liquide vermogen/Rendement dit jaar hierboven: bij vastgoed is "ingelegd"
+  // de eigen inbreng ex hypotheek (hefboom), een ander soort getal dan
+  // liquide cash-inleg — samen optellen zou appels met peren mengen.
+  const netDepositLiquid = liquidAssets.reduce((s, a) => s.plus(a.netDeposit), new Decimal(0))
+  const liquidGain = totalLiquidTracked.minus(netDepositLiquid)
+
   let portfolioXirr: Decimal | null = null
 
   if (liquidAssetIds.length > 0 && totalLiquidTracked.gt(0)) {
@@ -102,11 +126,20 @@ export default async function PortfolioOverviewPage() {
     })),
   )
   const chartData = series.map(p => ({ date: p.date, value: p.netWorth.toNumber() }))
+  // §3c: een vlak stuk in de grafiek betekent "geen nieuwe waardering
+  // ingevoerd", niet per se "geen verandering" — dat oogt anders als bug.
+  const lastValuationDate = valuationRows.length > 0 ? valuationRows[valuationRows.length - 1].valuationDate : null
 
   // AllocationChart is een Client Component — Decimal-instanties kunnen niet
   // over de server/client-grens, dus hier al naar plain numbers omzetten.
   const allocationSlices = calculateAllocation(
     categoryTotals.filter(c => c.value.gt(0)).map(c => ({ assetType: c.assetType, value: c.value })),
+  ).map(s => ({ assetType: s.assetType, value: s.value.toNumber(), percentage: s.percentage.toNumber() }))
+
+  // Liquide-only variant (§1c): zodra vastgoed het grootste deel van het
+  // vermogen uitmaakt, zegt de totale allocatie weinig over beleggingskeuzes.
+  const liquidAllocationSlices = calculateAllocation(
+    categoryTotals.filter(c => c.liquid && c.value.gt(0)).map(c => ({ assetType: c.assetType, value: c.value })),
   ).map(s => ({ assetType: s.assetType, value: s.value.toNumber(), percentage: s.percentage.toNumber() }))
 
   return (
@@ -165,25 +198,51 @@ export default async function PortfolioOverviewPage() {
           </p>
         )}
 
+        {/* Ingelegd vs. huidige waarde — liquide posities */}
+        {netDepositLiquid.gt(0) && (
+          <KpiCard
+            label="Ingelegd vs. huidige waarde"
+            value={formatCurrency(totalLiquidTracked.toNumber())}
+            subtext={`${formatCurrency(netDepositLiquid.toNumber())} ingelegd — aandelen, crypto, spaargeld`}
+            trend={{
+              value: `${liquidGain.gte(0) ? '+' : ''}${formatCurrency(liquidGain.toNumber())} (${formatPercent(liquidGain.div(netDepositLiquid).toNumber())})`,
+              positive: liquidGain.gte(0),
+            }}
+          />
+        )}
+
         {/* Vermogensontwikkeling */}
         <NetWorthChart data={chartData} />
+        {lastValuationDate && (
+          <p className="text-xs text-muted-foreground -mt-4">
+            Gebaseerd op handmatig ingevoerde waarderingen — laatste update: {formatUpdatedDate(lastValuationDate)}.
+            Een vlak stuk betekent dat er geen nieuwe waardering is ingevoerd, niet per se dat er niets veranderde.
+          </p>
+        )}
 
         {/* Allocatie */}
-        <AllocationChart slices={allocationSlices} />
+        <AllocationChart slices={allocationSlices} liquidSlices={liquidAllocationSlices} />
 
         {/* Categorieën */}
         <div>
           <h2 className="text-lg font-semibold text-foreground mb-3">Categorieën</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {categoryTotals.map(({ assetType, value, liquid }) => (
+            {categoryTotals.filter(c => c.assetType !== 'pension').map(({ assetType, value, liquid, lastUpdated }) => (
               <Link
                 key={assetType}
                 href={CATEGORY_HREFS[assetType]}
                 className="block bg-card border border-border rounded-3xl p-6 hover:border-sage/50 transition-colors"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <p className="text-sm text-muted-foreground font-medium">{CATEGORY_LABELS[assetType]}</p>
-                  <span className="text-xs text-muted-foreground">{liquid ? 'liquide' : 'illiquide'}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {RISK_LABELS[assetType] && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        {RISK_LABELS[assetType]}
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground">{liquid ? 'liquide' : 'illiquide'}</span>
+                  </div>
                 </div>
                 <p className="mt-1 text-2xl font-semibold text-foreground">
                   {value.gt(0) ? formatCurrency(value.toNumber()) : '—'}
@@ -193,10 +252,41 @@ export default async function PortfolioOverviewPage() {
                     ? `${value.div(totalValue).mul(100).toDecimalPlaces(1)}% van portfolio`
                     : 'Nog niets geregistreerd'}
                 </p>
+                {lastUpdated && (
+                  <p className="mt-1 text-xs text-muted-foreground/70">Bijgewerkt: {formatUpdatedDate(lastUpdated)}</p>
+                )}
               </Link>
             ))}
           </div>
         </div>
+
+        {/* Pensioen — apart van de categorieën hierboven (§4d): opgebouwde
+            aanspraak, niet vrij opneembaar vermogen, dus geen appels-met-
+            peren-vergelijking met liquide/vastgoed-posities. */}
+        {(() => {
+          const pensionTotal = categoryTotals.find(c => c.assetType === 'pension')
+          if (!pensionTotal) return null
+          return (
+            <Link
+              href={CATEGORY_HREFS.pension}
+              className="block bg-card border border-border rounded-3xl p-6 hover:border-sage/50 transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground font-medium">Pensioen</p>
+                <span className="text-xs text-muted-foreground">niet vrij vermogen</span>
+              </div>
+              <p className="mt-1 text-2xl font-semibold text-foreground">
+                {pensionTotal.value.gt(0) ? formatCurrency(pensionTotal.value.toNumber()) : '—'}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Opgebouwde aanspraak — telt mee in totale portfoliowaarde, maar niet vrij opneembaar
+              </p>
+              {pensionTotal.lastUpdated && (
+                <p className="mt-1 text-xs text-muted-foreground/70">Bijgewerkt: {formatUpdatedDate(pensionTotal.lastUpdated)}</p>
+              )}
+            </Link>
+          )
+        })()}
 
       </main>
     </>

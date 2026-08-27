@@ -2,17 +2,19 @@ import Decimal from 'decimal.js'
 import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getPassiveIncomeData } from '@/lib/db/queries/cashflow'
-import { getRecurringItems } from '@/lib/db/queries/recurring-items'
+import { getRecurringItems, getRecurringItemsWithHistory } from '@/lib/db/queries/recurring-items'
 import { getOneTimeExpenses } from '@/lib/db/queries/one-time-expenses'
 import { getSavingsEntries, latestPerGroup } from '@/lib/db/queries/simple-entries'
 import {
   calculateRecurringTotals, calculateOneTimeExpensesTotal,
   calculateSavingsRate, calculateBufferMonths, classifyBufferMonths, calculatePassiveIncomeCoverage,
+  buildMonthlyCashflowSeries, lastNMonths,
 } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { PassiveIncomeBreakdown } from '@/components/cashflow/PassiveIncomeBreakdown'
+import { MonthlyCashflowChart } from '@/components/cashflow/MonthlyCashflowChart'
 
 function toDateStr(date: Date): string {
   return date.toISOString().slice(0, 10)
@@ -28,9 +30,10 @@ export default async function CashflowOverviewPage() {
   const ytdFrom = `${currentYear}-01-01`
   const todayStr = toDateStr(today)
 
-  const [txData, recurringItemRows, oneTimeExpenseRows, savingsEntries] = await Promise.all([
+  const [txData, recurringItemRows, recurringItemHistoryRows, oneTimeExpenseRows, savingsEntries] = await Promise.all([
     getPassiveIncomeData(userId, ytdFrom, todayStr),
     getRecurringItems(userId),
+    getRecurringItemsWithHistory(userId),
     getOneTimeExpenses(userId),
     getSavingsEntries(userId),
   ])
@@ -62,6 +65,19 @@ export default async function CashflowOverviewPage() {
     })),
   )
   const netCashflowInclOneTime = recurringTotals.netAnnualCashflow.minus(oneTimeExpensesThisYear)
+
+  // Cashflow-trend — laatste 12 maanden, reconstrueert per maand welk bedrag
+  // toen gold uit de bedraghistorie (zie buildMonthlyCashflowSeries).
+  const monthlyCashflowSeries = buildMonthlyCashflowSeries(
+    recurringItemHistoryRows.map(r => ({
+      itemType:  r.itemType as 'income' | 'expense',
+      frequency: r.frequency as 'monthly' | 'four_weekly' | 'quarterly' | 'yearly',
+      isShared:  r.isShared,
+      amounts:   r.amounts,
+    })),
+    oneTimeExpenseRows.map(e => ({ amount: e.amount, expenseDate: e.expenseDate, isShared: e.isShared })),
+    lastNMonths(12, today),
+  ).map(p => ({ month: p.month, income: p.income.toNumber(), expenses: p.expenses.toNumber(), net: p.net.toNumber() }))
 
   // Passief inkomen YTD
   const dividend  = txData.filter(t => t.transactionType === 'dividend').reduce((s, t) => s.plus(t.amount), new Decimal(0))
@@ -186,6 +202,9 @@ export default async function CashflowOverviewPage() {
             }}
           />
         </div>
+
+        {/* Cashflow-trend */}
+        <MonthlyCashflowChart data={monthlyCashflowSeries} />
 
         {/* Eenmalige uitgaven */}
         <div className="flex items-center justify-between">

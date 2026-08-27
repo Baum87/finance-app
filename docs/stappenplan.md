@@ -1,6 +1,8 @@
 # Stappenplan — Financiële overzichten
 
-**Status:** deel A afgerond en getest, deel C: C1-C2 afgerond, C3 volgende
+**Status:** deel A afgerond en getest, deel C: C1-C9 afgerond. C10 is
+bewust niet nu opgepakt (expliciet Sprint 4, zie hieronder) — daarmee is dit
+document verder inhoudelijk afgerond.
 **Secties:** `/`, `/cashflow`, `/portfolio` en alle subpagina's daaronder
 **Leidraad:** het perspectief van een financieel adviseur voor particulieren.
 [`financial-expert.md`](financial-expert.md) blijft het inhoudelijke
@@ -179,73 +181,90 @@ functies nodig — puur ontsluiting van bestaande data.
 
 ---
 
-### [ ] C3. Portfolio — liquide-only allocatieweergave
+### [x] C3. Portfolio — liquide-only allocatieweergave
 
-**Probleem** (`financial-expert.md` §1c): de huidige `AllocationChart`
-toont totale vermogensallocatie incl. vastgoed en pensioen. Zodra vastgoed
-90%+ van het vermogen uitmaakt (niet ongebruikelijk bij een eigen woning),
-zegt die grafiek vrijwel niets over beleggingskeuzes.
+**Status: gebouwd.** `AllocationChart` toonde alleen totale vermogens-
+allocatie incl. vastgoed en pensioen — zodra vastgoed 90%+ van het vermogen
+uitmaakt (niet ongebruikelijk bij een eigen woning), zegt die grafiek
+vrijwel niets over beleggingskeuzes (`financial-expert.md` §1c).
 
-**Actie:** een tweede allocatieweergave — alleen liquide categorieën
-(`stock_etf`/`crypto`/`savings`). `getPortfolioCategoryTotals` heeft al een
-`liquid`-boolean per categorie; dit is puur filteren van bestaande data
-(`categoryTotals.filter(c => c.liquid)`) vóór `calculateAllocation`.
+Toggle boven de grafiek ("Totaal" / "Liquide", zelfde tab-stijl als de
+Aankoop/Verkoop-tabs bij transacties) i.p.v. twee grafieken naast elkaar —
+gekozen om de toch al dichte Portfolio-pagina niet drukker te maken
+(designsysteem: max 2 kleuren, geen overladen UI). Toggle verschijnt alleen
+als de liquide selectie daadwerkelijk minder categorieën bevat dan het
+totaal — bij een puur liquide portfolio is er niets te schakelen.
 
-**Open vraag:** toggle tussen twee weergaves, of twee grafieken naast
-elkaar? Past bij het designsysteem (max 2 kleuren, geen overladen UI) —
-ter besluitvorming bij start van dit punt.
-
----
-
-### [ ] C4. Asset-koppeling vervolg — pensioen-XIRR uitsluiten
-
-Volgt direct op C2: zodra pensioen ook via het asset-systeem gekoppeld kan
-worden, moet XIRR daar bewust **niet** getoond worden. Pensioen is
-fundamenteel anders (`financial-expert.md` §4d): niet vrij opneembaar,
-waarde is een contante-waarde-inschatting — een XIRR erop geeft een vals
-gevoel van precisie. Kleine voorwaarde toevoegen op de plek waar XIRR per
-asset getoond wordt (`/assets/[id]`), niet in `lib/finance` zelf — de
-berekening blijft generiek correct, alleen de weergave verandert voor dit
-ene `assetType`.
+`src/app/portfolio/page.tsx` berekent nu twee slice-sets
+(`allocationSlices`/`liquidAllocationSlices`, beide via
+`getPortfolioCategoryTotals` + `calculateAllocation`, filter op `c.liquid`
+voor de tweede) en geeft ze als `slices`/`liquidSlices` mee aan
+`AllocationChart`, die zelf de actieve view bijhoudt (`useState`). Geen
+nieuwe `lib/finance`-functie nodig — puur filteren van bestaande data.
+`tsc`/`eslint`/Vitest (208/208) groen.
 
 ---
 
-### [ ] C5. Vastgoed-detailpagina — hefboom-disclaimer + periode
+### [x] C4. Asset-koppeling vervolg — pensioen-XIRR uitsluiten
 
-Twee kleine tekstcorrecties op `/portfolio/vastgoed/[id]`, logisch om mee
-te nemen zodra C2 die pagina toch aanraakt:
+**Status: bleek al opgelost, geen code nodig.** Het idee was een
+voorwaarde toe te voegen op `/assets/[id]` om XIRR te verbergen voor
+`assetType === 'pension'` (`financial-expert.md` §4d: pensioen is niet
+vrij opneembaar, een XIRR erop geeft een vals gevoel van precisie).
 
-- **Hefboom-disclaimer** (`financial-expert.md` §2d): LTV en cash-on-cash
-  staan al terecht naast elkaar, maar de toelichtende tekst zelf ontbreekt
-  nog — *"Cash-on-cash is hoog door de hypotheekfinanciering, dit vergroot
-  zowel winst als verlies."*
-- **Periode bij huurrendement:** bruto/netto huurrendement tonen geen
-  periode-aanduiding ("dit jaar"), vergelijkbaar met C1's XIRR-periode-fix.
-  `currentYearStart` is al beschikbaar in de code.
-
----
-
-### [ ] C6. Portfolio — netto inleg vs. huidige waarde KPI
-
-**Wat:** "Je hebt €X ingelegd, dit is nu €Y waard" op de hoofd-
-portfoliopagina — tastbaarder voor een particulier dan een XIRR-
-percentage; een adviseur laat dit vaak eerst zien.
-
-**Formule:** `calculateNetDeposit` bestaat al in `src/lib/finance/` — nu
-alleen per-asset gebruikt, hier nieuw: optellen over alle liquide posities.
-Zelfde scope als de bestaande XIRR-KPI (alleen liquide — anders mengt
-vastgoed-hefboom er ongemerkt doorheen, zie C5).
-
-**Open vraag:** scope beperken tot liquide posities, of ook vastgoed/
-pensioen meenemen met een aparte hefboom-disclaimer?
-
-**Context:** dit bestaat al op categorie-niveau (aandelen-etf/crypto/
-pensioen tonen dit al met een `InvestedVsValueChart`, zie C2) — hier gaat
-het om de samengevatte versie op de hoofdpagina.
+Gecontroleerd bij de start van dit punt: `/portfolio/pensioen/[id]` (de
+specialized detailpagina die tijdens C2 werd gebouwd) toont sowieso al
+nooit XIRR — alleen "Opgebouwde waarde" en "Verwachte jaaruitkering". En
+`/assets/[id]` stuurt elke `pension`-asset sinds de C2-fix altijd door naar
+die specialized pagina, dus de generieke XIRR-weergave wordt voor pensioen
+nooit meer bereikt. `getAssetWithCalculations` berekent XIRR nog wel voor
+elke asset (inclusief pensioen, onschuldig — puur ongebruikte data), maar
+dat wordt nergens getoond. `AssetPositionsCard` (de lijstpagina) toont ook
+geen XIRR, alleen naam en waarde. Geen wijziging nodig.
 
 ---
 
-### [x] C7 (deels). Lot van de simple-entry-lijst — vastgoed
+### [x] C5. Vastgoed-detailpagina — hefboom-disclaimer + periode
+
+**Status: gebouwd.** Twee kleine tekstcorrecties op `/portfolio/vastgoed/[id]`:
+
+- **Periode bij huurrendement — bleek al gebouwd**, als bijvangst van de
+  eerdere "laatste jaar mét data"-fix (zie C7-vervolgcorrecties):
+  bruto/netto huurrendement en cash-on-cash tonen al `rentalDataYear` in de
+  subtext ("Jaarinkomen 2024 / pandwaarde" e.d.). Geen actie nodig.
+- **Hefboom-disclaimer** (`financial-expert.md` §2d) — toegevoegd: *"Cash-
+  on-cash is hoog door de hypotheekfinanciering — dit vergroot zowel winst
+  als verlies."* Alleen zichtbaar als er zowel een cash-on-cash-cijfer als
+  daadwerkelijk hypotheekschuld is (anders is er geen hefboom om voor te
+  waarschuwen). `tsc`/`eslint` groen.
+
+---
+
+### [x] C6. Portfolio — netto inleg vs. huidige waarde KPI
+
+**Status: gebouwd.** Nieuwe KPI-kaart "Ingelegd vs. huidige waarde" op
+`/portfolio`, onder de bestaande 4-KPI-rij en de XIRR/TWR-disclaimer —
+tastbaarder voor een particulier dan een XIRR-percentage; een adviseur laat
+dit vaak eerst zien. Waarde toont de huidige waarde (primair getal, zoals
+de andere KPI's op deze pagina), subtext toont het ingelegde bedrag, trend
+toont het verschil in € en % (sage bij winst, terracotta bij verlies).
+
+**Scope-besluit (met de gebruiker afgestemd):** alleen liquide posities
+(aandelen/crypto/spaargeld) — consistent met "Liquide vermogen" en
+"Rendement dit jaar", die op dezelfde pagina al liquide-only zijn. Bij
+vastgoed is "ingelegd" de eigen inbreng ex hypotheek (hefboom), een ander
+soort getal dan liquide cash-inleg — samen optellen zou appels met peren
+mengen (zelfde reden waarom portfolio-XIRR al liquide-only was).
+
+**Bouw:** `calculateNetDeposit` bestond al (per-asset, in `getLiquidAssets-
+WithCalculations`) — hier alleen opgeteld over alle liquide posities
+(`liquidAssets.reduce(...)`), samen met de al-bestaande `totalLiquidTracked`
+voor de huidige waarde. Geen nieuwe `lib/finance`-functie nodig.
+`tsc`/`eslint`/Vitest (208/208) groen.
+
+---
+
+### [x] C7. Lot van de simple-entry-lijst — vastgoed + de overige vier
 
 **Status: vastgoed opgelost, met echt gebruik ervoor in de hand — de
 voorkeursoptie uit dit plan bleek achteraf de verkeerde.** Bij het eerste
@@ -443,53 +462,87 @@ Uitgevoerd:
   rental_income/cost niet). `tsc`/`eslint`/Vitest (208/208, +13 nieuwe tests)
   groen.
 
-**Nog openstaand — aandelen-etf/crypto/spaarrekeningen/pensioen:** hier
-ligt uitfaseren nog steeds niet voor de hand, want de simple-entry-pagina's
-bieden al reëel inzicht (ingelegd/waarde/winst-verlies + grafiek) dat het
-volle systeem niet vervangt zonder meer moeite (aankoopprijs/-datum
-verplicht). Voorstel ongewijzigd: beide laten bestaan, met UX-tekst die
-duidt wanneer welke te gebruiken.
+**Aandelen-etf/crypto/spaarrekeningen/pensioen — status: opgelost, geen
+uitfasering.** Hier ligt uitfaseren nog steeds niet voor de hand, want de
+simple-entry-pagina's bieden al reëel inzicht (ingelegd/waarde/winst-verlies
++ grafiek) dat het volle systeem niet vervangt zonder meer moeite
+(aankoopprijs/-datum verplicht). Besluit: beide laten bestaan. De
+ontbrekende UX-tekst ("wanneer welke te gebruiken") is nu toegevoegd: één
+regel direct boven het eenvoudige invoerformulier op alle vier pagina's,
+per categorie toegespitst op wat het volle systeem daar extra biedt (XIRR +
+dividend bij aandelen, alleen XIRR bij crypto, rente-tracking bij sparen,
+niets rendementsmatigs bij pensioen — sluit aan bij de al bestaande
+`description`-tekst op de `AssetPositionsCard` erboven, die het volle
+systeem toelicht). `tsc`/`eslint`/Vitest (208/208) groen.
 
 ---
 
-### [ ] C8. Portfolio — risicobadges, pensioen apart tonen, data-versheid
+### [x] C8. Portfolio — risicobadges, pensioen apart tonen, data-versheid
 
-Drie punten uit `financial-expert.md` die meer ontwerpwerk vragen dan de
-rest van dit document — bewust laat gepland:
+**Status: gebouwd**, alle drie punten uit `financial-expert.md` op
+`/portfolio`:
 
-- **Risicoprofiel-badges** (§4b): crypto en spaargeld staan nu in dezelfde
-  categorie-tegels zonder risicosignaal. Klein label per tegel (veilig/
-  gemiddeld/volatiel), vaste mapping per `assetType`, geen berekening.
-- **Pensioen apart tonen** (§4d): nu stilzwijgend meegeteld in KPI's en
-  allocatie. Voorstel: losse regel/kaart "Pensioen (opgebouwde aanspraak,
-  niet vrij vermogen)" buiten de hoofd-KPI's.
-- **Data-versheid indicator** (§3c): schaars bijgewerkte waarderingen ogen
-  als een bug (platte lijn met sprong) i.p.v. een databeperking. Voorstel:
-  "laatste update"-indicator per categorie-tegel + visuele hint in
-  `NetWorthChart` voor periodes zonder nieuwe waardering.
+- **Risicoprofiel-badges** (§4b) — vast per `assetType` (met de gebruiker
+  afgestemd, niet per individuele positie: geen extra invoerveld nodig).
+  `RISK_LABELS`-mapping: Aandelen & ETF = "Gemiddeld", Crypto = "Volatiel",
+  Sparen = "Veilig", vastgoed/pensioen/vorderingen = geen badge (n.v.t.,
+  geen markt-risicoprofiel in die zin). Kleine pill naast de bestaande
+  liquide/illiquide-tag op elke categorie-tegel.
+- **Pensioen apart tonen** (§4d) — uit de "Categorieën"-grid gehaald, eigen
+  kaart eronder met label "niet vrij vermogen" en subtext "Opgebouwde
+  aanspraak — telt mee in totale portfoliowaarde, maar niet vrij
+  opneembaar". KPI-totalen zelf ongewijzigd (Totale portfoliowaarde hoort
+  pensioen terecht mee te tellen; Liquide vermogen sloot het al uit) —
+  puur een visuele scheiding, geen rekenkundige.
+- **Data-versheid indicator** (§3c) — nieuw veld `lastUpdated` op
+  `getPortfolioCategoryTotals` (portfolio-summary.ts): meest recente
+  simple-entry-datum plus, voor waarderings-gedreven categorieën
+  (vastgoed/pensioen), de meest recente asset-waardering. Bewust **niet**
+  berekend voor aandelen-etf/crypto/sparen-als-asset (live koers resp.
+  transactie-som, per definitie altijd actueel — alleen de handmatige
+  invoerpaden kunnen verouderen). Getoond als "Bijgewerkt: {datum}" op elke
+  tegel. Ook een korte toelichting onder de vermogensgrafiek (laatste
+  waarderingsdatum + uitleg dat een vlak stuk "geen nieuwe invoer" betekent,
+  niet "geen verandering").
+  **Bewust niet gebouwd:** per-punt visuele hint ín `NetWorthChart` zelf
+  (bijv. gestippelde lijn voor periodes zonder nieuwe waardering) — vereist
+  wijzigingen dieper in de chart-rendering voor beperkte meerwaarde bovenop
+  de tekstuele toelichting die er nu al staat.
 
-**Open vraag:** risicobadge-labels vast per `assetType`, of per individuele
-positie configureerbaar?
+`tsc`/`eslint`/Vitest (208/208) groen.
 
 ---
 
-### [ ] C9. Cashflow-trendgrafiek
+### [x] C9. Cashflow-trendgrafiek
 
-**Wat:** grafiek met inkomen vs. uitgaven per maand (laatste 12 mnd) op
-`/cashflow`, i.p.v. alleen huidig-moment-KPI's — laat seizoenspatronen en
-verbetering/verslechtering zien.
+**Status: gebouwd.** Grafiek met inkomen vs. uitgaven per maand (laatste 12
+mnd) op `/cashflow`, i.p.v. alleen huidig-moment-KPI's — laat
+seizoenspatronen en verbetering/verslechtering zien.
 
-**Waarom laatste:** zwaarste losse item van heel dit document. Vereist
-maandelijkse aggregatie van `recurring_item_amounts`-historie (bestaat al,
-zie [`feature-vaste-lasten-geschiedenis.md`](feature-vaste-lasten-geschiedenis.md))
-plus eenmalige uitgaven per maand. Geen bestaande series-functie dekt dit
-volledig — `buildSimpleEntryMonthlySeries` is het dichtstbijzijnde patroon
-maar gebouwd voor asset-waardes, niet inkomen/uitgaven-paren.
+**Bouw:**
+- Nieuwe query `getRecurringItemsWithHistory` (`recurring-items.ts`) —
+  zelfde als `getRecurringItems` maar met de volledige bedraghistorie i.p.v.
+  ingekort tot het huidige bedrag.
+- Nieuwe pure functie `buildMonthlyCashflowSeries` +
+  `lastNMonths`-hulpfunctie (`src/lib/finance/monthly-cashflow-series.ts`,
+  11 tests). Reconstrueert per maand welk bedrag toen gold (laatste
+  `effectiveDate` op of vóór die maand, per vast-lasten-item), plus
+  eenmalige uitgaven in hun eigen maand — beide met `isShared`-halvering.
+  Item bestond nog niet in een maand? Telt dan niet mee.
+  **Vereenvoudiging (bewust, zelfde als elders):** gebruikt de huidige
+  `isActive`-status van elk item voor alle 12 maanden — er is geen
+  historie van wanneer een item precies is geactiveerd/gedeactiveerd, dus
+  een recent verwijderde vaste last verdwijnt met terugwerkende kracht uit
+  de hele grafiek i.p.v. alleen vanaf het moment van verwijderen.
+- Nieuw grafiekcomponent `MonthlyCashflowChart` (`components/cashflow/`) —
+  gegroepeerde balken (sage inkomen, blauw `#7B92B2` uitgaven) + een
+  neutrale netto-lijn waarvan alleen de stippen in tekort-maanden
+  terracotta kleuren (designsysteem: terracotta blijft gereserveerd voor
+  het negatieve geval, niet de lijn als geheel).
+- Geplaatst op `/cashflow` tussen de "Vaste lasten & inkomsten"-KPI's en
+  "Eenmalige uitgaven" (combineert beide, dus logisch ertussenin).
 
-**Bouw:** nieuwe query + nieuwe pure functie (`monthly-cashflow-series.ts`)
-+ nieuw grafiekcomponent. Kleuren conform designsysteem: sage voor inkomen,
-blauw `#7B92B2` voor uitgaven, terracotta gereserveerd voor negatieve
-cashflow-maanden.
+`tsc`/`eslint`/Vitest (219/219, +11 nieuwe tests) groen.
 
 ---
 
@@ -510,8 +563,10 @@ Voor snel overzicht, dezelfde vragen als hierboven per punt:
       `real_estate` — gebouwd
 - [x] C2: gedeeld component voor asset-posities over vijf pagina's —
       gebouwd (`AssetPositionsCard`)
-- [ ] C3: toggle vs. twee-naast-elkaar voor dubbele allocatieweergave?
-- [ ] C6: netto-inleg-KPI scope — alleen liquide, of ook vastgoed/pensioen
-      met disclaimer?
-- [ ] C7: UX-tekst voor wanneer simple-entry vs. vol asset te gebruiken
-- [ ] C8: risicobadge-labels vast per `assetType`, of per positie?
+- [x] C3: toggle vs. twee-naast-elkaar voor dubbele allocatieweergave —
+      toggle gebouwd
+- [x] C6: netto-inleg-KPI scope — alleen liquide, gebouwd
+- [x] C7: UX-tekst voor wanneer simple-entry vs. vol asset te gebruiken —
+      gebouwd
+- [x] C8: risicobadge-labels vast per `assetType`, of per positie — vast
+      per `assetType`, gebouwd

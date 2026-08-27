@@ -85,6 +85,11 @@ export default async function PensioenPage() {
           backTo="/portfolio/pensioen"
         />
 
+        <p className="text-xs text-muted-foreground -mb-2">
+          Snel bijhouden zonder aparte stortingen? Gebruik de lijst hieronder — alleen ingelegd bedrag
+          en huidige waarde.
+        </p>
+
         <EntryLogForm
           action={createPensionEntryAction}
           fields={[

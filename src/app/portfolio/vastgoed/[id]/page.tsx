@@ -319,6 +319,12 @@ export default async function VastgoedDetailPage({ params }: { params: Promise<{
               />
             </div>
 
+            {cashOnCash && totaleHypotheek.gt(0) && (
+              <p className="text-xs text-muted-foreground -mt-2">
+                Cash-on-cash is hoog door de hypotheekfinanciering — dit vergroot zowel winst als verlies.
+              </p>
+            )}
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <KpiCard
                 label="Marktwaarde"

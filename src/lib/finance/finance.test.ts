@@ -31,6 +31,8 @@ import { calculateMortgageAmortizationForYear } from './mortgage-amortization'
 import type { MortgageTerms } from './mortgage-amortization'
 import { calculateRentalPeriodCashflowForYear } from './rental-period-cashflow'
 import type { RentalPeriodInput } from './rental-period-cashflow'
+import { buildMonthlyCashflowSeries, lastNMonths } from './monthly-cashflow-series'
+import type { RecurringItemHistoryInput, OneTimeExpenseInput as MonthlyOneTimeExpenseInput } from './monthly-cashflow-series'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1028,5 +1030,102 @@ describe('calculateRentalPeriodCashflowForYear', () => {
       { cashflowType: 'rental_income', amount: d(100), frequency: 'weekly' as RentalPeriodInput['frequency'], startDate: '2024-01-01', endDate: null },
     ]
     expect(() => calculateRentalPeriodCashflowForYear(periods, 2024)).toThrow()
+  })
+})
+
+// ─── lastNMonths / buildMonthlyCashflowSeries ────────────────────────────────
+
+describe('lastNMonths', () => {
+  it('returns n months ending at asOf, oldest first', () => {
+    const months = lastNMonths(3, new Date(2024, 2, 15)) // 15 maart 2024
+    expect(months).toEqual(['2024-01', '2024-02', '2024-03'])
+  })
+
+  it('handles a year boundary', () => {
+    const months = lastNMonths(3, new Date(2024, 0, 10)) // 10 januari 2024
+    expect(months).toEqual(['2023-11', '2023-12', '2024-01'])
+  })
+})
+
+describe('buildMonthlyCashflowSeries', () => {
+  const months3 = ['2024-01', '2024-02', '2024-03']
+
+  it('applies a flat monthly income item across all months', () => {
+    const items: RecurringItemHistoryInput[] = [
+      { itemType: 'income', frequency: 'monthly', isShared: false, amounts: [{ amount: d(3000).toString(), effectiveDate: '2023-01-01' }] },
+    ]
+    const result = buildMonthlyCashflowSeries(items, [], months3)
+    for (const point of result) {
+      expect(point.income.toNumber()).toBe(3000)
+      expect(point.expenses.toNumber()).toBe(0)
+    }
+  })
+
+  it('uses the amount that was effective in each month when it changes mid-range', () => {
+    const items: RecurringItemHistoryInput[] = [
+      {
+        itemType: 'expense', frequency: 'monthly', isShared: false,
+        amounts: [
+          { amount: d(100).toString(), effectiveDate: '2023-06-01' },
+          { amount: d(120).toString(), effectiveDate: '2024-02-01' },
+        ],
+      },
+    ]
+    const result = buildMonthlyCashflowSeries(items, [], months3)
+    expect(result.find(p => p.month === '2024-01')!.expenses.toNumber()).toBe(100)
+    expect(result.find(p => p.month === '2024-02')!.expenses.toNumber()).toBe(120)
+    expect(result.find(p => p.month === '2024-03')!.expenses.toNumber()).toBe(120)
+  })
+
+  it('contributes nothing for months before the item existed', () => {
+    const items: RecurringItemHistoryInput[] = [
+      { itemType: 'income', frequency: 'monthly', isShared: false, amounts: [{ amount: d(500).toString(), effectiveDate: '2024-02-15' }] },
+    ]
+    const result = buildMonthlyCashflowSeries(items, [], months3)
+    expect(result.find(p => p.month === '2024-01')!.income.toNumber()).toBe(0)
+    expect(result.find(p => p.month === '2024-02')!.income.toNumber()).toBe(500)
+    expect(result.find(p => p.month === '2024-03')!.income.toNumber()).toBe(500)
+  })
+
+  it('halves a shared recurring item', () => {
+    const items: RecurringItemHistoryInput[] = [
+      { itemType: 'expense', frequency: 'monthly', isShared: true, amounts: [{ amount: d(200).toString(), effectiveDate: '2023-01-01' }] },
+    ]
+    const result = buildMonthlyCashflowSeries(items, [], months3)
+    expect(result[0].expenses.toNumber()).toBe(100)
+  })
+
+  it('adds one-time expenses only in their own month, halved when shared', () => {
+    const expenses: MonthlyOneTimeExpenseInput[] = [
+      { amount: d(1000).toString(), expenseDate: '2024-02-10', isShared: false },
+      { amount: d(400).toString(), expenseDate: '2024-02-20', isShared: true },
+    ]
+    const result = buildMonthlyCashflowSeries([], expenses, months3)
+    expect(result.find(p => p.month === '2024-01')!.expenses.toNumber()).toBe(0)
+    expect(result.find(p => p.month === '2024-02')!.expenses.toNumber()).toBe(1200)
+    expect(result.find(p => p.month === '2024-03')!.expenses.toNumber()).toBe(0)
+  })
+
+  it('computes net as income minus expenses', () => {
+    const items: RecurringItemHistoryInput[] = [
+      { itemType: 'income', frequency: 'monthly', isShared: false, amounts: [{ amount: d(3000).toString(), effectiveDate: '2023-01-01' }] },
+      { itemType: 'expense', frequency: 'monthly', isShared: false, amounts: [{ amount: d(3500).toString(), effectiveDate: '2023-01-01' }] },
+    ]
+    const result = buildMonthlyCashflowSeries(items, [], ['2024-01'])
+    expect(result[0].net.toNumber()).toBe(-500)
+  })
+
+  it('throws on an unknown itemType', () => {
+    const items: RecurringItemHistoryInput[] = [
+      { itemType: 'savings' as RecurringItemHistoryInput['itemType'], frequency: 'monthly', isShared: false, amounts: [{ amount: d(100).toString(), effectiveDate: '2023-01-01' }] },
+    ]
+    expect(() => buildMonthlyCashflowSeries(items, [], ['2024-01'])).toThrow()
+  })
+
+  it('throws on an unknown frequency', () => {
+    const items: RecurringItemHistoryInput[] = [
+      { itemType: 'income', frequency: 'weekly' as RecurringItemHistoryInput['frequency'], isShared: false, amounts: [{ amount: d(100).toString(), effectiveDate: '2023-01-01' }] },
+    ]
+    expect(() => buildMonthlyCashflowSeries(items, [], ['2024-01'])).toThrow()
   })
 })

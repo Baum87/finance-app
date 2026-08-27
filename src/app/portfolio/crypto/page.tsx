@@ -85,6 +85,11 @@ export default async function CryptoPage() {
           backTo="/portfolio/crypto"
         />
 
+        <p className="text-xs text-muted-foreground -mb-2">
+          Snel bijhouden zonder aparte koop-/verkooptransacties? Gebruik de lijst hieronder — alleen
+          ingelegd bedrag en huidige waarde, zonder rendement (XIRR).
+        </p>
+
         <EntryLogForm
           action={createCryptoEntryAction}
           fields={[

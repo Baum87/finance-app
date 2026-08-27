@@ -48,6 +48,38 @@ export async function getRecurringItems(userId: string) {
 
 export type RecurringItem = Awaited<ReturnType<typeof getRecurringItems>>[number]
 
+/**
+ * Actieve vaste lasten & inkomsten met hun volledige bedraghistorie (niet
+ * ingekort tot het huidige bedrag) — nodig om per maand terug te rekenen
+ * welk bedrag toen gold, zie `buildMonthlyCashflowSeries` in lib/finance.
+ */
+export async function getRecurringItemsWithHistory(userId: string) {
+  const tenantId = await getOrCreateTenant(userId)
+
+  const items = await db
+    .select()
+    .from(recurringItems)
+    .where(and(eq(recurringItems.tenantId, tenantId), eq(recurringItems.isActive, true)))
+    .orderBy(desc(recurringItems.createdAt))
+
+  if (items.length === 0) return []
+
+  const amounts = await db
+    .select()
+    .from(recurringItemAmounts)
+    .where(inArray(recurringItemAmounts.recurringItemId, items.map(i => i.id)))
+    .orderBy(desc(recurringItemAmounts.effectiveDate), desc(recurringItemAmounts.createdAt))
+
+  const amountsByItem = new Map<string, { amount: string; effectiveDate: string }[]>()
+  for (const a of amounts) {
+    const list = amountsByItem.get(a.recurringItemId) ?? []
+    list.push({ amount: a.amount, effectiveDate: a.effectiveDate })
+    amountsByItem.set(a.recurringItemId, list)
+  }
+
+  return items.map(item => ({ ...item, amounts: amountsByItem.get(item.id) ?? [] }))
+}
+
 export async function createRecurringItem(userId: string, data: RecurringItemInput) {
   const tenantId = await getOrCreateTenant(userId)
   const [item] = await db

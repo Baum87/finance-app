@@ -85,6 +85,11 @@ export default async function SpaarrekeningenPage() {
           backTo="/portfolio/spaarrekeningen"
         />
 
+        <p className="text-xs text-muted-foreground -mb-2">
+          Snel bijhouden zonder aparte stortingen/opnames/rente? Gebruik de lijst hieronder — alleen
+          het saldo per peildatum.
+        </p>
+
         <EntryLogForm
           action={createSavingsEntryAction}
           fields={[

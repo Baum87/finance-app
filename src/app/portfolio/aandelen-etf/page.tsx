@@ -85,6 +85,11 @@ export default async function AandelenEtfPage() {
           backTo="/portfolio/aandelen-etf"
         />
 
+        <p className="text-xs text-muted-foreground -mb-2">
+          Snel bijhouden zonder aparte koop-/verkooptransacties? Gebruik de lijst hieronder — alleen
+          ingelegd bedrag en huidige waarde, zonder rendement (XIRR) of dividendtracking.
+        </p>
+
         <EntryLogForm
           action={createStockEtfEntryAction}
           fields={[
