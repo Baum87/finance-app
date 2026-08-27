@@ -1,8 +1,7 @@
 # Stappenplan — Financiële overzichten
 
-**Status:** deel A afgerond en getest, deel C: C1-C9 afgerond. C10 is
-bewust niet nu opgepakt (expliciet Sprint 4, zie hieronder) — daarmee is dit
-document verder inhoudelijk afgerond.
+**Status:** deel A en deel C (C1-C10) volledig afgerond en getest — dit
+document is inhoudelijk klaar.
 **Secties:** `/`, `/cashflow`, `/portfolio` en alle subpagina's daaronder
 **Leidraad:** het perspectief van een financieel adviseur voor particulieren.
 [`financial-expert.md`](financial-expert.md) blijft het inhoudelijke
@@ -546,12 +545,61 @@ seizoenspatronen en verbetering/verslechtering zien.
 
 ---
 
-### [ ] C10. Startpagina — Actief doel / FI-voortgang
+### [x] C10. Startpagina — Actief doel / FI-voortgang
 
-**Niet nu, expliciet Sprint 4.** Zodra het doelen-datamodel wordt opgepakt,
-is het "Actief doel"-blok (nu placeholder) de natuurlijke plek voor "hoe
-dicht bij financiële onafhankelijkheid" — zie Deel B. Bewust als laatste
-punt in dit document, geen onderdeel van de huidige bouwvolgorde.
+**Status: gebouwd (Sprint 4 opgepakt).** Het "Actief doel"-blok op `/` was
+een uitgeschakelde placeholder ("Beschikbaar in Sprint 4"); nu een echt
+doel met voortgangsbalk (`--color-sage`, conform `frontend.md`).
+
+**Scope (met de gebruiker afgestemd — meest complete optie):** drie
+doeltypes, te kiezen bij het instellen:
+- **Spaardoel** — voortgang t.o.v. je spaargeld (`savingsValue`, dezelfde
+  bron als de bestaande buffer-dekking-KPI op deze pagina — dus ook
+  dezelfde bekende beperking: telt alleen simple-entry-spaarrekeningen mee,
+  niet spaargeld via het volle asset-systeem).
+- **Vermogensdoel** — voortgang t.o.v. de al zichtbare "Netto vermogen"-KPI
+  op dezelfde pagina (bewust dezelfde bron, geen tweede afwijkend
+  vermogensgetal op één pagina — dat is incl. schulden, excl. vastgoed).
+- **FI-dekkingsgraad** — hergebruikt de bestaande YTD-dekkingsgraad-
+  berekening van Cashflow (`calculatePassiveIncomeCoverage`), doel is
+  altijd 100%. Vult Deel B's beslissing in: "hoe dicht bij FI" hoort hier
+  thuis, niet als startpagina-signaal.
+
+**Bouw:**
+- Nieuwe tabel `goals` (migratie `0024_tiresome_argent.sql` — **nog
+  uitvoeren in Supabase, zie onder**) — bewust **maar 1 doel per tenant**
+  (unique op `tenant_id`), geen geschiedenis/meerdere gelijktijdige doelen:
+  sluit aan bij "Actief doel" (enkelvoud) en "geen afleidingen" uit
+  `frontend.md`. `targetAmount` is null bij `passive_income_coverage` (dat
+  doeltype streeft altijd naar 100%, geen apart bedrag nodig).
+- Query-laag `goals.ts`: `getGoal`/`saveGoal` (upsert, geen aparte create/
+  update-onderscheid nodig dankzij de 1-per-tenant-constraint)/`deleteGoal`.
+  RLS-policies toegevoegd (tenant-scoped, zelfde patroon als
+  `liabilities`/`recurring_items`).
+- Pure functie `calculateGoalProgress` (`src/lib/finance/goal-progress.ts`,
+  7 tests) — bedrag/dekkingsgraad tegen target als decimaal, mag boven 1
+  uitkomen (doel gehaald, blijft gewoon doorgroeien). Geeft `null` terug
+  bij ontbrekende data (nooit stilletjes 0/NaN), gooit een Error bij een
+  ongeldig/ontbrekend doelbedrag.
+- `ProgressBar` kreeg een `tone`-prop (`'neutral' | 'sage'`) — LTV blijft
+  neutraal, het doel-blok toont `sage` conform `frontend.md`.
+- Nieuw component `GoalCard` (`components/home/`): toont voortgang + inline
+  bewerken/verwijderen (potlood/prullenbak, zelfde patroon als elders); geen
+  doel ingesteld → direct het instelformulier i.p.v. een losse placeholder.
+- Server actions in nieuw `src/app/actions.ts` (homepage had nog geen eigen
+  actions-bestand): `saveGoalAction` (upsert, Zod-validatie incl. een
+  refine die `targetAmount` alleen verplicht stelt buiten
+  `passive_income_coverage`), `deleteGoalAction`.
+- `/` haalt de YTD-passief-inkomen-data alleen op als het doel daadwerkelijk
+  `passive_income_coverage` is (voorkomt een onnodige extra query voor de
+  andere twee doeltypes).
+
+`tsc`/`eslint`/Vitest (231/231, +12 nieuwe tests) groen.
+
+**Vereist actie:** de migratie (`0024_tiresome_argent.sql`) plus de
+`goals`-RLS-policies uit `rls.sql` moeten nog in de Supabase SQL Editor
+uitgevoerd worden — zonder die tabel breekt de startpagina (`getGoal` zit
+in het standaard Promise.all van `/`).
 
 ---
 

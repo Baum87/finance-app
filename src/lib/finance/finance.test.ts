@@ -33,6 +33,8 @@ import { calculateRentalPeriodCashflowForYear } from './rental-period-cashflow'
 import type { RentalPeriodInput } from './rental-period-cashflow'
 import { buildMonthlyCashflowSeries, lastNMonths } from './monthly-cashflow-series'
 import type { RecurringItemHistoryInput, OneTimeExpenseInput as MonthlyOneTimeExpenseInput } from './monthly-cashflow-series'
+import { calculateGoalProgress } from './goal-progress'
+import type { GoalProgressInput } from './goal-progress'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1127,5 +1129,50 @@ describe('buildMonthlyCashflowSeries', () => {
       { itemType: 'income', frequency: 'weekly' as RecurringItemHistoryInput['frequency'], isShared: false, amounts: [{ amount: d(100).toString(), effectiveDate: '2023-01-01' }] },
     ]
     expect(() => buildMonthlyCashflowSeries(items, [], ['2024-01'])).toThrow()
+  })
+})
+
+// ─── calculateGoalProgress ────────────────────────────────────────────────────
+
+describe('calculateGoalProgress', () => {
+  it('computes percentage for a net_worth goal', () => {
+    const input: GoalProgressInput = { goalType: 'net_worth', targetAmount: d(100000), currentValue: d(42000) }
+    const result = calculateGoalProgress(input)!
+    expect(result.percentage.toNumber()).toBe(0.42)
+    expect(result.targetValue.toNumber()).toBe(100000)
+  })
+
+  it('computes percentage for a savings goal', () => {
+    const input: GoalProgressInput = { goalType: 'savings', targetAmount: d(10000), currentValue: d(2500) }
+    const result = calculateGoalProgress(input)!
+    expect(result.percentage.toNumber()).toBe(0.25)
+  })
+
+  it('allows the percentage to exceed 1 once the goal is surpassed', () => {
+    const input: GoalProgressInput = { goalType: 'savings', targetAmount: d(1000), currentValue: d(1500) }
+    const result = calculateGoalProgress(input)!
+    expect(result.percentage.toNumber()).toBe(1.5)
+  })
+
+  it('treats passive_income_coverage as a target of 100%, ignoring targetAmount', () => {
+    const input: GoalProgressInput = { goalType: 'passive_income_coverage', targetAmount: null, currentValue: d(0.3) }
+    const result = calculateGoalProgress(input)!
+    expect(result.targetValue.toNumber()).toBe(1)
+    expect(result.percentage.toNumber()).toBe(0.3)
+  })
+
+  it('returns null when currentValue is unavailable (no data, not an error)', () => {
+    const input: GoalProgressInput = { goalType: 'net_worth', targetAmount: d(100000), currentValue: null }
+    expect(calculateGoalProgress(input)).toBeNull()
+  })
+
+  it('throws when targetAmount is missing for a net_worth goal', () => {
+    const input: GoalProgressInput = { goalType: 'net_worth', targetAmount: null, currentValue: d(1000) }
+    expect(() => calculateGoalProgress(input)).toThrow()
+  })
+
+  it('throws when targetAmount is zero or negative', () => {
+    const input: GoalProgressInput = { goalType: 'savings', targetAmount: d(0), currentValue: d(500) }
+    expect(() => calculateGoalProgress(input)).toThrow()
   })
 })

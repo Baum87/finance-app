@@ -22,6 +22,7 @@ ALTER TABLE public.liabilities       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recurring_items   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recurring_item_amounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.one_time_expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.goals             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.asset_tax_metadata ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vordering_details  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.brokers           ENABLE ROW LEVEL SECURITY;
@@ -602,6 +603,25 @@ CREATE POLICY "one_time_expenses_update" ON public.one_time_expenses
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );
 CREATE POLICY "one_time_expenses_delete" ON public.one_time_expenses
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+
+-- ─── goals ("Actief doel") ───────────────────────────────────────────────────
+
+CREATE POLICY "goals_select" ON public.goals
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "goals_insert" ON public.goals
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "goals_update" ON public.goals
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "goals_delete" ON public.goals
   FOR DELETE USING (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );

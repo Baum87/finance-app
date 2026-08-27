@@ -428,6 +428,27 @@ export const oneTimeExpenses = pgTable('one_time_expenses', {
   check('one_time_expenses_amount_check', sql`${t.amount} >= 0`),
 ])
 
+// ─── goals ("Actief doel", startpagina) ──────────────────────────────────────
+// Bewust maar 1 doel per tenant (unique op tenant_id) — geen geschiedenis of
+// meerdere gelijktijdige doelen, sluit aan bij "Actief doel" (enkelvoud) in
+// frontend.md: "Één kaart. Geen afleidingen." targetAmount is null bij
+// goalType 'passive_income_coverage' — dat doel streeft altijd naar 100%
+// dekkingsgraad, geen apart bedrag nodig.
+
+export const goals = pgTable('goals', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  tenantId:     uuid('tenant_id').notNull().unique().references(() => tenants.id, { onDelete: 'cascade' }),
+  name:         text('name').notNull(),
+  goalType:     text('goal_type').notNull(),
+  targetAmount: numeric('target_amount', { precision: 15, scale: 2 }),
+  targetDate:   date('target_date'),
+  createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:    timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check('goals_type_check', sql`${t.goalType} IN ('savings', 'net_worth', 'passive_income_coverage')`),
+  check('goals_target_amount_check', sql`${t.targetAmount} >= 0`),
+])
+
 // ─── fx_rates (geen RLS — gedeeld, niet user-gebonden) ───────────────────────
 // Gereserveerd voor multi-currency / Optie B (transactievaluta met automatische
 // EUR-omrekening). Nog niet in gebruik in v1: alle transacties worden in EUR
@@ -460,13 +481,14 @@ export const assetTaxMetadata = pgTable('asset_tax_metadata', {
 
 // ─── Relations ───────────────────────────────────────────────────────────────
 
-export const tenantsRelations = relations(tenants, ({ many }) => ({
+export const tenantsRelations = relations(tenants, ({ many, one }) => ({
   tenantUsers:      many(tenantUsers),
   assets:           many(assets),
   liabilities:      many(liabilities),
   brokers:          many(brokers),
   recurringItems:   many(recurringItems),
   oneTimeExpenses:  many(oneTimeExpenses),
+  goal:             one(goals, { fields: [tenants.id], references: [goals.tenantId] }),
 }))
 
 export const brokersRelations = relations(brokers, ({ one, many }) => ({
@@ -568,4 +590,8 @@ export const recurringItemAmountsRelations = relations(recurringItemAmounts, ({ 
 
 export const oneTimeExpensesRelations = relations(oneTimeExpenses, ({ one }) => ({
   tenant: one(tenants, { fields: [oneTimeExpenses.tenantId], references: [tenants.id] }),
+}))
+
+export const goalsRelations = relations(goals, ({ one }) => ({
+  tenant: one(tenants, { fields: [goals.tenantId], references: [tenants.id] }),
 }))

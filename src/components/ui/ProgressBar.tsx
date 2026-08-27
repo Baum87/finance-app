@@ -2,10 +2,13 @@ interface ProgressBarProps {
   value: number
   label?: string
   subtext?: string
+  /** 'neutral' (default, bijv. LTV) of 'sage' (positieve voortgang, bijv. een doel). */
+  tone?: 'neutral' | 'sage'
 }
 
-export function ProgressBar({ value, label, subtext }: ProgressBarProps) {
+export function ProgressBar({ value, label, subtext, tone = 'neutral' }: ProgressBarProps) {
   const pct = Math.min(Math.max(value, 0), 1) * 100
+  const fillClass = tone === 'sage' ? 'bg-sage' : 'bg-muted-foreground'
 
   return (
     <div>
@@ -19,7 +22,7 @@ export function ProgressBar({ value, label, subtext }: ProgressBarProps) {
       )}
       <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
         <div
-          className="h-full rounded-full bg-muted-foreground transition-all"
+          className={`h-full rounded-full transition-all ${fillClass}`}
           style={{ width: `${pct}%` }}
         />
       </div>

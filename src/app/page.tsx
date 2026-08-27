@@ -2,19 +2,22 @@ import Decimal from 'decimal.js'
 import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
-import { getNetWorthAtDate } from '@/lib/db/queries/cashflow'
+import { getNetWorthAtDate, getPassiveIncomeData } from '@/lib/db/queries/cashflow'
 import { getLiabilities } from '@/lib/db/queries/liabilities'
 import { getRecurringItems } from '@/lib/db/queries/recurring-items'
+import { getGoal } from '@/lib/db/queries/goals'
 import {
   getStockEtfEntries, getCryptoEntries, getPensionEntries, getSavingsEntries, latestPerGroup,
 } from '@/lib/db/queries/simple-entries'
 import {
   calculateNetWorth, calculateAllocation, calculateRecurringTotals,
   calculateSavingsRate, calculateBufferMonths, determineFinancialHealthSignal,
+  calculatePassiveIncomeCoverage, calculateGoalProgress,
 } from '@/lib/finance'
-import type { FinancialHealthSignal } from '@/lib/finance'
+import type { FinancialHealthSignal, GoalType } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
+import { GoalCard } from '@/components/home/GoalCard'
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
   stock_etf:   'Aandelen & ETF',
@@ -57,7 +60,7 @@ export default async function OverzichtPage() {
   monthAgoDate.setDate(monthAgoDate.getDate() - 30)
   const monthAgoStr = monthAgoDate.toISOString().slice(0, 10)
 
-  const [assets, mortgageMap, netWorthMonthAgo, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, liabilities, recurringItemRows] = await Promise.all([
+  const [assets, mortgageMap, netWorthMonthAgo, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, liabilities, recurringItemRows, goal] = await Promise.all([
     getAssetsWithValues(user!.id),
     getMortgageBalancesMap(user!.id),
     getNetWorthAtDate(user!.id, monthAgoStr),
@@ -67,6 +70,7 @@ export default async function OverzichtPage() {
     getSavingsEntries(user!.id),
     getLiabilities(user!.id),
     getRecurringItems(user!.id),
+    getGoal(user!.id),
   ])
 
   const totalLiabilities = liabilities.reduce((s, l) => s.plus(l.amount), new Decimal(0))
@@ -123,6 +127,41 @@ export default async function OverzichtPage() {
   // huidige bedrag. Ze tellen daarom wel mee in het headline netto vermogen,
   // maar niet in de 30-dagen-delta hieronder (die blijft asset-gebaseerd).
   const netWorth = assetNetWorth.minus(totalLiabilities)
+
+  // Actief doel — voortgang o.b.v. het gekozen doeltype. De zware YTD-passief-
+  // inkomen-query wordt alleen erbij gehaald als het doel dat type daadwerkelijk
+  // is (zelfde YTD-dekkingsgraad-berekening als op /cashflow).
+  let goalCurrentValue: Decimal | null = null
+  if (goal?.goalType === 'net_worth') {
+    goalCurrentValue = netWorth
+  } else if (goal?.goalType === 'savings') {
+    goalCurrentValue = savingsValue
+  } else if (goal?.goalType === 'passive_income_coverage') {
+    const goalToday = new Date()
+    const goalYtdFrom = `${goalToday.getFullYear()}-01-01`
+    const goalTodayStr = goalToday.toISOString().slice(0, 10)
+    const passiveTxData = await getPassiveIncomeData(user!.id, goalYtdFrom, goalTodayStr)
+    const pDividend = passiveTxData.filter(t => t.transactionType === 'dividend').reduce((s, t) => s.plus(t.amount), new Decimal(0))
+    const pInterest = passiveTxData.filter(t => t.transactionType === 'interest').reduce((s, t) => s.plus(t.amount), new Decimal(0))
+    const pRentalIn = passiveTxData.filter(t => t.transactionType === 'rental_income').reduce((s, t) => s.plus(t.amount), new Decimal(0))
+    const pCosts    = passiveTxData.filter(t => t.transactionType === 'cost').reduce((s, t) => s.plus(t.amount), new Decimal(0))
+    const pTotalPassive = pDividend.plus(pInterest).plus(pRentalIn.minus(pCosts))
+    const msPerDay = 24 * 60 * 60 * 1000
+    const pDaysElapsed = Math.floor((goalToday.getTime() - new Date(goalYtdFrom).getTime()) / msPerDay) + 1
+    const pMonthsElapsed = pDaysElapsed / (365 / 12)
+    const pMonthlyPassive = pMonthsElapsed >= 1 ? pTotalPassive.dividedBy(pMonthsElapsed) : null
+    goalCurrentValue = pMonthlyPassive != null
+      ? calculatePassiveIncomeCoverage(pMonthlyPassive, recurringTotals.monthlyExpenses)
+      : null
+  }
+
+  const goalProgress = goal
+    ? calculateGoalProgress({
+        goalType:     goal.goalType as GoalType,
+        targetAmount: goal.targetAmount ? new Decimal(goal.targetAmount) : null,
+        currentValue: goalCurrentValue,
+      })
+    : null
 
   const illiquidAssets = nonRealEstateAssets.filter(a => !a.isLiquid)
   const illiquidSimpleCategories = simpleCategories.filter(c => !c.liquid)
@@ -245,14 +284,15 @@ export default async function OverzichtPage() {
           </div>
         )}
 
-        {/* Blok 3 — Actief doel (placeholder — doelen-datamodel volgt in Sprint 4) */}
-        <div className="bg-card border border-border rounded-3xl p-6">
-          <p className="text-sm font-medium text-muted-foreground">Actief doel</p>
-          <p className="mt-3 text-foreground text-sm">Geen actief doel ingesteld.</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Stel hier een spaardoel of vermogensdoel in. Beschikbaar in Sprint 4.
-          </p>
-        </div>
+        {/* Blok 3 — Actief doel */}
+        <GoalCard
+          goal={goal ? { name: goal.name, goalType: goal.goalType as GoalType, targetAmount: goal.targetAmount, targetDate: goal.targetDate } : null}
+          progress={goalProgress ? {
+            currentValue: goalProgress.currentValue.toNumber(),
+            targetValue:  goalProgress.targetValue.toNumber(),
+            percentage:   goalProgress.percentage.toNumber(),
+          } : null}
+        />
 
         {/* Blok 4 — AI Coach */}
         <div className="bg-card border border-border rounded-3xl p-6">
