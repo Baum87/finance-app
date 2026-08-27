@@ -12,6 +12,29 @@ type RecurringCashflowInput = {
   notes?: string
 }
 
+/**
+ * Alle doorlopende huur/kosten-periodes van een tenant, over alle vastgoed-
+ * assets heen — gebruikt op de Cashflow-overzichtspagina om deze periodes
+ * (naast losse rental_income/cost-transacties) mee te tellen in het bruto
+ * passief inkomen. Zie ook groupByYear op de vastgoed-detailpagina, die
+ * dezelfde twee bronnen bij elkaar optelt voor één pand.
+ */
+export async function getRecurringCashflowsForTenant(userId: string) {
+  const tenantId = await getOrCreateTenant(userId)
+
+  return db
+    .select({
+      cashflowType: recurringCashflows.cashflowType,
+      amount:       recurringCashflows.amount,
+      frequency:    recurringCashflows.frequency,
+      startDate:    recurringCashflows.startDate,
+      endDate:      recurringCashflows.endDate,
+    })
+    .from(recurringCashflows)
+    .innerJoin(assets, eq(assets.id, recurringCashflows.assetId))
+    .where(eq(assets.tenantId, tenantId))
+}
+
 export async function createRecurringCashflow(
   userId: string,
   assetId: string,

@@ -30,6 +30,8 @@ ALTER TABLE public.stock_etf_entries   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.crypto_entries      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pension_entries     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.savings_entries     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.investment_assumptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stock_annual_returns   ENABLE ROW LEVEL SECURITY;
 -- fx_rates: GEEN RLS — gedeelde tabel, niet user-gebonden
 -- real_estate_entries: tabel verwijderd (migratie 0021) — simple-entry
 -- vastgoedtracking uitgefaseerd, alleen het volle asset-systeem blijft over
@@ -622,6 +624,44 @@ CREATE POLICY "goals_update" ON public.goals
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );
 CREATE POLICY "goals_delete" ON public.goals
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+
+-- ─── investment_assumptions (verwacht rendement aandelen/ETF's) ─────────────
+
+CREATE POLICY "investment_assumptions_select" ON public.investment_assumptions
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "investment_assumptions_insert" ON public.investment_assumptions
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "investment_assumptions_update" ON public.investment_assumptions
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "investment_assumptions_delete" ON public.investment_assumptions
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+
+-- ─── stock_annual_returns (werkelijk rendement per kalenderjaar) ────────────
+
+CREATE POLICY "stock_annual_returns_select" ON public.stock_annual_returns
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "stock_annual_returns_insert" ON public.stock_annual_returns
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "stock_annual_returns_update" ON public.stock_annual_returns
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "stock_annual_returns_delete" ON public.stock_annual_returns
   FOR DELETE USING (
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
   );

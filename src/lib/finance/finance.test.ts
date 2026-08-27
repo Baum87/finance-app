@@ -29,12 +29,13 @@ import { calculatePassiveIncomeCoverage } from './passive-income-coverage'
 import { determineFinancialHealthSignal } from './financial-health-signal'
 import { calculateMortgageAmortizationForYear } from './mortgage-amortization'
 import type { MortgageTerms } from './mortgage-amortization'
-import { calculateRentalPeriodCashflowForYear } from './rental-period-cashflow'
+import { calculateRentalPeriodCashflowForYear, calculateRentalPeriodCashflowForRange } from './rental-period-cashflow'
 import type { RentalPeriodInput } from './rental-period-cashflow'
 import { buildMonthlyCashflowSeries, lastNMonths } from './monthly-cashflow-series'
 import type { RecurringItemHistoryInput, OneTimeExpenseInput as MonthlyOneTimeExpenseInput } from './monthly-cashflow-series'
 import { calculateGoalProgress } from './goal-progress'
 import type { GoalProgressInput } from './goal-progress'
+import { calculateProjectedValue } from './projected-value'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1035,6 +1036,46 @@ describe('calculateRentalPeriodCashflowForYear', () => {
   })
 })
 
+// ─── calculateRentalPeriodCashflowForRange ───────────────────────────────────
+
+describe('calculateRentalPeriodCashflowForRange', () => {
+  it('counts full months up to and including the month of toDate, even if not yet over', () => {
+    const periods: RentalPeriodInput[] = [
+      { cashflowType: 'rental_income', amount: d(1000), frequency: 'monthly', startDate: '2024-01-01', endDate: null },
+    ]
+    // YTD t/m halverwege augustus — telt als 8 volle maanden (jan t/m aug)
+    const result = calculateRentalPeriodCashflowForRange(periods, '2024-01-01', '2024-08-15')
+    expect(result.income.toNumber()).toBe(8000)
+  })
+
+  it('excludes a one-time event outside the range', () => {
+    const periods: RentalPeriodInput[] = [
+      { cashflowType: 'cost', amount: d(500), frequency: 'once', startDate: '2024-09-01', endDate: null },
+    ]
+    const result = calculateRentalPeriodCashflowForRange(periods, '2024-01-01', '2024-08-15')
+    expect(result.costs.toNumber()).toBe(0)
+  })
+
+  it('includes a one-time event inside the range', () => {
+    const periods: RentalPeriodInput[] = [
+      { cashflowType: 'rental_income', amount: d(500), frequency: 'once', startDate: '2024-05-15', endDate: null },
+    ]
+    const result = calculateRentalPeriodCashflowForRange(periods, '2024-01-01', '2024-08-15')
+    expect(result.income.toNumber()).toBe(500)
+  })
+
+  it('matches calculateRentalPeriodCashflowForYear for a full-year range', () => {
+    const periods: RentalPeriodInput[] = [
+      { cashflowType: 'rental_income', amount: d(1200), frequency: 'monthly', startDate: '2023-06-01', endDate: null },
+      { cashflowType: 'cost', amount: d(180), frequency: 'monthly', startDate: '2024-01-01', endDate: null },
+    ]
+    const range = calculateRentalPeriodCashflowForRange(periods, '2024-01-01', '2024-12-31')
+    const year = calculateRentalPeriodCashflowForYear(periods, 2024)
+    expect(range.income.toNumber()).toBe(year.income.toNumber())
+    expect(range.costs.toNumber()).toBe(year.costs.toNumber())
+  })
+})
+
 // ─── lastNMonths / buildMonthlyCashflowSeries ────────────────────────────────
 
 describe('lastNMonths', () => {
@@ -1174,5 +1215,39 @@ describe('calculateGoalProgress', () => {
   it('throws when targetAmount is zero or negative', () => {
     const input: GoalProgressInput = { goalType: 'savings', targetAmount: d(0), currentValue: d(500) }
     expect(() => calculateGoalProgress(input)).toThrow()
+  })
+})
+
+// ─── calculateProjectedValue ─────────────────────────────────────────────────
+
+describe('calculateProjectedValue', () => {
+  it('returns the current value unchanged for 0 years', () => {
+    const result = calculateProjectedValue(d(10000), d(0.07), d(0))
+    expect(result.toNumber()).toBe(10000)
+  })
+
+  it('compounds over whole years', () => {
+    const result = calculateProjectedValue(d(10000), d(0.07), d(1))
+    expect(result.toDecimalPlaces(2).toNumber()).toBe(10700)
+  })
+
+  it('compounds over fractional years', () => {
+    // 10000 * 1.07^2.5
+    const result = calculateProjectedValue(d(10000), d(0.07), d(2.5))
+    expect(result.toDecimalPlaces(2).toNumber()).toBeCloseTo(11842.94, 1)
+  })
+
+  it('handles a negative expected return', () => {
+    const result = calculateProjectedValue(d(10000), d(-0.1), d(1))
+    expect(result.toDecimalPlaces(2).toNumber()).toBe(9000)
+  })
+
+  it('throws on negative years', () => {
+    expect(() => calculateProjectedValue(d(10000), d(0.07), d(-1))).toThrow()
+  })
+
+  it('throws when the return rate is -100% or lower', () => {
+    expect(() => calculateProjectedValue(d(10000), d(-1), d(1))).toThrow()
+    expect(() => calculateProjectedValue(d(10000), d(-1.5), d(1))).toThrow()
   })
 })

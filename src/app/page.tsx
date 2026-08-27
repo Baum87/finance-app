@@ -6,13 +6,14 @@ import { getNetWorthAtDate, getPassiveIncomeData } from '@/lib/db/queries/cashfl
 import { getLiabilities } from '@/lib/db/queries/liabilities'
 import { getRecurringItems } from '@/lib/db/queries/recurring-items'
 import { getGoal } from '@/lib/db/queries/goals'
+import { getInvestmentAssumption } from '@/lib/db/queries/investment-assumptions'
 import {
   getStockEtfEntries, getCryptoEntries, getPensionEntries, getSavingsEntries, latestPerGroup,
 } from '@/lib/db/queries/simple-entries'
 import {
   calculateNetWorth, calculateAllocation, calculateRecurringTotals,
   calculateSavingsRate, calculateBufferMonths, determineFinancialHealthSignal,
-  calculatePassiveIncomeCoverage, calculateGoalProgress,
+  calculatePassiveIncomeCoverage, calculateGoalProgress, calculateProjectedValue,
 } from '@/lib/finance'
 import type { FinancialHealthSignal, GoalType } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
@@ -60,7 +61,7 @@ export default async function OverzichtPage() {
   monthAgoDate.setDate(monthAgoDate.getDate() - 30)
   const monthAgoStr = monthAgoDate.toISOString().slice(0, 10)
 
-  const [assets, mortgageMap, netWorthMonthAgo, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, liabilities, recurringItemRows, goal] = await Promise.all([
+  const [assets, mortgageMap, netWorthMonthAgo, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, liabilities, recurringItemRows, goal, investmentAssumption] = await Promise.all([
     getAssetsWithValues(user!.id),
     getMortgageBalancesMap(user!.id),
     getNetWorthAtDate(user!.id, monthAgoStr),
@@ -71,6 +72,7 @@ export default async function OverzichtPage() {
     getLiabilities(user!.id),
     getRecurringItems(user!.id),
     getGoal(user!.id),
+    getInvestmentAssumption(user!.id),
   ])
 
   const totalLiabilities = liabilities.reduce((s, l) => s.plus(l.amount), new Decimal(0))
@@ -162,6 +164,27 @@ export default async function OverzichtPage() {
         currentValue: goalCurrentValue,
       })
     : null
+
+  // Vermogensdoel-projectie o.b.v. het verwachte aandelenrendement — alleen
+  // zinvol met een streefdatum (anders geen horizon om naartoe te rekenen).
+  // Enkel het aandelen/ETF-deel van het vermogen groeit in deze projectie;
+  // de rest (spaargeld, vastgoed, pensioen) wordt bewust gelijk gehouden —
+  // een aanname, geen voorspelling van het hele vermogen.
+  const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000
+  let goalProjection: { value: Decimal; date: string; ratePct: Decimal } | null = null
+  if (goal?.goalType === 'net_worth' && goal.targetDate && investmentAssumption) {
+    const years = new Decimal((new Date(goal.targetDate).getTime() - Date.now()) / MS_PER_YEAR)
+    if (years.gt(0)) {
+      const ratePct = new Decimal(investmentAssumption.expectedAnnualReturn)
+      const rate = ratePct.dividedBy(100)
+      const projectedStockValue = calculateProjectedValue(stockEtfValue, rate, years)
+      goalProjection = {
+        value: netWorth.minus(stockEtfValue).plus(projectedStockValue),
+        date:  goal.targetDate,
+        ratePct,
+      }
+    }
+  }
 
   const illiquidAssets = nonRealEstateAssets.filter(a => !a.isLiquid)
   const illiquidSimpleCategories = simpleCategories.filter(c => !c.liquid)
@@ -291,6 +314,11 @@ export default async function OverzichtPage() {
             currentValue: goalProgress.currentValue.toNumber(),
             targetValue:  goalProgress.targetValue.toNumber(),
             percentage:   goalProgress.percentage.toNumber(),
+          } : null}
+          projection={goalProjection ? {
+            value:   goalProjection.value.toNumber(),
+            date:    goalProjection.date,
+            ratePct: goalProjection.ratePct.toNumber(),
           } : null}
         />
 

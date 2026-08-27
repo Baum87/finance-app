@@ -5,11 +5,13 @@ import { getPassiveIncomeData } from '@/lib/db/queries/cashflow'
 import { getRecurringItems, getRecurringItemsWithHistory } from '@/lib/db/queries/recurring-items'
 import { getOneTimeExpenses } from '@/lib/db/queries/one-time-expenses'
 import { getSavingsEntries, latestPerGroup } from '@/lib/db/queries/simple-entries'
+import { getRecurringCashflowsForTenant } from '@/lib/db/queries/recurring-cashflows'
 import {
   calculateRecurringTotals, calculateOneTimeExpensesTotal,
   calculateSavingsRate, calculateBufferMonths, classifyBufferMonths, calculatePassiveIncomeCoverage,
-  buildMonthlyCashflowSeries, lastNMonths,
+  buildMonthlyCashflowSeries, lastNMonths, calculateRentalPeriodCashflowForRange,
 } from '@/lib/finance'
+import type { RentalPeriodInput } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
@@ -30,12 +32,13 @@ export default async function CashflowOverviewPage() {
   const ytdFrom = `${currentYear}-01-01`
   const todayStr = toDateStr(today)
 
-  const [txData, recurringItemRows, recurringItemHistoryRows, oneTimeExpenseRows, savingsEntries] = await Promise.all([
+  const [txData, recurringItemRows, recurringItemHistoryRows, oneTimeExpenseRows, savingsEntries, recurringCashflowRows] = await Promise.all([
     getPassiveIncomeData(userId, ytdFrom, todayStr),
     getRecurringItems(userId),
     getRecurringItemsWithHistory(userId),
     getOneTimeExpenses(userId),
     getSavingsEntries(userId),
+    getRecurringCashflowsForTenant(userId),
   ])
 
   // Eenvoudige invoerlijsten (o.a. spaarrekeningen) hebben geen "asset"-entiteit
@@ -79,13 +82,28 @@ export default async function CashflowOverviewPage() {
     lastNMonths(12, today),
   ).map(p => ({ month: p.month, income: p.income.toNumber(), expenses: p.expenses.toNumber(), net: p.net.toNumber() }))
 
-  // Passief inkomen YTD
-  const dividend  = txData.filter(t => t.transactionType === 'dividend').reduce((s, t) => s.plus(t.amount), new Decimal(0))
-  const interest  = txData.filter(t => t.transactionType === 'interest').reduce((s, t) => s.plus(t.amount), new Decimal(0))
-  const rentalIn  = txData.filter(t => t.transactionType === 'rental_income').reduce((s, t) => s.plus(t.amount), new Decimal(0))
-  const costs     = txData.filter(t => t.transactionType === 'cost').reduce((s, t) => s.plus(t.amount), new Decimal(0))
+  // Passief inkomen YTD — huur komt uit twee bronnen die naast elkaar bestaan
+  // (zelfde reden als groupByYear op de vastgoed-detailpagina): losse
+  // rental_income/cost-transacties plus doorlopende huur/kosten-periodes.
+  const dividend    = txData.filter(t => t.transactionType === 'dividend').reduce((s, t) => s.plus(t.amount), new Decimal(0))
+  const interest    = txData.filter(t => t.transactionType === 'interest').reduce((s, t) => s.plus(t.amount), new Decimal(0))
+  const rentalInTx  = txData.filter(t => t.transactionType === 'rental_income').reduce((s, t) => s.plus(t.amount), new Decimal(0))
+  const costsTx     = txData.filter(t => t.transactionType === 'cost').reduce((s, t) => s.plus(t.amount), new Decimal(0))
+
+  const rentalPeriods: RentalPeriodInput[] = recurringCashflowRows.map(r => ({
+    cashflowType: r.cashflowType as RentalPeriodInput['cashflowType'],
+    amount:       r.amount,
+    frequency:    r.frequency as RentalPeriodInput['frequency'],
+    startDate:    r.startDate,
+    endDate:      r.endDate,
+  }))
+  const rentalPeriodTotals = calculateRentalPeriodCashflowForRange(rentalPeriods, ytdFrom, todayStr)
+
+  const rentalIn  = rentalInTx.plus(rentalPeriodTotals.income)
+  const costs     = costsTx.plus(rentalPeriodTotals.costs)
   const rentalNet = rentalIn.minus(costs)
   const totalPassive = dividend.plus(interest).plus(rentalNet)
+  const hasPassiveIncomeData = txData.length > 0 || recurringCashflowRows.length > 0
 
   // Financiële gezondheid — spaarquote, buffer-dekking, dekkingsgraad passief inkomen
   const liquidSavingsToday = sumLatestPerGroupAsOf(savingsEntries, e => e.bank, e => e.balance, todayStr)
@@ -128,7 +146,9 @@ export default async function CashflowOverviewPage() {
           <KpiCard
             label="Spaarquote"
             value={savingsRate != null ? formatPercent(savingsRate.toNumber()) : '—'}
-            subtext={savingsRate != null ? 'Vuistregel: streef naar 20% of meer' : 'Nog geen inkomen geregistreerd'}
+            subtext={savingsRate != null
+              ? `Netto overschot ÷ inkomen per maand (${formatCurrency(recurringTotals.netMonthlyCashflow.toNumber())} / ${formatCurrency(recurringTotals.monthlyIncome.toNumber())}) — streef naar 20% of meer`
+              : 'Nog geen inkomen geregistreerd'}
             trend={savingsRate != null ? {
               value:    savingsRate.gte(0) ? 'Overschot' : 'Tekort',
               positive: savingsRate.gte(0),
@@ -157,8 +177,8 @@ export default async function CashflowOverviewPage() {
         {/* Bruto passief inkomen */}
         <KpiCard
           label="Bruto passief inkomen dit jaar"
-          value={txData.length === 0 ? '—' : formatCurrency(totalPassive.toNumber())}
-          subtext={txData.length === 0
+          value={!hasPassiveIncomeData ? '—' : formatCurrency(totalPassive.toNumber())}
+          subtext={!hasPassiveIncomeData
             ? 'Nog geen inkomsten geregistreerd dit jaar'
             : `Dividend, rente en huurinkomsten t/m ${todayStr} — excl. hypotheeklasten`}
         />

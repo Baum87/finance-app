@@ -195,12 +195,13 @@ function VorderingSection({ data }: { data?: NonNullable<AssetDetail>['vordering
   )
 }
 
-function RealEstateSection({ data, propertyType, onPropertyTypeChange }: {
+function RealEstateSection({ data, mortgages, propertyType, onPropertyTypeChange }: {
   data?: NonNullable<AssetDetail>['realEstateDetails']
+  mortgages?: NonNullable<AssetDetail>['mortgages']
   propertyType: string
   onPropertyTypeChange: (v: string) => void
 }) {
-  const mortgage = (data as any)?.mortgages?.[0]
+  const mortgage = mortgages?.[0]
   return (
     <div className="space-y-4 pt-4 border-t border-border">
       <p className="text-sm font-medium text-foreground">Vastgoed details</p>
@@ -326,6 +327,7 @@ export function AssetForm({ action, initialData, assetId, lockedType, redirectTo
       {assetType === 'real_estate' && (
         <RealEstateSection
           data={initialData?.realEstateDetails ?? undefined}
+          mortgages={initialData?.mortgages}
           propertyType={propertyType}
           onPropertyTypeChange={setPropertyType}
         />

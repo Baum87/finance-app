@@ -1,6 +1,11 @@
 # data-model.md — Personal Finance App
 
-Laatst bijgewerkt: 25 augustus 2026 — drift-annotaties toegevoegd na codebase-audit
+Laatst bijgewerkt: 27 augustus 2026 — `investment_assumptions` en
+`stock_annual_returns` toegevoegd (verwacht/werkelijk rendement aandelen/ETF's,
+vermogensdoel-projectie op de startpagina). Was daarvoor bijgewerkt: 27 augustus
+2026 — drie tabellen uit `stappenplan.md` (C1-C10) toegevoegd die volledig
+ontbraken: `woz_values`, `recurring_cashflows`, `goals`. Was daarvoor bijgewerkt:
+25 augustus 2026 — drift-annotaties toegevoegd na codebase-audit
 (zie `docs/review/audit-codebase-volledig.md`, bevinding M-3). De originele
 Sprint 1.3-ontwerpblokken zijn bewust laten staan als besluitvormingsrecord;
 waar de huidige `lib/db/schema.ts` afwijkt staat dat nu expliciet vermeld i.p.v.
@@ -176,6 +181,29 @@ Vastgoed: jaarlijks WOZ of taxatiewaarde invoeren.
 
 ---
 
+### WOZ-waarde (woz_values) — ontbreekt hierboven, wél in schema.ts
+
+```sql
+-- Gemeentelijke WOZ-beschikking, bewust een aparte historie i.p.v. een extra
+-- rij in asset_valuations: WOZ (belastingdoeleinden) en marktwaarde (eigen
+-- inschatting) zijn verschillende grootheden die uit elkaar kunnen lopen.
+-- Zelfde "laatste rij = huidige waarde"-patroon als asset_valuations.
+CREATE TABLE woz_values (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  asset_id    UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  woz_date    DATE NOT NULL,
+  value       NUMERIC(15,2) NOT NULL CHECK (value >= 0),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Alleen relevant voor vastgoed. Valt bij ontbreken van een `woz_values`-rij
+terug op `real_estate_details.woz_value` (het bedrag ingevoerd bij
+aanmaken) — zelfde fallback-patroon als hypotheeksaldo op
+`mortgages.original_amount`.
+
+---
+
 ### Eenvoudige invoerlijsten (simple entries) — ontbreekt hierboven, wél in schema.ts
 
 Náást de `assets`/`asset_valuations`-flow bestaat een tweede, lichtere manier om
@@ -301,7 +329,36 @@ CREATE TABLE mortgage_balances (
 ```
 
 **Vastgoed-waarde:** via `asset_valuations` (zelfde tabel als pensioen/spaargeld).
-**Cashflow verhuur:** via `transactions` — `rental_income` en `cost` op het vastgoed-asset.
+**Cashflow verhuur:** via `transactions` — `rental_income` en `cost` op het vastgoed-asset,
+óf via `recurring_cashflows` hieronder (beide bestaan naast elkaar, tellen bij elkaar op).
+
+---
+
+### Doorlopende huur/kosten-periodes (recurring_cashflows) — ontbreekt hierboven, wél in schema.ts
+
+```sql
+-- Alternatief voor 12x dezelfde rental_income/cost-transactie per jaar los
+-- invoeren: 1 rij per periode (vanaf-datum, evt. tot-datum, bedrag per maand).
+-- Verandert de huur/VvE-bijdrage? Dan krijgt de oude periode een end_date en
+-- komt er een nieuwe rij bij. end_date = NULL betekent "nog actief".
+-- Staat los van `transactions` — telt in de jaartotalen (huurrendement,
+-- cash-on-cash) gewoon bovenop losse rental_income/cost-transacties, dus
+-- geen migratie van bestaande data nodig.
+CREATE TABLE recurring_cashflows (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  asset_id       UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  cashflow_type  TEXT NOT NULL CHECK (cashflow_type IN ('rental_income', 'cost')),
+  amount         NUMERIC(15,2) NOT NULL CHECK (amount >= 0),  -- per maand, tenzij frequency = 'once'
+  frequency      TEXT NOT NULL DEFAULT 'monthly' CHECK (frequency IN ('monthly', 'once')),
+  start_date     DATE NOT NULL,
+  end_date       DATE,             -- NULL = nog actief/doorlopend
+  notes          TEXT,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Jaartotalen worden per kalendermaand geproportioneerd (`calculateRentalPeriodCashflowForYear`
+in `lib/finance/`), niet per dag — huur wordt per maand betaald.
 
 ---
 
@@ -389,6 +446,72 @@ CREATE TABLE one_time_expenses (
 
 ---
 
+### Actief doel (goals) — ontbreekt hierboven, wél in schema.ts
+
+```sql
+-- Bewust maar 1 doel per tenant (UNIQUE op tenant_id) — geen geschiedenis of
+-- meerdere gelijktijdige doelen, sluit aan bij "Actief doel" (enkelvoud) in
+-- frontend.md: "Één kaart. Geen afleidingen." target_amount is NULL bij
+-- goal_type 'passive_income_coverage' — dat doel streeft altijd naar 100%
+-- dekkingsgraad (zie recurring-cashflow.ts / passive-income-coverage.ts),
+-- geen apart bedrag nodig.
+CREATE TABLE goals (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id     UUID NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  goal_type     TEXT NOT NULL CHECK (goal_type IN ('savings', 'net_worth', 'passive_income_coverage')),
+  target_amount NUMERIC(15,2) CHECK (target_amount >= 0),
+  target_date   DATE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+`savings`/`net_worth` vergelijken `target_amount` met resp. het liquide
+spaargeld en het netto vermogen zoals getoond op de startpagina.
+`passive_income_coverage` vergelijkt de bestaande YTD-dekkingsgraad-KPI van
+Cashflow met een vast target van 100%. Zie `lib/finance/goal-progress.ts`.
+
+---
+
+### Rendementverwachting aandelen/ETF's (investment_assumptions, stock_annual_returns)
+
+```sql
+-- Eén portefeuille-brede aanname per tenant (UNIQUE op tenant_id, zelfde
+-- upsert-patroon als `goals`) — geen aanname per los aandeel/ETF. Procentgetal
+-- (7.0000 = 7%), zelfde conventie als mortgages.interest_rate — geen
+-- 0.07-decimaal zoals XIRR/TWR-uitkomsten. Gebruikt om samen met het
+-- aandelen/ETF-deel van het netto vermogen een vermogensdoel met streefdatum
+-- op de startpagina te projecteren (calculateProjectedValue in lib/finance/).
+CREATE TABLE investment_assumptions (
+  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id               UUID NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
+  expected_annual_return  NUMERIC(8,4) NOT NULL CHECK (expected_annual_return >= -100),
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Werkelijk behaald rendement per kalenderjaar — handmatig door de gebruiker
+-- vastgesteld aan het eind van het jaar, géén koppeling aan transacties of
+-- waarderingen (bewuste keuze, zie stappenplan.md).
+CREATE TABLE stock_annual_returns (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  year        INTEGER NOT NULL,
+  return_pct  NUMERIC(8,4) NOT NULL CHECK (return_pct >= -100),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, year)
+);
+```
+
+Beheerd op `/portfolio/aandelen-etf`. De projectie op de startpagina laat
+alleen het aandelen/ETF-deel van het netto vermogen groeien tegen
+`expected_annual_return`; de rest van het vermogen blijft in die projectie
+gelijk — een aanname, geen voorspelling van het hele vermogen.
+
+---
+
 ### Valuta (FX)
 
 ```sql
@@ -459,12 +582,17 @@ tenants
            │    │         └── mortgage_balances (1:N)
            │    ├── transactions (1:N)
            │    ├── asset_valuations (1:N)
+           │    ├── woz_values (1:N)  [alleen vastgoed]
+           │    ├── recurring_cashflows (1:N)  [alleen vastgoed]
            │    └── asset_tax_metadata (1:0-1)
            ├── brokers (1:N)  [via tenant_id — los van assets]
            ├── liabilities (1:N)  [ook via tenant_id]
            ├── recurring_items (1:N)  [via tenant_id]
            │    └── recurring_item_amounts (1:N)
            ├── one_time_expenses (1:N)  [via tenant_id]
+           ├── goals (1:0-1)  [via tenant_id — max 1 per tenant]
+           ├── investment_assumptions (1:0-1)  [via tenant_id — max 1 per tenant]
+           ├── stock_annual_returns (1:N)  [via tenant_id]
            └── simple entries (1:N elk, via tenant_id — géén link naar assets):
                 stock_etf_entries, crypto_entries, pension_entries,
                 savings_entries

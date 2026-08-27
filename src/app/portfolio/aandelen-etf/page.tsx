@@ -2,6 +2,7 @@ import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getStockEtfEntries, latestPerGroup, groupBy } from '@/lib/db/queries/simple-entries'
 import { getAssetsWithValues } from '@/lib/db/queries/assets'
+import { getInvestmentAssumption, getStockAnnualReturns } from '@/lib/db/queries/investment-assumptions'
 import { buildSimpleEntryMonthlySeries } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
@@ -10,7 +11,13 @@ import { EntryLogForm } from '@/components/portfolio/EntryLogForm'
 import { EntryLogList } from '@/components/portfolio/EntryLogList'
 import { InvestedVsValueChart } from '@/components/portfolio/InvestedVsValueChart'
 import { AssetPositionsCard } from '@/components/portfolio/AssetPositionsCard'
+import { ExpectedReturnForm } from '@/components/portfolio/ExpectedReturnForm'
+import { StockAnnualReturnForm } from '@/components/portfolio/StockAnnualReturnForm'
+import { StockAnnualReturnHistory } from '@/components/portfolio/StockAnnualReturnHistory'
 import { createStockEtfEntryAction, updateStockEtfEntryAction, deleteStockEtfEntryAction } from '@/app/portfolio/simple-entry-actions'
+import {
+  saveInvestmentAssumptionAction, createStockAnnualReturnAction,
+} from '@/app/portfolio/investment-assumptions-actions'
 
 const FIELDS = [
   { name: 'broker', label: 'Broker' },
@@ -23,9 +30,11 @@ export default async function AandelenEtfPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [entries, assets] = await Promise.all([
+  const [entries, assets, investmentAssumption, stockAnnualReturns] = await Promise.all([
     getStockEtfEntries(user!.id),
     getAssetsWithValues(user!.id),
+    getInvestmentAssumption(user!.id),
+    getStockAnnualReturns(user!.id),
   ])
   const latestPerBroker = latestPerGroup(entries, e => e.broker)
   const byBroker = groupBy(entries, e => e.broker)
@@ -76,6 +85,21 @@ export default async function AandelenEtfPage() {
             trend={gainLossPct ? { value: formatPercent(gainLossPct.toNumber()), positive: totalGainLoss.gte(0) } : undefined}
           />
         </div>
+
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Rendementverwachting</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Voor je hele aandelen/ETF-portefeuille, niet per los aandeel</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ExpectedReturnForm
+            action={saveInvestmentAssumptionAction}
+            defaultValue={investmentAssumption?.expectedAnnualReturn}
+          />
+          <StockAnnualReturnForm action={createStockAnnualReturnAction} />
+        </div>
+
+        <StockAnnualReturnHistory returns={stockAnnualReturns} />
 
         <AssetPositionsCard
           positions={assetPositions}

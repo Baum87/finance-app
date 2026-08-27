@@ -22,9 +22,16 @@ export type GoalCardProgress = {
   percentage: number
 } | null
 
+export type GoalCardProjection = {
+  value: number
+  date: string
+  ratePct: number
+} | null
+
 type Props = {
   goal: GoalCardGoal | null
   progress: GoalCardProgress
+  projection?: GoalCardProjection
 }
 
 const GOAL_TYPE_LABELS: Record<GoalType, string> = {
@@ -37,7 +44,7 @@ function formatDate(dateStr: string): string {
   return new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(dateStr + 'T00:00:00'))
 }
 
-export function GoalCard({ goal, progress }: Props) {
+export function GoalCard({ goal, progress, projection }: Props) {
   const [editing, setEditing] = useState(!goal)
   const [goalType, setGoalType] = useState<GoalType>(goal?.goalType ?? 'net_worth')
   const [state, formAction, isPending] = useActionState(saveGoalAction, null)
@@ -89,6 +96,14 @@ export function GoalCard({ goal, progress }: Props) {
 
         {goal.targetDate && (
           <p className="mt-2 text-xs text-muted-foreground">Streefdatum: {formatDate(goal.targetDate)}</p>
+        )}
+
+        {projection && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Verwacht op {formatDate(projection.date)} bij {formatPercent(projection.ratePct / 100)} rendement op
+            aandelen/ETF&apos;s: <span className="font-medium text-foreground">{formatCurrency(projection.value)}</span> — overig
+            vermogen aangenomen gelijk
+          </p>
         )}
       </div>
     )

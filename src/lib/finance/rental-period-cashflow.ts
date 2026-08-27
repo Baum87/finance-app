@@ -22,19 +22,22 @@ function toMonthIndex(d: Date): number {
 
 /**
  * Rekent doorlopende huur/kosten-periodes (vanaf-datum, evt. tot-datum, bedrag
- * per maand) om naar een jaartotaal, geproportioneerd op hele kalendermaanden
- * (huur wordt per maand betaald, niet per dag). Een periode zonder endDate telt
- * mee tot en met december van het gevraagde jaar.
+ * per maand) om naar een totaal over een periode, geproportioneerd op hele
+ * kalendermaanden (huur wordt per maand betaald, niet per dag) — inclusief de
+ * kalendermaand van `toDate`, ook als die nog niet volledig verstreken is
+ * (zelfde vereenvoudiging als elders in dit bestand). Een periode zonder
+ * endDate telt mee tot en met de maand van `toDate`.
  */
-export function calculateRentalPeriodCashflowForYear(
+export function calculateRentalPeriodCashflowForRange(
   periods: RentalPeriodInput[],
-  year: number,
+  fromDate: Date | string,
+  toDate: Date | string,
 ): RentalPeriodYearTotals {
   let income = new Decimal(0)
   let costs = new Decimal(0)
 
-  const yearStart = toMonthIndex(new Date(year, 0, 1))
-  const yearEnd = toMonthIndex(new Date(year, 11, 1))
+  const rangeStart = toMonthIndex(new Date(fromDate))
+  const rangeEnd = toMonthIndex(new Date(toDate))
 
   for (const period of periods) {
     const amount = new Decimal(period.amount)
@@ -46,12 +49,13 @@ export function calculateRentalPeriodCashflowForYear(
     let contribution: Decimal
 
     if (period.frequency === 'once') {
-      contribution = startDate.getFullYear() === year ? amount : new Decimal(0)
+      const eventMonth = toMonthIndex(startDate)
+      contribution = eventMonth >= rangeStart && eventMonth <= rangeEnd ? amount : new Decimal(0)
     } else if (period.frequency === 'monthly') {
       const periodStart = toMonthIndex(startDate)
-      const periodEnd = period.endDate ? toMonthIndex(new Date(period.endDate)) : yearEnd
-      const overlapStart = Math.max(periodStart, yearStart)
-      const overlapEnd = Math.min(periodEnd, yearEnd)
+      const periodEnd = period.endDate ? toMonthIndex(new Date(period.endDate)) : rangeEnd
+      const overlapStart = Math.max(periodStart, rangeStart)
+      const overlapEnd = Math.min(periodEnd, rangeEnd)
       const months = Math.max(0, overlapEnd - overlapStart + 1)
       contribution = amount.times(months)
     } else {
@@ -64,4 +68,12 @@ export function calculateRentalPeriodCashflowForYear(
   }
 
   return { income, costs }
+}
+
+/** Jaartotaal — dunne wrapper rond `calculateRentalPeriodCashflowForRange` voor 1 januari t/m 31 december. */
+export function calculateRentalPeriodCashflowForYear(
+  periods: RentalPeriodInput[],
+  year: number,
+): RentalPeriodYearTotals {
+  return calculateRentalPeriodCashflowForRange(periods, new Date(year, 0, 1), new Date(year, 11, 31))
 }

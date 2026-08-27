@@ -449,6 +449,40 @@ export const goals = pgTable('goals', {
   check('goals_target_amount_check', sql`${t.targetAmount} >= 0`),
 ])
 
+// ─── investment_assumptions (verwacht rendement aandelen/ETF's, startpagina) ─
+// Eén portefeuille-brede aanname per tenant (unique op tenant_id, zelfde
+// upsert-patroon als `goals`) — geen per-asset-aanname. Procentgetal (7.0000 =
+// 7%), zelfde conventie als mortgages.interestRate — geen 0.07-decimaal zoals
+// XIRR/TWR-uitkomsten. Gebruikt voor de vermogensdoel-projectie op de
+// startpagina (zie goal-progress.ts / calculateProjectedValue).
+
+export const investmentAssumptions = pgTable('investment_assumptions', {
+  id:                   uuid('id').primaryKey().defaultRandom(),
+  tenantId:             uuid('tenant_id').notNull().unique().references(() => tenants.id, { onDelete: 'cascade' }),
+  expectedAnnualReturn: numeric('expected_annual_return', { precision: 8, scale: 4 }).notNull(),
+  createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:            timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check('investment_assumptions_return_check', sql`${t.expectedAnnualReturn} >= -100`),
+])
+
+// ─── stock_annual_returns (werkelijk rendement per kalenderjaar) ────────────
+// Handmatig door de gebruiker vastgesteld aan het eind van elk jaar — geen
+// koppeling aan transacties/waarderingen (bewuste keuze, zie stappenplan.md).
+
+export const stockAnnualReturns = pgTable('stock_annual_returns', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  tenantId:  uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  year:      integer('year').notNull(),
+  returnPct: numeric('return_pct', { precision: 8, scale: 4 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('stock_annual_returns_tenant_id_idx').on(t.tenantId),
+  unique('stock_annual_returns_tenant_year_unique').on(t.tenantId, t.year),
+  check('stock_annual_returns_return_check', sql`${t.returnPct} >= -100`),
+])
+
 // ─── fx_rates (geen RLS — gedeeld, niet user-gebonden) ───────────────────────
 // Gereserveerd voor multi-currency / Optie B (transactievaluta met automatische
 // EUR-omrekening). Nog niet in gebruik in v1: alle transacties worden in EUR
@@ -594,4 +628,12 @@ export const oneTimeExpensesRelations = relations(oneTimeExpenses, ({ one }) => 
 
 export const goalsRelations = relations(goals, ({ one }) => ({
   tenant: one(tenants, { fields: [goals.tenantId], references: [tenants.id] }),
+}))
+
+export const investmentAssumptionsRelations = relations(investmentAssumptions, ({ one }) => ({
+  tenant: one(tenants, { fields: [investmentAssumptions.tenantId], references: [tenants.id] }),
+}))
+
+export const stockAnnualReturnsRelations = relations(stockAnnualReturns, ({ one }) => ({
+  tenant: one(tenants, { fields: [stockAnnualReturns.tenantId], references: [tenants.id] }),
 }))

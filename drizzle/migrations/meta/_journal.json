@@ -176,6 +176,13 @@
       "when": 1787817743035,
       "tag": "0024_tiresome_argent",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787842523792,
+      "tag": "0025_chunky_ultimatum",
+      "breakpoints": true
     }
   ]
 }
