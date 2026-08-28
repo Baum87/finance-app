@@ -2,12 +2,15 @@ import Decimal from 'decimal.js'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getAssetsWithValues, getMortgageBalancesMap } from '@/lib/db/queries/assets'
 import { getTransactions } from '@/lib/db/queries/transactions'
+import { getInvestmentAssumption } from '@/lib/db/queries/investment-assumptions'
 import { calculateRentalPeriodCashflowForYear } from '@/lib/finance'
 import type { RentalPeriodInput } from '@/lib/finance'
 import { formatCurrency } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { RealEstatePositionsCard } from '@/components/portfolio/RealEstatePositionsCard'
+import { ExpectedReturnForm } from '@/components/portfolio/ExpectedReturnForm'
+import { saveInvestmentAssumptionAction } from '@/app/portfolio/investment-assumptions-actions'
 
 export default async function VastgoedPortfolioPage() {
   const supabase = await createServerSupabaseClient()
@@ -16,9 +19,10 @@ export default async function VastgoedPortfolioPage() {
   const currentYear = new Date().getFullYear()
   const currentYearStart = `${currentYear}-01-01`
 
-  const [assets, mortgageMap] = await Promise.all([
+  const [assets, mortgageMap, investmentAssumption] = await Promise.all([
     getAssetsWithValues(user!.id),
     getMortgageBalancesMap(user!.id),
+    getInvestmentAssumption(user!.id, 'real_estate'),
   ])
 
   const realEstateAssets = assets.filter(a => a.assetType === 'real_estate')
@@ -83,6 +87,14 @@ export default async function VastgoedPortfolioPage() {
             subtext="Actieve panden"
           />
         </div>
+
+        <ExpectedReturnForm
+          action={saveInvestmentAssumptionAction}
+          category="real_estate"
+          title="Verwacht rendement vastgoed"
+          description="Eén aanname voor je hele vastgoedportefeuille (waardestijging, geen hypotheekaflossing) — wordt gebruikt om een vermogensdoel met streefdatum op de startpagina te projecteren."
+          defaultValue={investmentAssumption?.expectedAnnualReturn}
+        />
 
         <RealEstatePositionsCard
           positions={positions}

@@ -68,6 +68,32 @@ export function buildSimpleEntryMonthlySeries(entries: SimpleEntryRow[], asOf: D
   })
 }
 
+export type SimpleEntryMonthPointWithPeriod = SimpleEntryMonthPoint & {
+  /** Verandering in het cumulatieve ingelegde bedrag t.o.v. de vorige maand
+   *  in de reeks — nieuwe inleg, geen rendement. Null voor de eerste maand
+   *  (geen vorige maand om tegen af te zetten). */
+  periodContribution: Decimal | null
+  /** Waardeverandering t.o.v. de vorige maand, ná aftrek van `periodContribution`
+   *  — het eigenlijke rendement die maand. Null voor de eerste maand. */
+  periodGain: Decimal | null
+}
+
+/**
+ * Verrijkt een maandelijkse ingelegd/huidige-waarde-reeks (buildSimpleEntryMonthlySeries)
+ * met per maand het onderscheid tussen nieuwe inleg en eigenlijk rendement —
+ * zonder dit onderscheid telt bijgestorte inleg in een maand ten onrechte mee
+ * als winst die maand (zelfde principe als buildSimpleEntrySectionMetrics).
+ */
+export function withPeriodBreakdown(points: SimpleEntryMonthPoint[]): SimpleEntryMonthPointWithPeriod[] {
+  return points.map((point, i) => {
+    if (i === 0) return { ...point, periodContribution: null, periodGain: null }
+    const prev = points[i - 1]
+    const periodContribution = point.invested.minus(prev.invested)
+    const periodGain = point.currentValue.minus(prev.currentValue).minus(periodContribution)
+    return { ...point, periodContribution, periodGain }
+  })
+}
+
 export type SingleValueRow = {
   group: string
   value: string

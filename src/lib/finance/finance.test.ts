@@ -19,7 +19,7 @@ import { calculateTwr } from './twr'
 import { calculateAnnualReturn } from './annual-return'
 import { calculateExcessReturn } from './benchmark'
 import { buildNetWorthSeries } from './net-worth-series'
-import { buildSimpleEntryMonthlySeries, buildSingleValueMonthlySeries } from './simple-entry-series'
+import { buildSimpleEntryMonthlySeries, buildSingleValueMonthlySeries, withPeriodBreakdown } from './simple-entry-series'
 import { annualizeAmount, calculateRecurringTotals } from './recurring-cashflow'
 import { calculateOneTimeExpensesTotal } from './one-time-expenses'
 import { calculatePercentChange } from './percent-change'
@@ -35,7 +35,10 @@ import { buildMonthlyCashflowSeries, lastNMonths } from './monthly-cashflow-seri
 import type { RecurringItemHistoryInput, OneTimeExpenseInput as MonthlyOneTimeExpenseInput } from './monthly-cashflow-series'
 import { calculateGoalProgress } from './goal-progress'
 import type { GoalProgressInput } from './goal-progress'
-import { calculateProjectedValue } from './projected-value'
+import { calculateProjectedValue, calculateYearsToTarget, calculateYearsToTargetMulti } from './projected-value'
+import type { GrowthComponent } from './projected-value'
+import { sumSimpleEntriesAsOf, previousEntryDate, buildSimpleEntrySectionMetrics } from './simple-entry-snapshot'
+import type { SimpleEntrySnapshotRow } from './simple-entry-snapshot'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -633,6 +636,42 @@ describe('buildSimpleEntryMonthlySeries', () => {
 
   it('returns empty array for empty input', () => {
     expect(buildSimpleEntryMonthlySeries([], asOf)).toEqual([])
+  })
+})
+
+// ─── withPeriodBreakdown ──────────────────────────────────────────────────
+
+describe('withPeriodBreakdown', () => {
+  const asOf = new Date('2026-03-15')
+
+  it('splits each month into new contribution vs. actual gain, null for the first month', () => {
+    const entries = [
+      { broker: 'Bitvavo', invested: '1000', currentValue: '1100', entryDate: '2026-01-10' },
+      { broker: 'Binance', invested: '500', currentValue: '400', entryDate: '2026-02-05' },
+      { broker: 'Bitvavo', invested: '1500', currentValue: '1800', entryDate: '2026-03-01' },
+    ]
+    const series = buildSimpleEntryMonthlySeries(entries, asOf)
+    const result = withPeriodBreakdown(series)
+
+    const jan = result.find(p => p.month === '2026-01')!
+    expect(jan.periodContribution).toBeNull()
+    expect(jan.periodGain).toBeNull()
+
+    // Feb: invested 1000→1500 (+500 inleg via Binance), waarde 1100→1500 (+400)
+    // → winst = 400 - 500 = -100
+    const feb = result.find(p => p.month === '2026-02')!
+    expect(feb.periodContribution!.toNumber()).toBe(500)
+    expect(feb.periodGain!.toNumber()).toBe(-100)
+
+    // Mar: invested 1500→2000 (+500 inleg via Bitvavo-update), waarde 1500→2200 (+700)
+    // → winst = 700 - 500 = 200
+    const mar = result.find(p => p.month === '2026-03')!
+    expect(mar.periodContribution!.toNumber()).toBe(500)
+    expect(mar.periodGain!.toNumber()).toBe(200)
+  })
+
+  it('returns an empty array for an empty series', () => {
+    expect(withPeriodBreakdown([])).toEqual([])
   })
 })
 
@@ -1249,5 +1288,208 @@ describe('calculateProjectedValue', () => {
   it('throws when the return rate is -100% or lower', () => {
     expect(() => calculateProjectedValue(d(10000), d(-1), d(1))).toThrow()
     expect(() => calculateProjectedValue(d(10000), d(-1.5), d(1))).toThrow()
+  })
+})
+
+// ─── calculateYearsToTarget ───────────────────────────────────────────────────
+
+describe('calculateYearsToTarget', () => {
+  it('computes years to double at 7%', () => {
+    const result = calculateYearsToTarget(d(100000), d(200000), d(0.07))
+    // ln(2) / ln(1.07) ≈ 10.24
+    expect(result!.toNumber()).toBeCloseTo(10.24, 2)
+  })
+
+  it('round-trips with calculateProjectedValue', () => {
+    const years = calculateYearsToTarget(d(50000), d(150000), d(0.08))!
+    const projected = calculateProjectedValue(d(50000), d(0.08), years)
+    expect(projected.toDecimalPlaces(2).toNumber()).toBeCloseTo(150000, 0)
+  })
+
+  it('returns 0 when the target is already reached', () => {
+    expect(calculateYearsToTarget(d(200000), d(150000), d(0.07))!.toNumber()).toBe(0)
+    expect(calculateYearsToTarget(d(150000), d(150000), d(0.07))!.toNumber()).toBe(0)
+  })
+
+  it('returns null when the current value is zero or negative', () => {
+    expect(calculateYearsToTarget(d(0), d(100000), d(0.07))).toBeNull()
+    expect(calculateYearsToTarget(d(-500), d(100000), d(0.07))).toBeNull()
+  })
+
+  it('returns null when the return rate is zero or negative — the goal is never reached through growth alone', () => {
+    expect(calculateYearsToTarget(d(100000), d(200000), d(0))).toBeNull()
+    expect(calculateYearsToTarget(d(100000), d(200000), d(-0.02))).toBeNull()
+  })
+})
+
+// ─── calculateYearsToTargetMulti ──────────────────────────────────────────────
+
+describe('calculateYearsToTargetMulti', () => {
+  it('matches the single-component closed-form result (regression check)', () => {
+    const single = calculateYearsToTarget(d(100000), d(200000), d(0.07))!
+    const components: GrowthComponent[] = [{ value: d(100000), annualReturnRate: d(0.07) }]
+    const multi = calculateYearsToTargetMulti(components, d(0), d(200000))!
+    expect(multi.toNumber()).toBeCloseTo(single.toNumber(), 4)
+  })
+
+  it('combines two components growing at different rates', () => {
+    // Aandelen 50.000 @ 7%, vastgoed 200.000 @ 4%, geen vast deel, doel 400.000
+    const components: GrowthComponent[] = [
+      { value: d(50000), annualReturnRate: d(0.07) },
+      { value: d(200000), annualReturnRate: d(0.04) },
+    ]
+    const years = calculateYearsToTargetMulti(components, d(0), d(400000))!
+    // Verifieer door terug in te vullen: op dat moment moet het totaal ≈ target zijn
+    const total = components.reduce(
+      (s, c) => s.plus(c.value.times(new Decimal(1).plus(c.annualReturnRate).pow(years))),
+      new Decimal(0),
+    )
+    expect(total.toNumber()).toBeCloseTo(400000, 0)
+  })
+
+  it('includes a flat (non-growing) part of the goal value', () => {
+    const components: GrowthComponent[] = [{ value: d(50000), annualReturnRate: d(0.07) }]
+    const years = calculateYearsToTargetMulti(components, d(100000), d(200000))!
+    const total = d(100000).plus(d(50000).times(new Decimal(1).plus(d(0.07)).pow(years)))
+    expect(total.toNumber()).toBeCloseTo(200000, 0)
+  })
+
+  it('returns 0 when the target is already reached by the flat value alone', () => {
+    const components: GrowthComponent[] = [{ value: d(1000), annualReturnRate: d(0.07) }]
+    expect(calculateYearsToTargetMulti(components, d(500000), d(100000))!.toNumber()).toBe(0)
+  })
+
+  it('returns null when nothing can grow (all rates ≤ 0 or all values ≤ 0)', () => {
+    const components: GrowthComponent[] = [
+      { value: d(50000), annualReturnRate: d(0) },
+      { value: d(0), annualReturnRate: d(0.07) },
+    ]
+    expect(calculateYearsToTargetMulti(components, d(10000), d(200000))).toBeNull()
+  })
+
+  it('returns null when nothing is invested in stocks even if real estate grows — real estate alone is not enough', () => {
+    const components: GrowthComponent[] = [
+      { value: d(0), annualReturnRate: d(0.07) },
+      { value: d(0), annualReturnRate: d(0.04) },
+    ]
+    expect(calculateYearsToTargetMulti(components, d(10000), d(200000))).toBeNull()
+  })
+})
+
+// ─── sumSimpleEntriesAsOf / previousEntryDate ────────────────────────────────
+
+describe('sumSimpleEntriesAsOf', () => {
+  const rows: SimpleEntrySnapshotRow[] = [
+    { broker: 'DEGIRO', invested: '10000', currentValue: '11000', entryDate: '2026-01-15' },
+    { broker: 'DEGIRO', invested: '10000', currentValue: '12000', entryDate: '2026-06-01' },
+    { broker: 'Trade Republic', invested: '5000', currentValue: '5500', entryDate: '2026-03-01' },
+  ]
+
+  it('sums the latest row per broker on or before the given date', () => {
+    const result = sumSimpleEntriesAsOf(rows, '2026-08-27')
+    expect(result.currentValue.toNumber()).toBe(17500) // 12000 + 5500
+    expect(result.invested.toNumber()).toBe(15000)
+  })
+
+  it('excludes a broker with no entry yet at the given date', () => {
+    const result = sumSimpleEntriesAsOf(rows, '2026-02-01')
+    expect(result.currentValue.toNumber()).toBe(11000) // only DEGIRO's Jan entry
+    expect(result.invested.toNumber()).toBe(10000)
+  })
+
+  it('picks the earlier row, not the later one, when both are after the cutoff', () => {
+    const result = sumSimpleEntriesAsOf(rows, '2026-01-01')
+    expect(result.currentValue.toNumber()).toBe(0)
+  })
+
+  it('is independent of input order', () => {
+    const shuffled = [rows[2], rows[0], rows[1]]
+    const result = sumSimpleEntriesAsOf(shuffled, '2026-08-27')
+    expect(result.currentValue.toNumber()).toBe(17500)
+  })
+})
+
+describe('previousEntryDate', () => {
+  it('returns the second-most-recent distinct date', () => {
+    const rows: SimpleEntrySnapshotRow[] = [
+      { broker: 'A', invested: '0', currentValue: '0', entryDate: '2026-01-01' },
+      { broker: 'B', invested: '0', currentValue: '0', entryDate: '2026-06-01' },
+    ]
+    expect(previousEntryDate(rows)).toBe('2026-01-01')
+  })
+
+  it('treats multiple brokers updated on the same date as one session', () => {
+    const rows: SimpleEntrySnapshotRow[] = [
+      { broker: 'A', invested: '0', currentValue: '0', entryDate: '2026-06-01' },
+      { broker: 'B', invested: '0', currentValue: '0', entryDate: '2026-06-01' },
+      { broker: 'A', invested: '0', currentValue: '0', entryDate: '2026-01-01' },
+    ]
+    expect(previousEntryDate(rows)).toBe('2026-01-01')
+  })
+
+  it('returns null when there is only one entry date', () => {
+    const rows: SimpleEntrySnapshotRow[] = [
+      { broker: 'A', invested: '0', currentValue: '0', entryDate: '2026-06-01' },
+    ]
+    expect(previousEntryDate(rows)).toBeNull()
+  })
+
+  it('returns null for an empty list', () => {
+    expect(previousEntryDate([])).toBeNull()
+  })
+})
+
+describe('buildSimpleEntrySectionMetrics', () => {
+  const asOf = new Date('2026-08-27T00:00:00Z')
+
+  it('computes gain, YTD change and since-last-update change together, without new contributions', () => {
+    const rows: SimpleEntrySnapshotRow[] = [
+      { broker: 'DEGIRO', invested: '10000', currentValue: '10500', entryDate: '2025-11-01' },
+      { broker: 'DEGIRO', invested: '10000', currentValue: '11500', entryDate: '2026-08-01' },
+    ]
+    const result = buildSimpleEntrySectionMetrics(rows, asOf)
+    expect(result.invested.toNumber()).toBe(10000)
+    expect(result.currentValue.toNumber()).toBe(11500)
+    expect(result.gain.toNumber()).toBe(1500)
+    expect(result.gainPct!.toNumber()).toBe(0.15)
+    // YTD: t.o.v. 2025-12-31 → laatste bekende waarde is de 2025-11-01-rij (10500),
+    // geen inleg bijgekomen dit jaar, dus alle stijging is winst.
+    expect(result.ytd!.contribution.toNumber()).toBe(0)
+    expect(result.ytd!.gain.toNumber()).toBe(1000)
+    expect(result.ytd!.gainPct!.toNumber()).toBeCloseTo(1000 / 10500, 6)
+    // Sinds vorige update (2025-11-01 → 2026-08-01)
+    expect(result.sinceLastUpdate!.date).toBe('2025-11-01')
+    expect(result.sinceLastUpdate!.contribution.toNumber()).toBe(0)
+    expect(result.sinceLastUpdate!.gain.toNumber()).toBe(1000)
+  })
+
+  it('splits new contributions from actual gain — a deposit is not profit', () => {
+    const rows: SimpleEntrySnapshotRow[] = [
+      // Startwaarde 10.000 ingelegd/waard vóór dit jaar
+      { broker: 'DEGIRO', invested: '10000', currentValue: '10000', entryDate: '2025-12-01' },
+      // Dit jaar nog eens 2.000 bijgestort, waarde nu 12.500 (dus 500 winst, niet 2.500)
+      { broker: 'DEGIRO', invested: '12000', currentValue: '12500', entryDate: '2026-06-01' },
+    ]
+    const result = buildSimpleEntrySectionMetrics(rows, asOf)
+    expect(result.ytd!.contribution.toNumber()).toBe(2000)
+    expect(result.ytd!.gain.toNumber()).toBe(500)
+    expect(result.ytd!.gainPct!.toNumber()).toBe(0.05) // 500 / 10000 (startwaarde)
+  })
+
+  it('returns null YTD/since-last-update figures when there is no earlier data point', () => {
+    const rows: SimpleEntrySnapshotRow[] = [
+      { broker: 'DEGIRO', invested: '10000', currentValue: '11000', entryDate: '2026-03-01' },
+    ]
+    const result = buildSimpleEntrySectionMetrics(rows, asOf)
+    expect(result.ytd).toBeNull()
+    expect(result.sinceLastUpdate).toBeNull()
+  })
+
+  it('returns null gainPct when nothing has been invested', () => {
+    const rows: SimpleEntrySnapshotRow[] = [
+      { broker: 'DEGIRO', invested: '0', currentValue: '0', entryDate: '2026-01-01' },
+    ]
+    const result = buildSimpleEntrySectionMetrics(rows, asOf)
+    expect(result.gainPct).toBeNull()
   })
 })

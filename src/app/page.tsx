@@ -14,11 +14,14 @@ import {
   calculateNetWorth, calculateAllocation, calculateRecurringTotals,
   calculateSavingsRate, calculateBufferMonths, determineFinancialHealthSignal,
   calculatePassiveIncomeCoverage, calculateGoalProgress, calculateProjectedValue,
+  calculateYearsToTargetMulti, buildSimpleEntrySectionMetrics,
 } from '@/lib/finance'
-import type { FinancialHealthSignal, GoalType } from '@/lib/finance'
+import type { FinancialHealthSignal, GoalType, GrowthComponent } from '@/lib/finance'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { GoalCard } from '@/components/home/GoalCard'
+import { TimeToGoalCard } from '@/components/home/TimeToGoalCard'
+import { SimpleEntrySection } from '@/components/home/SimpleEntrySection'
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
   stock_etf:   'Aandelen & ETF',
@@ -61,7 +64,10 @@ export default async function OverzichtPage() {
   monthAgoDate.setDate(monthAgoDate.getDate() - 30)
   const monthAgoStr = monthAgoDate.toISOString().slice(0, 10)
 
-  const [assets, mortgageMap, netWorthMonthAgo, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries, liabilities, recurringItemRows, goal, investmentAssumption] = await Promise.all([
+  const [
+    assets, mortgageMap, netWorthMonthAgo, stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries,
+    liabilities, recurringItemRows, goal, stockEtfAssumption, realEstateAssumption,
+  ] = await Promise.all([
     getAssetsWithValues(user!.id),
     getMortgageBalancesMap(user!.id),
     getNetWorthAtDate(user!.id, monthAgoStr),
@@ -72,7 +78,8 @@ export default async function OverzichtPage() {
     getLiabilities(user!.id),
     getRecurringItems(user!.id),
     getGoal(user!.id),
-    getInvestmentAssumption(user!.id),
+    getInvestmentAssumption(user!.id, 'stock_etf'),
+    getInvestmentAssumption(user!.id, 'real_estate'),
   ])
 
   const totalLiabilities = liabilities.reduce((s, l) => s.plus(l.amount), new Decimal(0))
@@ -86,6 +93,13 @@ export default async function OverzichtPage() {
   const cryptoValue      = sumLatestPerGroup(cryptoEntries, e => e.broker, e => e.currentValue)
   const pensionValue     = sumLatestPerGroup(pensionEntries, e => e.broker, e => e.currentValue)
   const savingsValue     = sumLatestPerGroup(savingsEntries, e => e.bank, e => e.balance)
+
+  // Categorie-secties (Aandelen, Crypto, ...) — o.b.v. de eenvoudige
+  // invoerlijst (broker/ingelegd/huidige waarde/datum), zelfde bron als
+  // stockEtfValue/cryptoValue hierboven en de Huidige waarde/Ingelegd-tegels
+  // op /portfolio/aandelen-etf resp. /portfolio/crypto.
+  const stockEtfMetrics = buildSimpleEntrySectionMetrics(stockEtfEntries)
+  const cryptoMetrics = buildSimpleEntrySectionMetrics(cryptoEntries)
 
   // Financiële-gezondheidssignaal — hergebruikt dezelfde berekeningen als de
   // Cashflow-pagina (spaarquote, buffer-dekking), maar toont hier alleen het
@@ -116,6 +130,12 @@ export default async function OverzichtPage() {
   const realEstateTotal = assets
     .filter(a => a.assetType === 'real_estate')
     .reduce((sum, a) => sum.plus(a.currentValue).minus(mortgageMap.get(a.id) ?? new Decimal(0)), new Decimal(0))
+  // Bruto (vóór hypotheek) — nodig om alleen de wóórde te laten groeien in de
+  // rendementsprojecties hieronder; de hypotheek blijft daar bewust vlak
+  // (geen aflossingsmodel), zie goalProjection/goalYearsToTarget.
+  const realEstateGrossValue = assets
+    .filter(a => a.assetType === 'real_estate')
+    .reduce((sum, a) => sum.plus(a.currentValue), new Decimal(0))
 
   const assetNetWorth = calculateNetWorth(
     nonRealEstateAssets.map(a => ({
@@ -165,25 +185,57 @@ export default async function OverzichtPage() {
       })
     : null
 
-  // Vermogensdoel-projectie o.b.v. het verwachte aandelenrendement — alleen
-  // zinvol met een streefdatum (anders geen horizon om naartoe te rekenen).
-  // Enkel het aandelen/ETF-deel van het vermogen groeit in deze projectie;
-  // de rest (spaargeld, vastgoed, pensioen) wordt bewust gelijk gehouden —
-  // een aanname, geen voorspelling van het hele vermogen.
+  // Vermogensdoel-projectie o.b.v. het verwachte rendement — alleen zinvol
+  // met een streefdatum (anders geen horizon om naartoe te rekenen). Enkel
+  // het aandelen/ETF-deel (en, indien ingesteld, het vastgoed-deel) van het
+  // vermogen groeit in deze projectie; de rest (spaargeld, pensioen, en bij
+  // vastgoed zonder eigen aanname ook vastgoed) wordt bewust gelijk gehouden
+  // — een aanname, geen voorspelling van het hele vermogen. De hypotheek
+  // blijft altijd vlak (geen aflossingsmodel).
   const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000
-  let goalProjection: { value: Decimal; date: string; ratePct: Decimal } | null = null
-  if (goal?.goalType === 'net_worth' && goal.targetDate && investmentAssumption) {
+  let goalProjection: { value: Decimal; date: string; stockRatePct: Decimal; realEstateRatePct: Decimal | null } | null = null
+  if (goal?.goalType === 'net_worth' && goal.targetDate && stockEtfAssumption) {
     const years = new Decimal((new Date(goal.targetDate).getTime() - Date.now()) / MS_PER_YEAR)
     if (years.gt(0)) {
-      const ratePct = new Decimal(investmentAssumption.expectedAnnualReturn)
-      const rate = ratePct.dividedBy(100)
-      const projectedStockValue = calculateProjectedValue(stockEtfValue, rate, years)
-      goalProjection = {
-        value: netWorth.minus(stockEtfValue).plus(projectedStockValue),
-        date:  goal.targetDate,
-        ratePct,
+      const stockRatePct = new Decimal(stockEtfAssumption.expectedAnnualReturn)
+      const projectedStockValue = calculateProjectedValue(stockEtfValue, stockRatePct.dividedBy(100), years)
+
+      let value = netWorth.minus(stockEtfValue).plus(projectedStockValue)
+      let realEstateRatePct: Decimal | null = null
+      if (realEstateAssumption) {
+        realEstateRatePct = new Decimal(realEstateAssumption.expectedAnnualReturn)
+        const projectedRealEstateValue = calculateProjectedValue(realEstateGrossValue, realEstateRatePct.dividedBy(100), years)
+        value = value.minus(realEstateGrossValue).plus(projectedRealEstateValue)
       }
+
+      goalProjection = { value, date: goal.targetDate, stockRatePct, realEstateRatePct }
     }
+  }
+
+  // Tijd tot doel — bij hoeveel jaar rente-op-rente-groei tegen de verwachte
+  // rendementen bereikt het doelbedrag het streefbedrag? Zelfde aannames als
+  // goalProjection hierboven (alleen aandelen/ETF's en, indien ingesteld,
+  // vastgoed groeien), maar onafhankelijk van een streefdatum. Met twee
+  // groeivoeten tegelijk (aandelen + vastgoed) is er geen gesloten formule
+  // meer, vandaar de numerieke calculateYearsToTargetMulti i.p.v. de simpele
+  // calculateYearsToTarget.
+  let goalYearsToTarget: { years: Decimal; stockRatePct: Decimal; realEstateRatePct: Decimal | null } | null = null
+  if (goal?.goalType === 'net_worth' && stockEtfAssumption && goalProgress) {
+    const stockRatePct = new Decimal(stockEtfAssumption.expectedAnnualReturn)
+    const components: GrowthComponent[] = [
+      { value: stockEtfValue, annualReturnRate: stockRatePct.dividedBy(100) },
+    ]
+    let flatValue = goalProgress.currentValue.minus(stockEtfValue)
+    let realEstateRatePct: Decimal | null = null
+
+    if (realEstateAssumption) {
+      realEstateRatePct = new Decimal(realEstateAssumption.expectedAnnualReturn)
+      components.push({ value: realEstateGrossValue, annualReturnRate: realEstateRatePct.dividedBy(100) })
+      flatValue = flatValue.minus(realEstateGrossValue)
+    }
+
+    const years = calculateYearsToTargetMulti(components, flatValue, goalProgress.targetValue)
+    if (years != null) goalYearsToTarget = { years, stockRatePct, realEstateRatePct }
   }
 
   const illiquidAssets = nonRealEstateAssets.filter(a => !a.isLiquid)
@@ -307,20 +359,35 @@ export default async function OverzichtPage() {
           </div>
         )}
 
+        {/* Blok 2c — Categorie-secties */}
+        {stockEtfValue.gt(0) && <SimpleEntrySection title="Aandelen" metrics={stockEtfMetrics} />}
+        {cryptoValue.gt(0) && <SimpleEntrySection title="Crypto" metrics={cryptoMetrics} />}
+
         {/* Blok 3 — Actief doel */}
-        <GoalCard
-          goal={goal ? { name: goal.name, goalType: goal.goalType as GoalType, targetAmount: goal.targetAmount, targetDate: goal.targetDate } : null}
-          progress={goalProgress ? {
-            currentValue: goalProgress.currentValue.toNumber(),
-            targetValue:  goalProgress.targetValue.toNumber(),
-            percentage:   goalProgress.percentage.toNumber(),
-          } : null}
-          projection={goalProjection ? {
-            value:   goalProjection.value.toNumber(),
-            date:    goalProjection.date,
-            ratePct: goalProjection.ratePct.toNumber(),
-          } : null}
-        />
+        <div className={goal?.goalType === 'net_worth' ? 'grid grid-cols-1 md:grid-cols-2 gap-4 items-start' : ''}>
+          <GoalCard
+            goal={goal ? { name: goal.name, goalType: goal.goalType as GoalType, targetAmount: goal.targetAmount, targetDate: goal.targetDate } : null}
+            progress={goalProgress ? {
+              currentValue: goalProgress.currentValue.toNumber(),
+              targetValue:  goalProgress.targetValue.toNumber(),
+              percentage:   goalProgress.percentage.toNumber(),
+            } : null}
+            projection={goalProjection ? {
+              value:             goalProjection.value.toNumber(),
+              date:              goalProjection.date,
+              stockRatePct:      goalProjection.stockRatePct.toNumber(),
+              realEstateRatePct: goalProjection.realEstateRatePct?.toNumber() ?? null,
+            } : null}
+          />
+          {goal?.goalType === 'net_worth' && (
+            <TimeToGoalCard
+              hasInvestmentAssumption={stockEtfAssumption != null}
+              years={goalYearsToTarget?.years.toNumber() ?? null}
+              stockRatePct={stockEtfAssumption ? Number(stockEtfAssumption.expectedAnnualReturn) : null}
+              realEstateRatePct={realEstateAssumption ? Number(realEstateAssumption.expectedAnnualReturn) : null}
+            />
+          )}
+        </div>
 
         {/* Blok 4 — AI Coach */}
         <div className="bg-card border border-border rounded-3xl p-6">

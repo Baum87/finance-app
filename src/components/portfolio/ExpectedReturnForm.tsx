@@ -6,20 +6,20 @@ import type { ActionState } from '@/app/assets/actions'
 
 type Props = {
   action: (prev: ActionState, fd: FormData) => Promise<ActionState>
+  category: 'stock_etf' | 'real_estate'
+  title: string
+  description: string
   defaultValue?: string
 }
 
-export function ExpectedReturnForm({ action, defaultValue }: Props) {
+export function ExpectedReturnForm({ action, category, title, description, defaultValue }: Props) {
   const [state, formAction, isPending] = useActionState(action, null)
 
   return (
     <form action={formAction} className="rounded-3xl border border-border bg-card p-6 space-y-4">
-      <p className="text-sm font-medium text-foreground">Verwacht rendement</p>
-      <p className="text-xs text-muted-foreground -mt-1">
-        Eén aanname voor je hele aandelen/ETF-portefeuille — wordt gebruikt om een vermogensdoel
-        met streefdatum op de startpagina te projecteren (rest van je vermogen blijft in die
-        projectie gelijk).
-      </p>
+      <input type="hidden" name="category" value={category} />
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="text-xs text-muted-foreground -mt-1">{description}</p>
 
       {state?.error && (
         <div className="rounded-lg border border-terracotta/30 bg-terracotta/10 p-3 text-sm text-terracotta">
@@ -28,9 +28,9 @@ export function ExpectedReturnForm({ action, defaultValue }: Props) {
       )}
 
       <div className="flex flex-col gap-1.5 max-w-[240px]">
-        <Label htmlFor="expectedAnnualReturn">Verwacht jaarlijks rendement (%)</Label>
+        <Label htmlFor={`expectedAnnualReturn-${category}`}>Verwacht jaarlijks rendement (%)</Label>
         <input
-          id="expectedAnnualReturn"
+          id={`expectedAnnualReturn-${category}`}
           name="expectedAnnualReturn"
           type="number"
           step="0.01"

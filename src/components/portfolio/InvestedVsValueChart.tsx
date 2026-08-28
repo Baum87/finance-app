@@ -32,18 +32,21 @@ function toYearlyPoints(data: ChartDataPoint[]): ChartDataPoint[] {
 }
 
 const TOOLTIP_LABELS: Record<string, string> = {
-  invested: 'Ingelegd',
-  currentValue: 'Huidige waarde',
+  invested: 'Ingelegd (totaal)',
+  currentValue: 'Huidige waarde (totaal)',
 }
+
+type TooltipPayloadItem = { dataKey?: string | number; value?: number; payload?: FullChartPoint }
 
 function ChartTooltip({ active, payload, label }: {
   active?: boolean
-  payload?: { dataKey?: string | number; value?: number }[]
+  payload?: TooltipPayloadItem[]
   label?: string
 }) {
   if (!active || !payload) return null
   const rows = payload.filter(p => typeof p.dataKey === 'string' && p.dataKey in TOOLTIP_LABELS)
   if (rows.length === 0) return null
+  const point = payload[0]?.payload
   return (
     <div style={CHART_STYLE.tooltipContent} className="px-3 py-2">
       <p style={{ fontSize: 11, color: CHART_STYLE.labelFill }} className="mb-1">{label}</p>
@@ -52,8 +55,34 @@ function ChartTooltip({ active, payload, label }: {
           {TOOLTIP_LABELS[r.dataKey as string]}: {formatEur(r.value ?? 0)}
         </p>
       ))}
+      {point && point.periodContribution != null && point.periodGain != null && (
+        <>
+          <p style={{ fontSize: 11, color: CHART_STYLE.labelFill }} className="mt-1.5 pt-1.5 border-t border-border/60">
+            Deze periode
+          </p>
+          <p style={{ fontSize: 12, color: CHART_STYLE.valueFill }}>
+            Ingelegd: {formatEur(point.periodContribution)}
+          </p>
+          <p style={{ fontSize: 12, color: point.periodGain >= 0 ? CHART_COLORS.sage : CHART_COLORS.terracotta }}>
+            Winst/verlies: {point.periodGain >= 0 ? '+' : ''}{formatEur(point.periodGain)}
+          </p>
+        </>
+      )}
     </div>
   )
+}
+
+type FullChartPoint = {
+  month: string
+  invested: number
+  currentValue: number
+  base: number
+  gain: number
+  loss: number
+  /** Nieuwe inleg t.o.v. het vorige punt in de reeks — null voor het eerste punt. */
+  periodContribution: number | null
+  /** Rendement t.o.v. het vorige punt, exclusief nieuwe inleg — null voor het eerste punt. */
+  periodGain: number | null
 }
 
 type Props = { data: ChartDataPoint[] }
@@ -71,14 +100,25 @@ export function InvestedVsValueChart({ data }: Props) {
 
   const sourceData = viewMode === 'year' ? toYearlyPoints(data) : data
 
-  const chartData = sourceData.map(({ month, invested, currentValue }) => ({
-    month: viewMode === 'year' ? month : monthLabel(month),
-    invested,
-    currentValue,
-    base: Math.min(invested, currentValue),
-    gain: currentValue > invested ? currentValue - invested : 0,
-    loss: invested > currentValue ? invested - currentValue : 0,
-  }))
+  // Splitst de verandering t.o.v. het vorige punt op in nieuwe inleg
+  // (periodContribution, uit het verschil in cumulatief ingelegd bedrag) en
+  // het overblijvende, eigenlijke rendement (periodGain) — zonder dit
+  // onderscheid telt bijgestorte inleg ten onrechte mee als winst.
+  const chartData: FullChartPoint[] = sourceData.map(({ month, invested, currentValue }, i) => {
+    const prev = i > 0 ? sourceData[i - 1] : null
+    const periodContribution = prev != null ? invested - prev.invested : null
+    const periodGain = prev != null ? (currentValue - prev.currentValue) - periodContribution! : null
+    return {
+      month: viewMode === 'year' ? month : monthLabel(month),
+      invested,
+      currentValue,
+      base: Math.min(invested, currentValue),
+      gain: currentValue > invested ? currentValue - invested : 0,
+      loss: invested > currentValue ? invested - currentValue : 0,
+      periodContribution,
+      periodGain,
+    }
+  })
 
   return (
     <div className="bg-card border border-border rounded-2xl p-6">

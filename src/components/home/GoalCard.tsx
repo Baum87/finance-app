@@ -25,7 +25,8 @@ export type GoalCardProgress = {
 export type GoalCardProjection = {
   value: number
   date: string
-  ratePct: number
+  stockRatePct: number
+  realEstateRatePct: number | null
 } | null
 
 type Props = {
@@ -100,9 +101,10 @@ export function GoalCard({ goal, progress, projection }: Props) {
 
         {projection && (
           <p className="mt-2 text-xs text-muted-foreground">
-            Verwacht op {formatDate(projection.date)} bij {formatPercent(projection.ratePct / 100)} rendement op
-            aandelen/ETF&apos;s: <span className="font-medium text-foreground">{formatCurrency(projection.value)}</span> — overig
-            vermogen aangenomen gelijk
+            Verwacht op {formatDate(projection.date)} bij {formatPercent(projection.stockRatePct / 100)} rendement op
+            aandelen/ETF&apos;s{projection.realEstateRatePct != null && ` en ${formatPercent(projection.realEstateRatePct / 100)} op vastgoed`}:{' '}
+            <span className="font-medium text-foreground">{formatCurrency(projection.value)}</span> — overig vermogen
+            aangenomen gelijk
           </p>
         )}
       </div>

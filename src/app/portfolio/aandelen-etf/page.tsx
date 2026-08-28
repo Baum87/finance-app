@@ -33,7 +33,7 @@ export default async function AandelenEtfPage() {
   const [entries, assets, investmentAssumption, stockAnnualReturns] = await Promise.all([
     getStockEtfEntries(user!.id),
     getAssetsWithValues(user!.id),
-    getInvestmentAssumption(user!.id),
+    getInvestmentAssumption(user!.id, 'stock_etf'),
     getStockAnnualReturns(user!.id),
   ])
   const latestPerBroker = latestPerGroup(entries, e => e.broker)
@@ -94,6 +94,9 @@ export default async function AandelenEtfPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ExpectedReturnForm
             action={saveInvestmentAssumptionAction}
+            category="stock_etf"
+            title="Verwacht rendement"
+            description="Eén aanname voor je hele aandelen/ETF-portefeuille — wordt gebruikt om een vermogensdoel met streefdatum op de startpagina te projecteren (rest van je vermogen blijft in die projectie gelijk)."
             defaultValue={investmentAssumption?.expectedAnnualReturn}
           />
           <StockAnnualReturnForm action={createStockAnnualReturnAction} />

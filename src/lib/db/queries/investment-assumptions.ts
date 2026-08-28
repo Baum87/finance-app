@@ -3,23 +3,29 @@ import { db } from '@/lib/db'
 import { investmentAssumptions, stockAnnualReturns } from '@/lib/db/schema'
 import { getOrCreateTenant } from './tenant'
 
-// ─── investment_assumptions (verwacht rendement, 1 rij per tenant) ──────────
+export type InvestmentAssumptionCategory = 'stock_etf' | 'real_estate'
 
-export async function getInvestmentAssumption(userId: string) {
+// ─── investment_assumptions (verwacht rendement, 1 rij per tenant per categorie) ─
+
+export async function getInvestmentAssumption(userId: string, category: InvestmentAssumptionCategory) {
   const tenantId = await getOrCreateTenant(userId)
   const [row] = await db
     .select()
     .from(investmentAssumptions)
-    .where(eq(investmentAssumptions.tenantId, tenantId))
+    .where(and(eq(investmentAssumptions.tenantId, tenantId), eq(investmentAssumptions.category, category)))
     .limit(1)
   return row ?? null
 }
 
-// Upsert: maar 1 rij per tenant (unique constraint op tenant_id), zelfde
-// patroon als saveGoal (queries/goals.ts).
-export async function saveInvestmentAssumption(userId: string, expectedAnnualReturn: string) {
+// Upsert: maar 1 rij per tenant per categorie (unique constraint op
+// tenant_id + category), zelfde patroon als saveGoal (queries/goals.ts).
+export async function saveInvestmentAssumption(
+  userId: string,
+  category: InvestmentAssumptionCategory,
+  expectedAnnualReturn: string,
+) {
   const tenantId = await getOrCreateTenant(userId)
-  const existing = await getInvestmentAssumption(userId)
+  const existing = await getInvestmentAssumption(userId, category)
 
   if (existing) {
     const [row] = await db
@@ -32,7 +38,7 @@ export async function saveInvestmentAssumption(userId: string, expectedAnnualRet
 
   const [row] = await db
     .insert(investmentAssumptions)
-    .values({ tenantId, expectedAnnualReturn })
+    .values({ tenantId, category, expectedAnnualReturn })
     .returning()
   return row
 }

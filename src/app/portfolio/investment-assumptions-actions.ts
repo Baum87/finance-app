@@ -6,11 +6,13 @@ import { requireUser } from '@/lib/db/supabase-server'
 import {
   saveInvestmentAssumption, createStockAnnualReturn, updateStockAnnualReturn, deleteStockAnnualReturn,
 } from '@/lib/db/queries/investment-assumptions'
+import type { InvestmentAssumptionCategory } from '@/lib/db/queries/investment-assumptions'
 import type { ActionState } from '@/app/assets/actions'
 
 const PERCENT_REGEX = /^-?\d+(\.\d{1,2})?$/
 
 const assumptionSchema = z.object({
+  category:             z.enum(['stock_etf', 'real_estate']),
   expectedAnnualReturn: z.string().regex(PERCENT_REGEX, 'Verwacht rendement moet een getal zijn, bijv. 7 of -2.5'),
 })
 
@@ -23,6 +25,11 @@ function str(fd: FormData, key: string): string {
   return (fd.get(key) as string | null) ?? ''
 }
 
+const CATEGORY_PATHS: Record<InvestmentAssumptionCategory, string> = {
+  stock_etf:   '/portfolio/aandelen-etf',
+  real_estate: '/portfolio/vastgoed',
+}
+
 function revalidateAandelenPages() {
   revalidatePath('/portfolio/aandelen-etf')
   revalidatePath('/')
@@ -31,9 +38,13 @@ function revalidateAandelenPages() {
 export async function saveInvestmentAssumptionAction(prev: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const user = await requireUser()
-    const data = assumptionSchema.parse({ expectedAnnualReturn: str(fd, 'expectedAnnualReturn') })
-    await saveInvestmentAssumption(user.id, data.expectedAnnualReturn)
-    revalidateAandelenPages()
+    const data = assumptionSchema.parse({
+      category:             str(fd, 'category'),
+      expectedAnnualReturn: str(fd, 'expectedAnnualReturn'),
+    })
+    await saveInvestmentAssumption(user.id, data.category, data.expectedAnnualReturn)
+    revalidatePath(CATEGORY_PATHS[data.category])
+    revalidatePath('/')
     return null
   } catch (e) {
     if (e instanceof z.ZodError) return { error: e.issues[0].message }

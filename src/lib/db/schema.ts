@@ -449,20 +449,25 @@ export const goals = pgTable('goals', {
   check('goals_target_amount_check', sql`${t.targetAmount} >= 0`),
 ])
 
-// ─── investment_assumptions (verwacht rendement aandelen/ETF's, startpagina) ─
-// Eén portefeuille-brede aanname per tenant (unique op tenant_id, zelfde
-// upsert-patroon als `goals`) — geen per-asset-aanname. Procentgetal (7.0000 =
-// 7%), zelfde conventie als mortgages.interestRate — geen 0.07-decimaal zoals
-// XIRR/TWR-uitkomsten. Gebruikt voor de vermogensdoel-projectie op de
-// startpagina (zie goal-progress.ts / calculateProjectedValue).
+// ─── investment_assumptions (verwacht rendement per categorie, startpagina) ──
+// Eén portefeuille-brede aanname per tenant per categorie (unique op
+// tenant_id + category, zelfde upsert-patroon als `goals`) — geen
+// per-asset-aanname. Procentgetal (7.0000 = 7%), zelfde conventie als
+// mortgages.interestRate — geen 0.07-decimaal zoals XIRR/TWR-uitkomsten.
+// Gebruikt voor de vermogensdoel-projectie op de startpagina (zie
+// goal-progress.ts / calculateProjectedValue / calculateYearsToTargetMulti).
+// category hergebruikt dezelfde waarden als assets.assetType.
 
 export const investmentAssumptions = pgTable('investment_assumptions', {
   id:                   uuid('id').primaryKey().defaultRandom(),
-  tenantId:             uuid('tenant_id').notNull().unique().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId:             uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  category:             text('category').notNull().default('stock_etf'),
   expectedAnnualReturn: numeric('expected_annual_return', { precision: 8, scale: 4 }).notNull(),
   createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:            timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
+  unique('investment_assumptions_tenant_category_unique').on(t.tenantId, t.category),
+  check('investment_assumptions_category_check', sql`${t.category} IN ('stock_etf', 'real_estate')`),
   check('investment_assumptions_return_check', sql`${t.expectedAnnualReturn} >= -100`),
 ])
 
