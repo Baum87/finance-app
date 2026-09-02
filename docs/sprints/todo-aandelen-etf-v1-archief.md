@@ -1,4 +1,7 @@
-# Todo
+# Todo — Aandelen/ETF v1 (archief)
+
+> Gearchiveerd: alle punten zijn afgerond, incl. de broker-FK-migratie
+> (`stockEtfDetails.brokerId` is inmiddels een FK naar `brokers`).
 
 ## Aandelen / ETF
 

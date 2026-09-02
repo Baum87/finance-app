@@ -1,4 +1,7 @@
-# TODO — Aandelen & ETF's (verdiepende review)
+# TODO — Aandelen & ETF's (verdiepende review, archief)
+
+> Gearchiveerd: alle bevindingen (F/N/R/M/L) zijn afgerond, zie de
+> samenvatting onderaan dit document.
 
 > Analyse van `/portfolio/aandelen-etf/` na afronding van `TODO.md` (v1).
 > Uitgevoerd door de code te lezen (niet alleen de UI), met de bril van

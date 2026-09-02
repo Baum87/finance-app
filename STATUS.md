@@ -3,7 +3,7 @@
 > Dit bestand is de brug tussen nadenken (Claude Desktop) en bouwen (Claude Code).
 > Werk dit bij na elke sessie. Datum bovenaan aanpassen bij elke update.
 
-**Laatst bijgewerkt:** 26 juni 2026 — Panel 4 (data-integriteit) afgerond
+**Laatst bijgewerkt:** 2 september 2026 — status gesynchroniseerd met `docs/stappenplan.md` (C1-C10 afgerond) en opgeschoonde todo's
 
 ---
 
@@ -13,74 +13,30 @@ De app heeft drie lagen (zie `docs/project files/fiscal-layer.md`):
 
 | Laag | Omschrijving | Status |
 |---|---|---|
-| **Laag 1** | Vermogen & rendement — wat heb ik, wat levert het op? | Grotendeels gebouwd — ⚠️ financiële correctheid onbevestigd |
+| **Laag 1** | Vermogen & rendement — wat heb ik, wat levert het op? | Grotendeels gebouwd — ⚠️ financiële correctheid deels onbevestigd (Panel 1 nog niet uitgevoerd, zie onder) |
 | **Laag 2** | Fiscale impact — box 3, rendement na belasting | Ontwerp klaar, nog niet gebouwd |
-| **Laag 3** | Toekomstprojectie — FIRE, scenario's | Niet gestart |
+| **Laag 3** | Toekomstprojectie — FIRE, scenario's | **Gestart:** vermogensdoel-projectie + "tijd tot doel" o.b.v. verwacht rendement (aandelen én vastgoed), zie `docs/stappenplan.md` en de commits van 27-28 augustus |
 
----
+**Per-module detailstatus staat niet meer hier maar in [`docs/stappenplan.md`](docs/stappenplan.md)**
+(Deel C, C1 t/m C10 — allemaal afgerond) — dat document werd bijgehouden terwijl dit
+bestand achterliep, dus is nu de meest actuele bron voor "wat is gebouwd, per pagina".
+Dit bestand blijft het overzicht op hoofdlijnen + de eerstvolgende stap.
 
-## Wat is af (per module)
-
-### Aandelen & ETF — `/portfolio/aandelen-etf/`
-- Drie niveaus: overzicht → broker → positie
-- Live koersen via Yahoo Finance (EUR-omrekening)
-- XIRR per positie, netto inleg (buys − sells), W/V
-- Allocatiedonut per sector + type
-- Benchmark (URTH TWR) op vermogenspagina
-- Broker als entiteit met FK
-- **Openstaand:** `TransactionForm` voor dividenden/kosten/splits is ruw — geen auto-berekening, valuta-UX niet af
-
-### Crypto — `/portfolio/crypto/`
-- Overzicht + detailpagina per wallet/asset
-- EUR-symbool, ticker-normalisatie (BTC → BTC-EUR), netDeposit met fees
-- Silent fallback bij koersfouten → nu expliciete `priceStatus`
-- **Openstaand:** portfolio-XIRR op overzichtspagina (backlog)
-
-### Spaarrekeningen — `/portfolio/spaarrekeningen/`
-- Pagina bestaat, basis werkt
-- ✅ Gereviewed — typo's, `formatPercent`, Zod positief-getal validatie, `<Legend>` verwijderd
-
-### Vastgoed — `/portfolio/vastgoed/`
-- Pagina bestaat
-- **Nog niet gereviewed**
-
-### Pensioen — `/portfolio/pensioen/`
-- Pagina bestaat
-- **Nog niet gereviewed**
-
-### Vorderingen — `/portfolio/vorderingen/`
-- Pagina bestaat
-- **Nog niet gereviewed**
-
-### Schulden — `/schulden/`
-- Pagina bestaat
-- **Nog niet gereviewed**
-
-### Portfolio overzicht — `/portfolio/`
-- ✅ Nieuw: overzichtspagina voor de hele portfolio-sectie (was er nog niet — elke
-  categorie had alleen zijn eigen pagina). Combineert waarde uit zowel volledige
-  asset-tracking als de simpele invoerlijsten (zie `portfolio-summary.ts`).
-- KPI's: totale portfoliowaarde, liquide vermogen (+ illiquide restant), XIRR dit
-  jaar (bewust alleen aandelen/crypto/spaargeld — vastgoed-XIRR is methodologisch
-  nog niet correct, zie R2 hieronder), marktrendement MSCI World ter referentie
-- Vermogensontwikkeling-tijdlijn + allocatiedonut (alle 6 categorieën) + tegels
-  per categorie met doorklik-link
-- De oude losse `/vermogen`-pagina (alleen liquide assets, al uit de nav gehaald)
-  is opgeheven — logica is hierin opgenomen
-- **Nog niet gereviewed**
-
-### Cashflow — `/cashflow/`
-- Passief inkomen YTD, netto vermogensgroei YTD
-- PassiveIncomeBreakdown component
-- ✅ Nieuw: vaste lasten & inkomsten (`recurring_items`) — salaris, verzekering, abonnement,
-  hypotheek, gemeentelijke belasting, boodschappen, overig. Handmatige CRUD (geen historie/
-  versiebeheer), maand/jaar-KPI's + tabel. Basis voor de nog te bouwen FIRE-pagina
-  (annualExpenses/annualContribution komen hieruit i.p.v. een handmatig getal).
-- **Nog niet gereviewed** (rest van de pagina)
-
-### Homepage — `/`
-- Netto vermogen + inzichtkaart (grootste allocatiecategorie + groei 30d)
-- **Nog niet gereviewed**
+Kort samengevat sinds de vorige STATUS-update (26 juni):
+- Portfolio-overzichtspagina volwassen geworden: liquide/totaal-allocatie-toggle,
+  risicobadges per assetklasse, pensioen apart getoond, data-versheid-indicator,
+  netto-inleg-vs-waarde-KPI.
+- Vastgoed losgekoppeld van de oude simple-entry-lijst (uitgefaseerd, zie C7) —
+  volledig asset-systeem met hypotheek-aflossingsschema, WOZ-historie, herhalende
+  huur/kosten-periodes.
+- Cashflow: financiële-gezondheidssectie (spaarquote, buffer-dekking,
+  passief-inkomen-dekkingsgraad), trendgrafiek inkomen vs. uitgaven per maand.
+- Startpagina: aandachtspunt-signaal, Actief-doel-blok (spaardoel/vermogensdoel/
+  FI-dekkingsgraad) met rente-op-rente-projectie, categorie-KPI's (aandelen/crypto)
+  met inleg-vs-rendement-uitsplitsing.
+- Transacties importeren via xlsx (Degiro) — gebouwd tot ~60%, daarna **afgeblazen**
+  (een concrete gebruikersmelding "gaat nog niet helemaal goed" is nooit verder
+  uitgezocht). Gearchiveerd: `docs/sprints/todo-xlsx-import-archief.md`.
 
 ---
 
@@ -124,15 +80,18 @@ De app heeft drie lagen (zie `docs/project files/fiscal-layer.md`):
 
 ### Middel — reviews nog te doen
 - [x] Spaarrekeningen: review gedaan — typo's, formatPercent, Zod validatie, Legend fix
-- [ ] Vastgoed: review (huurrendement-logica in nieuw detail-page)
-- [ ] Cashflow: review
-- [ ] Homepage: review op correctheid KPI's
+- [x] Vastgoed, Cashflow, Homepage: **grotendeels doorlopen** via `docs/stappenplan.md`
+  (C1-C10, financieel-adviseur-perspectief per `financial-expert.md`) — dit was geen
+  formele `/code-review`-pas, maar heeft wel bugs gevonden en gefixt op elk van de
+  drie pagina's (zie stappenplan.md voor de details per punt)
 
 ### Middel — opruimen
 - [x] Dubbele sprint-bestanden verwijderd (sprint-3_1 t/m 3_4)
 - [x] Losse doc-bestanden opgeruimd (fase-d-crypto naar sprints/, todo-beleggingen gearchiveerd)
 - [x] `middleware.ts` → `proxy.ts` hernoemd
 - [x] Nav geconsolideerd: `/vastgoed` samengevoegd, `/vermogen` naar portfolio-dropdown, `Beheer` weg
+- [x] Root-todo's opgeruimd (2 sept): `todo.md` en `todoAandelenEtf.md` waren 100% afgerond,
+  gearchiveerd naar `docs/sprints/`. `todoXlsxImport.md` (feature afgeblazen) idem.
 
 ### Laag — nieuwe features
 - [ ] TransactionForm verbeteren (dividend, kosten, splits — valuta UX)
@@ -181,14 +140,23 @@ docs/
     fiscal-layer.md     Fase E ontwerp (box 3)
     frontend.md         designsysteem
     stack-overzicht.md  samenvatting tech stack
-  sprints/          ← per-sprint logboek (nooit bewerken, alleen toevoegen)
-  review/           ← review-rapporten
+  sprints/          ← per-sprint logboek + archief van afgeronde/afgeblazen todo's
+                       (nooit bewerken, alleen toevoegen)
+  review/           ← review-instructies/prompts (bv. review-financieel-expert.md)
+  reviews/          ← review-rapporten, de output van review/ (bv. panel-4-*.md)
+  stappenplan.md     ← gedetailleerde per-pagina bouwstatus (Deel A/B/C) — de bron
+                       van waarheid voor "wat is gebouwd", dit bestand (STATUS.md)
+                       is het overzicht op hoofdlijnen
 ```
 
 ---
 
 ## Volgende stap
 
-**Voer Panel 1 (financieel expert) uit** — Panel 4 is afgerond.
+**Voer Panel 1 (financieel expert) uit** — Panel 4 is afgerond, Panel 1 nog steeds niet.
 Instructie staat in `docs/review/review-financieel-expert.md` § 3.
 Daarna: valutastrategie beslissen (F-4.1/F-4.2), dan pas nieuwe features of Laag 2.
+
+Losstaand, geen blokkerende volgorde: `docs/feature-vaste-lasten-geschiedenis.md`
+beschrijft een kleine, nog niet ingevulde keuze (inline uitklappen vs. eigen
+detailpagina voor bedraghistorie) — kan tussendoor.

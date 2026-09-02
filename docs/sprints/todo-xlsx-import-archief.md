@@ -1,9 +1,10 @@
-# todoXlsxImport.md — Transacties importeren via xlsx
+# todoXlsxImport.md — Transacties importeren via xlsx (archief)
 
-> Status: **~60% af** — werkend voor de kernflow, maar een concrete melding van de
-> gebruiker ("het gaat nog niet helemaal goed") is nog niet volledig uitgezocht.
-> Gepauzeerd om eerst een paar kleinere dingen op te pakken. Dit bestand is het
-> vertrekpunt voor de volgende sessie.
+> **Gearchiveerd, afgeblazen.** Stond op ~60% af (werkend voor de kernflow,
+> een concrete gebruikersmelding "het gaat nog niet helemaal goed" nooit
+> verder uitgezocht) en is meer dan een maand blijven liggen. Als de feature
+> ooit weer wordt opgepakt: onderstaande analyse (bugs, openstaande vragen,
+> health-check) is nog het vertrekpunt.
 
 ---
 
