@@ -20,6 +20,7 @@ import type { FinancialHealthSignal, GoalType, GrowthComponent } from '@/lib/fin
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { Topbar } from '@/components/layout/Topbar'
 import { GoalCard } from '@/components/home/GoalCard'
+import { NetWorthAmount } from '@/components/home/NetWorthAmount'
 import { TimeToGoalCard } from '@/components/home/TimeToGoalCard'
 import { SimpleEntrySection } from '@/components/home/SimpleEntrySection'
 
@@ -286,32 +287,15 @@ export default async function OverzichtPage() {
 
         {/* Blok 2 — Inzichtkaart */}
         <div className="bg-card border border-border rounded-3xl p-6 space-y-4">
-          <div>
-            <p className="text-sm text-muted-foreground">Netto vermogen</p>
-            <p className="mt-1 text-3xl font-semibold text-foreground">
-              {netWorth.gt(0) ? formatCurrency(netWorth.toNumber()) : '—'}
-            </p>
-            {deltaStr && (
-              <p className={`mt-0.5 text-sm font-medium ${deltaPositive ? 'text-sage' : 'text-terracotta'}`}>
-                {deltaStr} afgelopen 30 dagen
-              </p>
-            )}
-            {illiquidNetValue.gt(0) && (
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                waarvan {formatCurrency(illiquidNetValue.toNumber())} illiquide ({illiquidLabel})
-              </p>
-            )}
-            {totalLiabilities.gt(0) && (
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                waarvan −{formatCurrency(totalLiabilities.toNumber())} schulden (<Link href="/schulden" className="underline hover:opacity-70">bekijk</Link>)
-              </p>
-            )}
-            {realEstateTotal.gt(0) && (
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                Vastgoed apart: {formatCurrency(realEstateTotal.toNumber())} (niet meegeteld in netto vermogen)
-              </p>
-            )}
-          </div>
+          <NetWorthAmount
+            netWorthStr={netWorth.gt(0) ? formatCurrency(netWorth.toNumber()) : '—'}
+            deltaStr={deltaStr}
+            deltaPositive={deltaPositive}
+            illiquidStr={illiquidNetValue.gt(0) ? formatCurrency(illiquidNetValue.toNumber()) : null}
+            illiquidLabel={illiquidLabel}
+            liabilitiesStr={totalLiabilities.gt(0) ? formatCurrency(totalLiabilities.toNumber()) : null}
+            realEstateStr={realEstateTotal.gt(0) ? formatCurrency(realEstateTotal.toNumber()) : null}
+          />
 
           {(nonRealEstateAssets.length > 0 || simpleCategories.length > 0) && (
             <ul className="space-y-1 text-sm text-foreground">

@@ -26,6 +26,7 @@ export function SimpleEntrySection({ title, metrics }: Props) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <KpiCard
+          nested
           label="Winst dit jaar"
           value={ytd != null ? signed(ytd.gain.toNumber()) : '—'}
           subtext={ytd != null ? contributionSubtext(ytd.contribution.toNumber(), 'dit jaar') : 'Onvoldoende data van vóór dit jaar'}
@@ -34,6 +35,7 @@ export function SimpleEntrySection({ title, metrics }: Props) {
             : undefined}
         />
         <KpiCard
+          nested
           label="Winst sinds laatste update"
           value={sinceLastUpdate != null ? signed(sinceLastUpdate.gain.toNumber()) : '—'}
           subtext={sinceLastUpdate != null
@@ -46,9 +48,10 @@ export function SimpleEntrySection({ title, metrics }: Props) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <KpiCard label="Totaal ingelegd" value={formatCurrency(invested.toNumber())} />
-        <KpiCard label="Totaal huidige waarde" value={formatCurrency(currentValue.toNumber())} />
+        <KpiCard nested label="Totaal ingelegd" value={formatCurrency(invested.toNumber())} />
+        <KpiCard nested label="Totaal huidige waarde" value={formatCurrency(currentValue.toNumber())} />
         <KpiCard
+          nested
           label="Winst / verlies"
           value={signed(gain.toNumber())}
           trend={gainPct != null ? { value: formatPercent(gainPct.toNumber()), positive: gainPct.gte(0) } : undefined}
