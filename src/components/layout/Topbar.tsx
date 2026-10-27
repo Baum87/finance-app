@@ -25,6 +25,7 @@ const cashflowItems = [
 const navItems = [
   { href: '/',          label: 'Overzicht' },
   { href: '/schulden',  label: 'Schulden' },
+  { href: '/dossier',   label: 'Dossier' },
 ]
 
 function BeleggingenDropdown() {

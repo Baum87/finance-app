@@ -518,6 +518,130 @@ export const assetTaxMetadata = pgTable('asset_tax_metadata', {
   check('asset_tax_metadata_box_check', sql`${t.box} IN (1, 2, 3)`),
 ])
 
+// ─── Dossier (stamdocument geldzaken) ────────────────────────────────────────
+// Naslagwerk voor de gebruiker zelf en voor nabestaanden, naar het model-
+// stamdocument van FiscAlert. Vermogen, schulden en vaste lasten komen live uit
+// de bestaande tabellen; hieronder staat alleen wat de app nog niet kende.
+// Alles is vrije tekst/optioneel: het is een overzicht, geen rekenbron —
+// bedragen tellen nergens mee in netto vermogen of cashflow.
+
+export const dossierPersons = pgTable('dossier_persons', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  tenantId:    uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  name:        text('name').notNull(),
+  relation:    text('relation').notNull(),
+  birthDate:   date('birth_date'),
+  nationality: text('nationality'),
+  notes:       text('notes'),
+  createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:   timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('dossier_persons_tenant_id_idx').on(t.tenantId),
+  check('dossier_persons_relation_check', sql`${t.relation} IN ('self', 'partner', 'child', 'grandchild', 'parent', 'other')`),
+])
+
+// Huwelijksvoorwaarden, testament e.d. — `location` (vindplaats) is voor
+// nabestaanden het belangrijkste veld: waar ligt het origineel?
+export const dossierDocuments = pgTable('dossier_documents', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  tenantId:     uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  documentType: text('document_type').notNull(),
+  documentDate: date('document_date'),
+  notary:       text('notary'),
+  location:     text('location'),
+  summary:      text('summary'),
+  createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:    timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('dossier_documents_tenant_id_idx').on(t.tenantId),
+  check('dossier_documents_type_check', sql`${t.documentType} IN ('marital_agreement', 'cohabitation_agreement', 'will', 'codicil', 'living_will', 'other')`),
+])
+
+export const dossierContacts = pgTable('dossier_contacts', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  tenantId:  uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  role:      text('role').notNull(),
+  company:   text('company'),
+  name:      text('name'),
+  address:   text('address'),
+  phone:     text('phone'),
+  email:     text('email'),
+  notes:     text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('dossier_contacts_tenant_id_idx').on(t.tenantId),
+  check('dossier_contacts_role_check', sql`${t.role} IN ('notary', 'tax_advisor', 'accountant', 'private_banker', 'business_banker', 'insurance_advisor', 'wealth_planner', 'other')`),
+])
+
+export const insurancePolicies = pgTable('insurance_policies', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  tenantId:       uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  policyType:     text('policy_type').notNull(),
+  insurer:        text('insurer').notNull(),
+  policyNumber:   text('policy_number'),
+  phone:          text('phone'),
+  contactPerson:  text('contact_person'),
+  policyholder:   text('policyholder'),
+  insured:        text('insured'),
+  beneficiary:    text('beneficiary'),
+  startDate:      date('start_date'),
+  endDate:        date('end_date'),
+  annualPremium:  numeric('annual_premium', { precision: 15, scale: 2 }),
+  premiumEndDate: date('premium_end_date'),
+  // Kapitaaluitkering / verzekerd bedrag / uitkering per jaar (AOV, lijfrente)
+  insuredAmount:  numeric('insured_amount', { precision: 15, scale: 2 }),
+  currentValue:   numeric('current_value', { precision: 15, scale: 2 }),
+  notes:          text('notes'),
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:      timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('insurance_policies_tenant_id_idx').on(t.tenantId),
+  check('insurance_policies_type_check', sql`${t.policyType} IN ('capital', 'term_life', 'annuity', 'disability', 'funeral', 'other')`),
+  check('insurance_policies_annual_premium_check', sql`${t.annualPremium} >= 0`),
+  check('insurance_policies_insured_amount_check', sql`${t.insuredAmount} >= 0`),
+  check('insurance_policies_current_value_check', sql`${t.currentValue} >= 0`),
+])
+
+export const businesses = pgTable('businesses', {
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  tenantId:           uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  name:               text('name').notNull(),
+  legalForm:          text('legal_form').notNull(),
+  address:            text('address'),
+  phone:              text('phone'),
+  activities:         text('activities'),
+  structure:          text('structure'),
+  intrinsicValue:     numeric('intrinsic_value', { precision: 15, scale: 2 }),
+  // Geen >= 0-check: verlies is een geldige waarde
+  netProfit:          numeric('net_profit', { precision: 15, scale: 2 }),
+  estimatedSaleValue: numeric('estimated_sale_value', { precision: 15, scale: 2 }),
+  holdingLiquidity:   numeric('holding_liquidity', { precision: 15, scale: 2 }),
+  agreements:         text('agreements'),
+  createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:          timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('businesses_tenant_id_idx').on(t.tenantId),
+  check('businesses_legal_form_check', sql`${t.legalForm} IN ('sole_proprietorship', 'partnership', 'bv', 'holding_bv', 'other')`),
+  check('businesses_estimated_sale_value_check', sql`${t.estimatedSaleValue} >= 0`),
+  check('businesses_holding_liquidity_check', sql`${t.holdingLiquidity} >= 0`),
+])
+
+// Vrije tekst per onderwerp, één per tenant (upsert, zelfde patroon als goals).
+// 'digital_legacy' bevat bewust alléén de vindplaats van wachtwoorden — nooit
+// de wachtwoorden zelf (UI waarschuwt daarvoor).
+export const dossierNotes = pgTable('dossier_notes', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  tenantId:  uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  topic:     text('topic').notNull(),
+  body:      text('body').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique('dossier_notes_tenant_topic_unique').on(t.tenantId, t.topic),
+  check('dossier_notes_topic_check', sql`${t.topic} IN ('family_situation', 'work_situation', 'expected_changes', 'wishes', 'open_items', 'digital_legacy', 'other_matters')`),
+])
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const tenantsRelations = relations(tenants, ({ many, one }) => ({

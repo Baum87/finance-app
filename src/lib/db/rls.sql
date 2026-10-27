@@ -791,3 +791,117 @@ CREATE POLICY "asset_tax_metadata_delete" ON public.asset_tax_metadata
       WHERE tu.user_id = auth.uid()
     )
   );
+
+-- ─── Dossier (stamdocument geldzaken) ────────────────────────────────────────
+-- Lezen: elk lid van de tenant. Schrijven: alleen de owner — voorbereiding op
+-- de 'viewer'-rol voor nabestaanden (fase 2), die het dossier alleen mag inzien.
+
+ALTER TABLE public.dossier_persons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.dossier_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.dossier_contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.insurance_policies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.dossier_notes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "dossier_persons_select" ON public.dossier_persons
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "dossier_persons_insert" ON public.dossier_persons
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+CREATE POLICY "dossier_persons_update" ON public.dossier_persons
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+CREATE POLICY "dossier_persons_delete" ON public.dossier_persons
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+
+CREATE POLICY "dossier_documents_select" ON public.dossier_documents
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "dossier_documents_insert" ON public.dossier_documents
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+CREATE POLICY "dossier_documents_update" ON public.dossier_documents
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+CREATE POLICY "dossier_documents_delete" ON public.dossier_documents
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+
+CREATE POLICY "dossier_contacts_select" ON public.dossier_contacts
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "dossier_contacts_insert" ON public.dossier_contacts
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+CREATE POLICY "dossier_contacts_update" ON public.dossier_contacts
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+CREATE POLICY "dossier_contacts_delete" ON public.dossier_contacts
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+
+CREATE POLICY "insurance_policies_select" ON public.insurance_policies
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "insurance_policies_insert" ON public.insurance_policies
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+CREATE POLICY "insurance_policies_update" ON public.insurance_policies
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+CREATE POLICY "insurance_policies_delete" ON public.insurance_policies
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+
+CREATE POLICY "businesses_select" ON public.businesses
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "businesses_insert" ON public.businesses
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+CREATE POLICY "businesses_update" ON public.businesses
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+CREATE POLICY "businesses_delete" ON public.businesses
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+
+CREATE POLICY "dossier_notes_select" ON public.dossier_notes
+  FOR SELECT USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid())
+  );
+CREATE POLICY "dossier_notes_insert" ON public.dossier_notes
+  FOR INSERT WITH CHECK (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+CREATE POLICY "dossier_notes_update" ON public.dossier_notes
+  FOR UPDATE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+CREATE POLICY "dossier_notes_delete" ON public.dossier_notes
+  FOR DELETE USING (
+    tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );
+
