@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState, useEffect, useRef } from 'react'
+import Decimal from 'decimal.js'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getStockQuoteAction, getHistoricalPriceEurAction } from '@/app/portfolio/_archief-aandelen-etf/market-actions'
@@ -10,6 +11,17 @@ const today = new Date().toISOString().slice(0, 10)
 
 const fmt = (v: number) =>
   v.toLocaleString('nl-NL', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 })
+
+function parseDecimal(v: string): Decimal | null {
+  const normalized = v.replace(',', '.').trim()
+  if (!normalized) return null
+  try {
+    const d = new Decimal(normalized)
+    return d.isFinite() ? d : null
+  } catch {
+    return null
+  }
+}
 
 type Props = {
   action: (prev: ActionState, fd: FormData) => Promise<ActionState>
@@ -29,9 +41,10 @@ export function BuyTransactionForm({ action, assetId, ticker, redirectTo, cancel
   const [notes, setNotes] = useState('')
   const dateTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const totalAmount = pricePerUnit && quantity
-    ? (parseFloat(pricePerUnit.replace(',', '.')) * parseFloat(quantity.replace(',', '.'))) || 0
-    : 0
+  const priceDecimal = parseDecimal(pricePerUnit)
+  const quantityDecimal = parseDecimal(quantity)
+  const totalAmountDecimal = priceDecimal && quantityDecimal ? priceDecimal.times(quantityDecimal) : null
+  const totalAmount = totalAmountDecimal ? totalAmountDecimal.toNumber() : 0
 
   async function fetchPrice(forDate: string) {
     setIsFetching(true)
@@ -62,7 +75,7 @@ export function BuyTransactionForm({ action, assetId, ticker, redirectTo, cancel
       <input type="hidden" name="transactionType" value="buy" />
       <input type="hidden" name="currency" value="EUR" />
       <input type="hidden" name="fxRate" value="1" />
-      <input type="hidden" name="amount" value={totalAmount > 0 ? totalAmount.toFixed(2) : ''} />
+      <input type="hidden" name="amount" value={totalAmountDecimal ? totalAmountDecimal.toFixed(2) : ''} />
       {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
 
       {state?.error && (

@@ -346,6 +346,9 @@ export async function createTransactionAction(prev: ActionState, fd: FormData): 
     if (allowed && !allowed.includes(data.transactionType as TransactionType)) {
       return { error: `Transactietype '${data.transactionType}' is niet toegestaan voor dit asset type` }
     }
+    if (data.quantity && data.pricePerUnit) {
+      data.amount = new Decimal(data.pricePerUnit).times(data.quantity).toFixed(2)
+    }
 
     if (str(fd, 'repeat') === 'on') {
       const repeatData = repeatSchema.parse({
@@ -386,6 +389,9 @@ export async function updateTransactionAction(prev: ActionState, fd: FormData): 
       notes:           optStr(fd, 'notes'),
       fees:            optStr(fd, 'fees'),
     })
+    if (data.quantity && data.pricePerUnit) {
+      data.amount = new Decimal(data.pricePerUnit).times(data.quantity).toFixed(2)
+    }
     await updateTransaction(user.id, transactionId, data)
     redirect(str(fd, 'redirectTo') || `/assets/${assetId}`)
   } catch (e) {

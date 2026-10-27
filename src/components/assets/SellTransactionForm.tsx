@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState, useEffect, useRef } from 'react'
+import Decimal from 'decimal.js'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getStockQuoteAction, getHistoricalPriceEurAction } from '@/app/portfolio/_archief-aandelen-etf/market-actions'
@@ -8,6 +9,17 @@ import { formatCurrency, formatQuantity } from '@/lib/utils/format'
 import type { ActionState } from '@/app/assets/actions'
 
 const today = new Date().toISOString().slice(0, 10)
+
+function parseDecimal(v: string): Decimal | null {
+  const normalized = v.replace(',', '.').trim()
+  if (!normalized) return null
+  try {
+    const d = new Decimal(normalized)
+    return d.isFinite() ? d : null
+  } catch {
+    return null
+  }
+}
 
 type Props = {
   action: (prev: ActionState, fd: FormData) => Promise<ActionState>
@@ -29,11 +41,15 @@ export function SellTransactionForm({ action, assetId, ticker, quantityHeld, wac
   const [notes, setNotes] = useState('')
   const dateTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const priceNum = parseFloat(pricePerUnit.replace(',', '.')) || 0
   const qtyNum = parseFloat(quantity.replace(',', '.')) || 0
-  const totalProceeds = priceNum > 0 && qtyNum > 0 ? priceNum * qtyNum : 0
-  const costBasis = wac && qtyNum > 0 ? wac * qtyNum : null
-  const realizedGain = costBasis !== null && totalProceeds > 0 ? totalProceeds - costBasis : null
+  const priceDecimal = parseDecimal(pricePerUnit)
+  const quantityDecimal = parseDecimal(quantity)
+  const totalProceedsDecimal = priceDecimal && quantityDecimal && quantityDecimal.gt(0) ? priceDecimal.times(quantityDecimal) : null
+  const totalProceeds = totalProceedsDecimal ? totalProceedsDecimal.toNumber() : 0
+  const costBasisDecimal = wac !== null && quantityDecimal && quantityDecimal.gt(0) ? new Decimal(wac).times(quantityDecimal) : null
+  const costBasis = costBasisDecimal ? costBasisDecimal.toNumber() : null
+  const realizedGainDecimal = costBasisDecimal && totalProceedsDecimal ? totalProceedsDecimal.minus(costBasisDecimal) : null
+  const realizedGain = realizedGainDecimal ? realizedGainDecimal.toNumber() : null
   const remainingQty = quantityHeld - qtyNum
   const overSelling = qtyNum > quantityHeld
 
@@ -66,7 +82,7 @@ export function SellTransactionForm({ action, assetId, ticker, quantityHeld, wac
       <input type="hidden" name="transactionType" value="sell" />
       <input type="hidden" name="currency" value="EUR" />
       <input type="hidden" name="fxRate" value="1" />
-      <input type="hidden" name="amount" value={totalProceeds > 0 ? totalProceeds.toFixed(2) : ''} />
+      <input type="hidden" name="amount" value={totalProceedsDecimal ? totalProceedsDecimal.toFixed(2) : ''} />
       {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
 
       {state?.error && (
