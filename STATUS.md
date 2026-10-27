@@ -111,6 +111,27 @@ is leeg, dus **nooit** `drizzle-kit migrate` draaien).
 - [x] Root-todo's opgeruimd (2 sept): `todo.md` en `todoAandelenEtf.md` waren 100% afgerond,
   gearchiveerd naar `docs/sprints/`. `todoXlsxImport.md` (feature afgeblazen) idem.
 
+### Nog over nadenken — data thuis opslaan (NAS / Raspberry Pi)
+
+Idee (27 okt): financiële data niet meer bij Supabase (cloud) maar thuis
+opslaan, op een NAS of Raspberry Pi, eventueel met een eigen VPN-verbinding
+op de Pi om er van buitenaf bij te kunnen. Nog geen beslissing — eerst
+uitdenken. Vragen om mee te nemen:
+
+- **Wat draait er thuis?** Alleen Postgres (app blijft elders), of de hele
+  stack: Postgres + Next.js app + auth. Supabase is self-hostbaar via Docker,
+  maar zwaar voor een Pi; alternatief is losse Postgres + andere auth
+  (Supabase Auth zit nu verweven in login, proxy, RLS en het dossier-leesaccount).
+- **Toegang van buitenaf:** eigen VPN op de Pi (WireGuard) vs. een beheerde
+  mesh (Tailscale) — geen poorten open naar internet.
+- **Back-ups:** wie/wat maakt versleutelde back-ups, en waar (off-site)? Een
+  kapotte SD-kaart/NAS mag geen dataverlies betekenen.
+- **Nabestaanden:** het dossier-leesaccount moet ook dan bereikbaar blijven —
+  hoe komt een nabestaande erbij als het systeem thuis staat (VPN-toegang,
+  stroom/internet uit, onderhoud als ik er niet meer ben)? Print/PDF als vangnet.
+- **Migratie:** data uit Supabase overzetten; `DATABASE_URL`-aanpak (Drizzle)
+  maakt Postgres zelf verplaatsbaar, auth is het lastige deel.
+
 ### Laag — nieuwe features
 - [ ] TransactionForm verbeteren (dividend, kosten, splits — valuta UX)
 - [ ] Fase E: fiscale laag bouwen (ontwerp staat in `fiscal-layer.md`)
