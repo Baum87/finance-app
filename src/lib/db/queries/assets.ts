@@ -1,9 +1,10 @@
-import { and, eq, desc, asc, inArray } from 'drizzle-orm'
+import { and, eq, desc, asc, inArray, ilike } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import {
   assets, tenantUsers, stockEtfDetails, cryptoDetails,
   savingsDetails, pensionDetails, realEstateDetails, vorderingDetails,
   mortgages, mortgageBalances, assetValuations, wozValues, recurringCashflows, transactions, assetTaxMetadata,
+  brokers,
 } from '@/lib/db/schema'
 import type { AssetType } from '@/types'
 import Decimal from 'decimal.js'
@@ -49,6 +50,27 @@ export async function getAssets(userId: string) {
 }
 
 export type AssetWithDetails = Awaited<ReturnType<typeof getAssets>>[number]
+
+export type ExistingPosition = {
+  assetId: string
+  assetName: string
+  brokerName: string | null
+}
+
+export async function findActivePositionsByTicker(userId: string, ticker: string): Promise<ExistingPosition[]> {
+  const tenantId = await getOrCreateTenant(userId)
+  const rows = await db
+    .select({ id: assets.id, name: assets.name, brokerName: brokers.name })
+    .from(assets)
+    .innerJoin(stockEtfDetails, eq(stockEtfDetails.assetId, assets.id))
+    .leftJoin(brokers, eq(brokers.id, stockEtfDetails.brokerId))
+    .where(and(
+      eq(assets.tenantId, tenantId),
+      eq(assets.isActive, true),
+      ilike(stockEtfDetails.ticker, ticker),
+    ))
+  return rows.map(r => ({ assetId: r.id, assetName: r.name, brokerName: r.brokerName ?? null }))
+}
 
 export async function getAsset(userId: string, assetId: string) {
   const tenantId = await getOrCreateTenant(userId)

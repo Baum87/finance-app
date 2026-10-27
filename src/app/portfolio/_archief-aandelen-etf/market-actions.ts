@@ -2,12 +2,13 @@
 
 import YahooFinance from 'yahoo-finance2'
 import Decimal from 'decimal.js'
-import { eq, and, ilike } from 'drizzle-orm'
-import { db } from '@/lib/db'
-import { assets, stockEtfDetails, brokers } from '@/lib/db/schema'
+import { z } from 'zod'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
-import { getOrCreateTenant } from '@/lib/db/queries/tenant'
+import { findActivePositionsByTicker, type ExistingPosition } from '@/lib/db/queries/assets'
 import { normalizePence } from '@/lib/services/prices'
+
+const symbolSchema = z.string().trim().min(1).max(20)
+const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 const yf = new YahooFinance({ suppressNotices: ['yahooSurvey'] })
 
@@ -44,35 +45,25 @@ export type StockQuote = {
   instrumentType: string
 }
 
-export type ExistingPosition = {
-  assetId: string
-  assetName: string
-  brokerName: string | null
-}
+export type { ExistingPosition }
 
 export async function checkTickerExistsAction(ticker: string): Promise<ExistingPosition[]> {
+  const parsed = symbolSchema.safeParse(ticker)
+  if (!parsed.success) return []
   try {
     const supabase = await createServerSupabaseClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return []
-    const tenantId = await getOrCreateTenant(user.id)
-    const rows = await db
-      .select({ id: assets.id, name: assets.name, brokerName: brokers.name })
-      .from(assets)
-      .innerJoin(stockEtfDetails, eq(stockEtfDetails.assetId, assets.id))
-      .leftJoin(brokers, eq(brokers.id, stockEtfDetails.brokerId))
-      .where(and(
-        eq(assets.tenantId, tenantId),
-        eq(assets.isActive, true),
-        ilike(stockEtfDetails.ticker, ticker),
-      ))
-    return rows.map(r => ({ assetId: r.id, assetName: r.name, brokerName: r.brokerName ?? null }))
+    return await findActivePositionsByTicker(user.id, parsed.data)
   } catch {
     return []
   }
 }
 
 export async function getHistoricalPriceEurAction(symbol: string, date: string): Promise<number | null> {
+  const parsedSymbol = symbolSchema.safeParse(symbol)
+  const parsedDate = isoDateSchema.safeParse(date)
+  if (!parsedSymbol.success || !parsedDate.success) return null
   try {
     const from = new Date(date)
     from.setDate(from.getDate() - 5)
@@ -100,6 +91,8 @@ export async function getHistoricalPriceEurAction(symbol: string, date: string):
 }
 
 export async function getStockQuoteAction(symbol: string): Promise<StockQuote | null> {
+  const parsedSymbol = symbolSchema.safeParse(symbol)
+  if (!parsedSymbol.success) return null
   try {
     const quote = await yf.quote(symbol)
     // Pence-noteringen (GBp/GBX) normaliseren naar GBP vóór de FX-stap,
