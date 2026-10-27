@@ -2,20 +2,12 @@
 
 import { z } from 'zod'
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
+import { getRequestOrigin } from '@/lib/utils/request-origin'
 
 const schema = z.object({
   email: z.string().min(1, 'E-mailadres is verplicht').email('Ongeldig e-mailadres'),
 })
-
-async function getOrigin() {
-  const h = await headers()
-  const origin = h.get('origin')
-  if (origin) return origin
-  const proto = h.get('x-forwarded-proto') ?? 'https'
-  return `${proto}://${h.get('host')}`
-}
 
 export async function requestPasswordReset(formData: FormData) {
   const parsed = schema.safeParse({ email: formData.get('email') })
@@ -23,7 +15,7 @@ export async function requestPasswordReset(formData: FormData) {
     redirect('/wachtwoord-vergeten?error=' + encodeURIComponent(parsed.error.issues[0].message))
   }
 
-  const origin = await getOrigin()
+  const origin = await getRequestOrigin()
   const supabase = await createServerSupabaseClient()
   // Zonder custom SMTP kan het e-mailtemplate niet worden aangepast naar het
   // token_hash-formaat — Supabase's eigen verify-endpoint geeft de sessie dan

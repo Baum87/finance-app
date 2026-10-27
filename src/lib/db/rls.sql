@@ -905,3 +905,16 @@ CREATE POLICY "dossier_notes_delete" ON public.dossier_notes
     tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
   );
 
+-- ─── dossier_viewers (leesaccount nabestaanden) ──────────────────────────────
+-- Alleen SELECT: de viewer ziet de eigen koppeling, de owner zijn viewers.
+-- Geen insert/update/delete-policies — beheer loopt uitsluitend server-side.
+-- Geen enkele data-policy verwijst naar deze tabel, dus een viewer heeft via
+-- de Data API géén toegang tot tenant-data (zie schema.ts).
+
+ALTER TABLE public.dossier_viewers ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "dossier_viewers_select" ON public.dossier_viewers
+  FOR SELECT USING (
+    user_id = auth.uid()
+    OR tenant_id IN (SELECT tenant_id FROM public.tenant_users WHERE user_id = auth.uid() AND role = 'owner')
+  );

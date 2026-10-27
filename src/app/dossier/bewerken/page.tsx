@@ -2,13 +2,15 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/db/supabase-server'
 import { getDossier, type Dossier, type DossierKind, type DossierNoteTopic } from '@/lib/db/queries/dossier'
+import { getDossierViewers } from '@/lib/db/queries/dossier-viewers'
 import { Topbar } from '@/components/layout/Topbar'
 import { DossierSection } from '@/components/dossier/DossierSection'
 import { DossierItemForm } from '@/components/dossier/DossierItemForm'
 import { DossierNoteForm } from '@/components/dossier/DossierNoteForm'
 import { DOSSIER_SECTIONS } from '@/components/dossier/dossier-fields'
+import { ViewerInviteForm } from '@/components/dossier/ViewerInviteForm'
 import { ConfirmDeleteButton } from '@/components/ui/ConfirmDeleteButton'
-import { deleteDossierItemAction } from '../actions'
+import { deleteDossierItemAction, resendDossierViewerInviteAction, revokeDossierViewerAction } from '../actions'
 
 type Item = { id: string } & Record<string, unknown>
 
@@ -73,7 +75,10 @@ export default async function DossierBewerkenPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const dossier = await getDossier(user!.id)
+  const [dossier, viewers] = await Promise.all([
+    getDossier(user!.id),
+    getDossierViewers(user!.id),
+  ])
 
   return (
     <>
@@ -127,6 +132,49 @@ export default async function DossierBewerkenPage() {
 
         <DossierSection number={8} title="Digitale nalatenschap & overige zaken">
           <NotesEditor topics={['digital_legacy', 'other_matters']} notes={dossier.notesByTopic} />
+        </DossierSection>
+
+        <DossierSection
+          number={9}
+          title="Toegang voor nabestaanden"
+          description="Leesaccounts zien alleen het dossier. Ze kunnen niets wijzigen en komen niet bij de rest van de app."
+        >
+          {viewers.length > 0 && (
+            <div className="bg-card border border-border rounded-3xl overflow-hidden">
+              <table className="w-full text-sm">
+                <tbody>
+                  {viewers.map(v => (
+                    <tr key={v.userId} className="border-b border-border last:border-0">
+                      <td className="px-6 py-3">
+                        <p className="font-medium text-foreground">{v.email}</p>
+                        <p className="text-xs text-muted-foreground">Uitgenodigd op {v.createdAt.toLocaleDateString('nl-NL')}</p>
+                      </td>
+                      <td className="px-6 py-3">
+                        <div className="flex justify-end gap-4">
+                          <form action={resendDossierViewerInviteAction}>
+                            <input type="hidden" name="viewerUserId" value={v.userId} />
+                            <button type="submit" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
+                              Opnieuw versturen
+                            </button>
+                          </form>
+                          <ConfirmDeleteButton
+                            action={revokeDossierViewerAction}
+                            hiddenFields={{ viewerUserId: v.userId }}
+                            confirmMessage={`Toegang van ${v.email} intrekken? Het leesaccount wordt verwijderd.`}
+                            label="Intrekken"
+                            className="text-sm text-terracotta hover:underline"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="bg-card border border-border rounded-3xl p-6">
+            <ViewerInviteForm />
+          </div>
         </DossierSection>
 
       </main>

@@ -5,7 +5,7 @@ import {
   dossierPersons, dossierDocuments, dossierContacts, insurancePolicies,
   businesses, dossierNotes, mortgages, mortgageBalances, assets,
 } from '@/lib/db/schema'
-import { getOrCreateTenant } from './tenant'
+import { getOrCreateTenant, getReadableTenant } from './tenant'
 
 // Dossier (stamdocument geldzaken) — zie schema.ts. Vijf lijst-tabellen met
 // identieke CRUD (tenantId + id), plus dossier_notes als vrije tekst per onderwerp.
@@ -29,7 +29,7 @@ export type DossierNoteTopic =
   | 'wishes' | 'open_items' | 'digital_legacy' | 'other_matters'
 
 export async function getDossier(userId: string) {
-  const tenantId = await getOrCreateTenant(userId)
+  const tenantId = await getReadableTenant(userId)
   const [persons, documents, contacts, policies, businessRows, notes] = await Promise.all([
     db.select().from(dossierPersons).where(eq(dossierPersons.tenantId, tenantId))
       .orderBy(asc(dossierPersons.birthDate), asc(dossierPersons.createdAt)),
@@ -111,7 +111,7 @@ export async function saveDossierNote(userId: string, topic: DossierNoteTopic, b
  * nabestaanden per lening de verstrekker moeten benaderen.
  */
 export async function getMortgagesOverview(userId: string) {
-  const tenantId = await getOrCreateTenant(userId)
+  const tenantId = await getReadableTenant(userId)
 
   const rows = await db
     .select({

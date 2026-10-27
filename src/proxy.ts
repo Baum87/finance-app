@@ -39,6 +39,16 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Leesaccount van een nabestaande: alleen het dossier zelf. Dit is UX — de
+  // echte schrijfblokkade zit in getOrCreateTenant (lib/db/queries/tenant.ts).
+  // app_metadata is alleen via de service role te zetten, niet door de user.
+  if (user?.app_metadata?.dossier_viewer === true && !isPublicPath && request.nextUrl.pathname !== '/dossier') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dossier'
+    url.search = ''
+    return NextResponse.redirect(url)
+  }
+
   return supabaseResponse
 }
 

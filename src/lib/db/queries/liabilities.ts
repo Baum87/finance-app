@@ -1,7 +1,7 @@
 import { and, eq, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { liabilities } from '@/lib/db/schema'
-import { getOrCreateTenant } from './tenant'
+import { getOrCreateTenant, getReadableTenant } from './tenant'
 
 export type LiabilityInput = {
   name: string
@@ -14,7 +14,7 @@ export type LiabilityInput = {
 }
 
 export async function getLiabilities(userId: string) {
-  const tenantId = await getOrCreateTenant(userId)
+  const tenantId = await getReadableTenant(userId)
   return db
     .select()
     .from(liabilities)

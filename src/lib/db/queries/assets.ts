@@ -20,10 +20,10 @@ import {
   buildXirrCashflows,
   hasMinimumXirrPeriod,
 } from '@/lib/finance'
-import { getOrCreateTenant } from './tenant'
+import { getOrCreateTenant, getReadableTenant } from './tenant'
 
 export async function getAssets(userId: string) {
-  const tenantId = await getOrCreateTenant(userId)
+  const tenantId = await getReadableTenant(userId)
   return db.query.assets.findMany({
     where: and(eq(assets.tenantId, tenantId), eq(assets.isActive, true)),
     with: {

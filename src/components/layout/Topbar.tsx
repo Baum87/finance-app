@@ -140,9 +140,32 @@ function CashflowDropdown() {
   )
 }
 
-export function Topbar() {
+export function Topbar({ isViewer = false }: { isViewer?: boolean }) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
+
+  // Leesaccount (nabestaande): geen navigatie, alleen het dossier.
+  if (isViewer) {
+    return (
+      <header className="sticky top-0 z-50 bg-card border-b border-border">
+        <div className="mx-auto max-w-[1200px] h-16 px-8 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold tracking-tight text-foreground">Finance</span>
+            <span className="text-xs text-muted-foreground">Dossier · alleen lezen</span>
+          </div>
+          <form action={signOut}>
+            <button
+              type="submit"
+              aria-label="Uitloggen"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+            >
+              <LogOut size={15} />
+            </button>
+          </form>
+        </div>
+      </header>
+    )
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-card border-b border-border">

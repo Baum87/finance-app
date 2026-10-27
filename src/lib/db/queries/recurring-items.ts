@@ -2,7 +2,7 @@ import Decimal from 'decimal.js'
 import { and, eq, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { recurringItems, recurringItemAmounts } from '@/lib/db/schema'
-import { getOrCreateTenant } from './tenant'
+import { getOrCreateTenant, getReadableTenant } from './tenant'
 
 export type RecurringItemInput = {
   name: string
@@ -15,7 +15,7 @@ export type RecurringItemInput = {
 }
 
 export async function getRecurringItems(userId: string) {
-  const tenantId = await getOrCreateTenant(userId)
+  const tenantId = await getReadableTenant(userId)
 
   const items = await db
     .select()

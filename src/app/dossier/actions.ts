@@ -7,6 +7,12 @@ import {
   saveDossierItem, deleteDossierItem, saveDossierNote,
   type DossierKind, type DossierInput,
 } from '@/lib/db/queries/dossier'
+import {
+  getDossierViewer, linkDossierViewer, removeDossierViewer,
+} from '@/lib/db/queries/dossier-viewers'
+import { getOrCreateTenant } from '@/lib/db/queries/tenant'
+import { createAdminSupabaseClient } from '@/lib/db/supabase-admin'
+import { getRequestOrigin } from '@/lib/utils/request-origin'
 
 export type ActionState = { error: string } | null
 
@@ -141,4 +147,84 @@ export async function saveDossierNoteAction(prev: ActionState, formData: FormDat
   await saveDossierNote(user.id, topic.data, body)
   revalidateDossier()
   return null
+}
+
+// ─── Leesaccounts voor nabestaanden ──────────────────────────────────────────
+
+const ViewerEmailSchema = z.email('Ongeldig e-mailadres').transform(v => v.toLowerCase())
+
+/** Herstel-mail = uitnodiging: de ontvanger kiest via /wachtwoord-resetten een wachtwoord. */
+async function sendViewerAccessEmail(email: string) {
+  const origin = await getRequestOrigin()
+  const { error } = await createAdminSupabaseClient().auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/wachtwoord-resetten`,
+  })
+  if (error) throw new Error(`E-mail versturen mislukt: ${error.message}`)
+}
+
+export async function inviteDossierViewerAction(prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser()
+  // Alleen een owner mag uitnodigen — gooit voor een viewer.
+  await getOrCreateTenant(user.id)
+
+  const parsed = ViewerEmailSchema.safeParse(String(formData.get('email') ?? '').trim())
+  if (!parsed.success) return { error: 'Ongeldig e-mailadres' }
+  const email = parsed.data
+  if (email === user.email?.toLowerCase()) return { error: 'Dit is je eigen e-mailadres' }
+
+  const admin = createAdminSupabaseClient()
+  // app_metadata is niet door de gebruiker zelf aan te passen; de proxy
+  // gebruikt deze vlag om een viewer naar /dossier te leiden.
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    email_confirm: true,
+    app_metadata: { dossier_viewer: true },
+  })
+  if (error || !data.user) {
+    return {
+      error: error?.code === 'email_exists'
+        ? 'Dit e-mailadres heeft al een account en kan niet als leesaccount worden gebruikt'
+        : `Account aanmaken mislukt: ${error?.message ?? 'onbekende fout'}`,
+    }
+  }
+
+  try {
+    await linkDossierViewer(user.id, data.user.id, email)
+  } catch (e) {
+    // Geen half aangemaakt account achterlaten.
+    await admin.auth.admin.deleteUser(data.user.id)
+    throw e
+  }
+
+  revalidateDossier()
+
+  try {
+    await sendViewerAccessEmail(email)
+  } catch (e) {
+    return { error: `Leesaccount aangemaakt, maar ${e instanceof Error ? e.message : 'e-mail versturen mislukt'}. Probeer "Opnieuw versturen".` }
+  }
+  return null
+}
+
+export async function resendDossierViewerInviteAction(formData: FormData): Promise<void> {
+  const user = await requireUser()
+  const viewerUserId = IdSchema.safeParse(formData.get('viewerUserId'))
+  if (!viewerUserId.success) throw new Error('Ongeldig leesaccount')
+
+  const viewer = await getDossierViewer(user.id, viewerUserId.data)
+  await sendViewerAccessEmail(viewer.email)
+}
+
+export async function revokeDossierViewerAction(formData: FormData): Promise<void> {
+  const user = await requireUser()
+  const viewerUserId = IdSchema.safeParse(formData.get('viewerUserId'))
+  if (!viewerUserId.success) throw new Error('Ongeldig leesaccount')
+
+  // Eerst de koppeling (tenant-gecontroleerd), dan het auth-account zelf —
+  // daarmee vervallen ook lopende sessies (proxy's getUser() faalt).
+  await removeDossierViewer(user.id, viewerUserId.data)
+  const { error } = await createAdminSupabaseClient().auth.admin.deleteUser(viewerUserId.data)
+  if (error) throw new Error(`Toegang ingetrokken, maar account verwijderen mislukt: ${error.message}`)
+
+  revalidateDossier()
 }

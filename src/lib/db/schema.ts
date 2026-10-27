@@ -642,6 +642,23 @@ export const dossierNotes = pgTable('dossier_notes', {
   check('dossier_notes_topic_check', sql`${t.topic} IN ('family_situation', 'work_situation', 'expected_changes', 'wishes', 'open_items', 'digital_legacy', 'other_matters')`),
 ])
 
+// ─── dossier_viewers (leesaccount voor nabestaanden) ────────────────────────
+// Bewust NIET via tenant_users: de schrijf-policies van de bestaande tabellen
+// staan elk tenant-lid toe, dus een viewer daar zou via de Data API kunnen
+// schrijven. Geen enkele data-policy verwijst naar deze tabel — een viewer
+// heeft via PostgREST geen toegang; inzage loopt uitsluitend server-side via
+// getReadableTenant(). Eén dossier per viewer-account (unique op user_id).
+
+export const dossierViewers = pgTable('dossier_viewers', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  tenantId:  uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  userId:    uuid('user_id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  email:     text('email').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('dossier_viewers_tenant_id_idx').on(t.tenantId),
+])
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const tenantsRelations = relations(tenants, ({ many, one }) => ({

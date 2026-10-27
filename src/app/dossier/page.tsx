@@ -87,6 +87,8 @@ export default async function DossierPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   const userId = user!.id
+  // Alleen voor weergave (geen Bewerken-knop); schrijven wordt server-side geweigerd.
+  const isViewer = user!.app_metadata?.dossier_viewer === true
 
   const [
     dossier, assets, mortgageRows, liabilities, recurringItemRows,
@@ -183,7 +185,7 @@ export default async function DossierPage() {
 
   return (
     <>
-      <div className="print:hidden"><Topbar /></div>
+      <div className="print:hidden"><Topbar isViewer={isViewer} /></div>
       <main className="mx-auto max-w-[1200px] px-8 py-12 space-y-10 print:px-0 print:py-0 print:space-y-6">
 
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -199,13 +201,13 @@ export default async function DossierPage() {
           </div>
           <div className="flex gap-2 print:hidden">
             <PrintButton />
-            <Link
+            {!isViewer && <Link
               href="/dossier/bewerken"
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
             >
               <Pencil size={14} />
               Bewerken
-            </Link>
+            </Link>}
           </div>
         </div>
 

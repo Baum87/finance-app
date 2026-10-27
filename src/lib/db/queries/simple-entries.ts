@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import {
   stockEtfEntries, cryptoEntries, pensionEntries, savingsEntries,
 } from '@/lib/db/schema'
-import { getOrCreateTenant } from './tenant'
+import { getOrCreateTenant, getReadableTenant } from './tenant'
 
 // Eenvoudige invoerlijsten: geen "asset"-entiteit, alleen een append-only
 // logboek per categorie. Elke insert is een losse rij; de meest recente rij
@@ -65,7 +65,7 @@ export async function deleteStockEtfEntry(userId: string, id: string) {
 }
 
 export async function getStockEtfEntries(userId: string) {
-  const tenantId = await getOrCreateTenant(userId)
+  const tenantId = await getReadableTenant(userId)
   return db.select().from(stockEtfEntries)
     .where(eq(stockEtfEntries.tenantId, tenantId))
     .orderBy(desc(stockEtfEntries.entryDate), desc(stockEtfEntries.createdAt))
@@ -97,7 +97,7 @@ export async function deleteCryptoEntry(userId: string, id: string) {
 }
 
 export async function getCryptoEntries(userId: string) {
-  const tenantId = await getOrCreateTenant(userId)
+  const tenantId = await getReadableTenant(userId)
   return db.select().from(cryptoEntries)
     .where(eq(cryptoEntries.tenantId, tenantId))
     .orderBy(desc(cryptoEntries.entryDate), desc(cryptoEntries.createdAt))
@@ -129,7 +129,7 @@ export async function deletePensionEntry(userId: string, id: string) {
 }
 
 export async function getPensionEntries(userId: string) {
-  const tenantId = await getOrCreateTenant(userId)
+  const tenantId = await getReadableTenant(userId)
   return db.select().from(pensionEntries)
     .where(eq(pensionEntries.tenantId, tenantId))
     .orderBy(desc(pensionEntries.entryDate), desc(pensionEntries.createdAt))
@@ -161,7 +161,7 @@ export async function deleteSavingsEntry(userId: string, id: string) {
 }
 
 export async function getSavingsEntries(userId: string) {
-  const tenantId = await getOrCreateTenant(userId)
+  const tenantId = await getReadableTenant(userId)
   return db.select().from(savingsEntries)
     .where(eq(savingsEntries.tenantId, tenantId))
     .orderBy(desc(savingsEntries.entryDate), desc(savingsEntries.createdAt))
