@@ -13,7 +13,7 @@ export function calculateGrossRentalYield(
   propertyValue: Decimal,
 ): Decimal {
   assertPositive(propertyValue, 'Vastgoedwaarde')
-  return annualRentalIncome.div(propertyValue).toDecimalPlaces(6)
+  return annualRentalIncome.div(propertyValue)
 }
 
 /**
@@ -25,7 +25,7 @@ export function calculateNetRentalYield(
   propertyValue: Decimal,
 ): Decimal {
   assertPositive(propertyValue, 'Vastgoedwaarde')
-  return annualRentalIncome.minus(annualCosts).div(propertyValue).toDecimalPlaces(6)
+  return annualRentalIncome.minus(annualCosts).div(propertyValue)
 }
 
 /**
@@ -37,7 +37,7 @@ export function calculateCashOnCash(
   initialInvestment: Decimal,
 ): Decimal {
   assertPositive(initialInvestment, 'Initiële investering')
-  return annualNetCashflow.div(initialInvestment).toDecimalPlaces(6)
+  return annualNetCashflow.div(initialInvestment)
 }
 
 /**
@@ -49,7 +49,7 @@ export function calculateLtv(
   propertyValue: Decimal,
 ): Decimal {
   assertPositive(propertyValue, 'Vastgoedwaarde')
-  return outstandingMortgage.div(propertyValue).toDecimalPlaces(4)
+  return outstandingMortgage.div(propertyValue)
 }
 
 /**

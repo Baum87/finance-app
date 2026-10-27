@@ -1,10 +1,8 @@
-'use client'
-
 import Link from 'next/link'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { deleteAssetAction } from '@/app/assets/actions'
+import { AssetSectionDeleteButton } from '@/components/assets/AssetSectionDeleteButton'
 type AssetRow = {
   id: string
   name: string
@@ -80,18 +78,7 @@ export function AssetList({ assets }: { assets: AssetRow[] }) {
                   >
                     Bewerken
                   </Link>
-                  <form action={deleteAssetAction}>
-                    <input type="hidden" name="assetId" value={asset.id} />
-                    <button
-                      type="submit"
-                      className="text-xs text-terracotta hover:opacity-70 transition-opacity"
-                      onClick={(e) => {
-                        if (!confirm(`${asset.name} verwijderen?`)) e.preventDefault()
-                      }}
-                    >
-                      Verwijderen
-                    </button>
-                  </form>
+                  <AssetSectionDeleteButton assetId={asset.id} assetName={asset.name} />
                 </div>
               </TableCell>
             </TableRow>

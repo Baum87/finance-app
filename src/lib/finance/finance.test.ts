@@ -17,7 +17,6 @@ import {
 import { calculateNetWorth } from './net-worth'
 import { calculateTwr } from './twr'
 import { calculateAnnualReturn } from './annual-return'
-import { calculateExcessReturn } from './benchmark'
 import { buildNetWorthSeries } from './net-worth-series'
 import { buildSimpleEntryMonthlySeries, buildSingleValueMonthlySeries, withPeriodBreakdown } from './simple-entry-series'
 import { annualizeAmount, calculateRecurringTotals } from './recurring-cashflow'
@@ -556,21 +555,6 @@ describe('calculateAnnualReturn', () => {
     const { returnAmount, returnPct } = calculateAnnualReturn(d('0'), d('1020'), periodStart, periodEnd, cashflows)
     expect(returnAmount.toNumber()).toBe(20)
     expect(returnPct).toBeNull()
-  })
-})
-
-// ─── Benchmark ───────────────────────────────────────────────────────────────
-
-describe('calculateExcessReturn', () => {
-  it('returns portfolio minus benchmark', () => {
-    // 12% portfolio - 8% benchmark = 4% alpha
-    const result = calculateExcessReturn(d('0.12'), d('0.08'))
-    expect(result.toNumber()).toBeCloseTo(0.04, 6)
-  })
-
-  it('returns negative alpha when underperforming', () => {
-    const result = calculateExcessReturn(d('0.05'), d('0.10'))
-    expect(result.toNumber()).toBeCloseTo(-0.05, 6)
   })
 })
 

@@ -53,7 +53,7 @@ function todayKeyLocal(today: Date): string {
 // Gebruikt door zowel de maandelijkse portefeuillegrafiek als het jaarrendement-overzicht.
 
 type PriceLookup = {
-  priceEurAt: (ticker: string, month: string) => number | null
+  priceEurAt: (ticker: string, month: string) => Decimal | null
 }
 
 async function buildPriceLookup(
@@ -66,7 +66,7 @@ async function buildPriceLookup(
 
   const uniqueTickers = [...new Set(tickerByAssetId.values())]
 
-  const historicalByTicker = new Map<string, Map<string, number>>()
+  const historicalByTicker = new Map<string, Map<string, Decimal>>()
   const currencyByTicker = new Map<string, string>()
 
   await Promise.all(uniqueTickers.map(async ticker => {
@@ -76,22 +76,22 @@ async function buildPriceLookup(
         getHistoricalPrices(ticker, firstDate, today),
       ])
       currencyByTicker.set(ticker, liveResult.currency)
-      const byMonth = new Map<string, number>()
+      const byMonth = new Map<string, Decimal>()
       for (const p of historical) {
-        byMonth.set(p.date.toISOString().slice(0, 7), p.close.toNumber())
+        byMonth.set(p.date.toISOString().slice(0, 7), p.close)
       }
       historicalByTicker.set(ticker, byMonth)
     } catch { /* negeer mislukte tickers */ }
   }))
 
-  const fxByBase = new Map<string, Map<string, number>>()
+  const fxByBase = new Map<string, Map<string, Decimal>>()
   const nonEur = [...new Set([...currencyByTicker.values()].filter(c => c !== 'EUR'))]
   await Promise.all(nonEur.map(async currency => {
     try {
       const fxHistory = await getHistoricalPrices(`${currency}EUR=X`, firstDate, today)
-      const byMonth = new Map<string, number>()
+      const byMonth = new Map<string, Decimal>()
       for (const p of fxHistory) {
-        byMonth.set(p.date.toISOString().slice(0, 7), p.close.toNumber())
+        byMonth.set(p.date.toISOString().slice(0, 7), p.close)
       }
       fxByBase.set(currency, byMonth)
     } catch {
@@ -99,7 +99,7 @@ async function buildPriceLookup(
     }
   }))
 
-  function lookupMonth(map: Map<string, number>, month: string): number | null {
+  function lookupMonth(map: Map<string, Decimal>, month: string): Decimal | null {
     let m = month
     while (m >= months[0]) {
       if (map.has(m)) return map.get(m)!
@@ -109,7 +109,7 @@ async function buildPriceLookup(
     return null
   }
 
-  function priceEurAt(ticker: string, month: string): number | null {
+  function priceEurAt(ticker: string, month: string): Decimal | null {
     const prices = historicalByTicker.get(ticker)
     if (!prices) return null
     const nativePrice = lookupMonth(prices, month)
@@ -119,7 +119,7 @@ async function buildPriceLookup(
     const fxMap = fxByBase.get(currency)
     const fxRate = fxMap ? lookupMonth(fxMap, month) : null
     if (fxRate === null) return null
-    return nativePrice * fxRate
+    return nativePrice.times(fxRate)
   }
 
   return { priceEurAt }

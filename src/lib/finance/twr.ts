@@ -22,5 +22,5 @@ export function calculateTwr(periods: TwrPeriod[]): Decimal {
     const growthFactor = endValue.minus(cashflow).div(startValue)
     product = product.mul(growthFactor)
   }
-  return product.minus(1).toDecimalPlaces(6)
+  return product.minus(1)
 }
