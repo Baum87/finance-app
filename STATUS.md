@@ -3,7 +3,7 @@
 > Dit bestand is de brug tussen nadenken (Claude Desktop) en bouwen (Claude Code).
 > Werk dit bij na elke sessie. Datum bovenaan aanpassen bij elke update.
 
-**Laatst bijgewerkt:** 2 september 2026 — status gesynchroniseerd met `docs/stappenplan.md` (C1-C10 afgerond) en opgeschoonde todo's
+**Laatst bijgewerkt:** 27 oktober 2026 — Dossier (stamdocument geldzaken) + leesaccount voor nabestaanden gebouwd, nog niet volledig getest
 
 ---
 
@@ -77,6 +77,24 @@ Kort samengevat sinds de vorige STATUS-update (26 juni):
 ### Hoog — bugs / correctheid
 - [x] `transactions.ts` — `getOrCreateTenant` vervangen door lokale `getTenantId` (geen side-effect in leespad)
 - [x] `fiscal-layer.md` — crypto-backlog voor Fase E gedocumenteerd en gecommit
+
+### Hoog — Dossier testen (gebouwd 27 okt, branch `feat/dossier`)
+
+`/dossier` = stamdocument geldzaken (naar FiscAlert-model) voor mezelf en
+nabestaanden; `/dossier/bewerken` om aan te vullen. Migraties 0027 + 0028 +
+RLS staan al op de database (handmatig, via psql — `drizzle.__drizzle_migrations`
+is leeg, dus **nooit** `drizzle-kit migrate` draaien).
+
+- [x] Pagina's laden en zien er goed uit (eerste indruk, als owner)
+- [ ] Uitgebreid testen als owner: alle secties invullen, wijzigen, verwijderen, printen/PDF
+- [ ] **Leesaccount nog niet getest met een ander e-mailadres:**
+  - [ ] Uitnodigen via sectie 9 → komt de e-mail aan? (ingebouwde Supabase-mail: paar mails/uur)
+  - [ ] Link → wachtwoord instellen → land je op `/dossier` zonder Bewerken-knop?
+  - [ ] `/portfolio`, `/dossier/bewerken` e.d. sturen terug naar `/dossier`
+  - [ ] Controleren in DB: viewer heeft géén eigen tenant overgehouden (trigger maakt er een, `linkDossierViewer` ruimt hem op)
+  - [ ] Intrekken → account verwijderd, openstaande sessie uitgelogd
+- Bekende beperking: een e-mailadres dat al een account heeft kan geen viewer worden
+- Daarna: `feat/dossier` mergen naar `master`
 
 ### Middel — reviews nog te doen
 - [x] Spaarrekeningen: review gedaan — typo's, formatPercent, Zod validatie, Legend fix
